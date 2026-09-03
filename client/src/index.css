@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Inter", system-ui, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, Consolas, monospace;
+
+  --color-bg: #f6f5f2;
+  --color-surface: #ffffff;
+  --color-surface-raised: #ffffff;
+  --color-border: #e4e1da;
+  --color-text: #1c1a17;
+  --color-text-muted: #6b6558;
+  --color-accent: #d6394a;
+  --color-accent-contrast: #ffffff;
+
+  --color-type-normal: #a5a48f;
+  --color-type-fire: #e2762f;
+  --color-type-water: #4a90d9;
+  --color-type-electric: #e0b326;
+  --color-type-grass: #5f9c47;
+  --color-type-ice: #6fc3c0;
+  --color-type-fighting: #b04a3c;
+  --color-type-poison: #92499e;
+  --color-type-ground: #cc9f4a;
+  --color-type-flying: #8ea6e0;
+  --color-type-psychic: #e0567e;
+  --color-type-bug: #8ea62d;
+  --color-type-rock: #a8935a;
+  --color-type-ghost: #63588f;
+  --color-type-dragon: #5b5ce0;
+  --color-type-dark: #5a5147;
+  --color-type-steel: #8f96a6;
+  --color-type-fairy: #d98cb3;
+}
+
+:root {
+  color-scheme: light;
+}
+
+.dark {
+  color-scheme: dark;
+  --color-bg: #16151a;
+  --color-surface: #1e1d24;
+  --color-surface-raised: #26252d;
+  --color-border: #34333c;
+  --color-text: #f0eee9;
+  --color-text-muted: #a19c92;
+  --color-accent: #ef5a6a;
+  --color-accent-contrast: #16151a;
+}
+
+* {
+  border-color: var(--color-border);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
