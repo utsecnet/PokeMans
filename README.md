@@ -1,6 +1,6 @@
-# PokéDex
+# PokéMans
 
-A single-user, local-first Pokédex. Data is synced from [PokeAPI](https://pokeapi.co/)
+A single-user, local-first Pokémon card and species collection app. Data is synced from [PokeAPI](https://pokeapi.co/)
 (species, stats, types, abilities, evolutions, official artwork) and the
 [Pokémon TCG API](https://pokemontcg.io/) (trading card images), then stored in a local
 SQLite database. No account or server needed to run it — just your own machine.
@@ -50,5 +50,5 @@ server/   Express API + SQLite + sync scripts (PokeAPI, Pokémon TCG API)
 client/   React + Vite frontend
 ```
 
-The SQLite database file lives at `server/data/pokedex.sqlite` and is gitignored — each
+The SQLite database file lives at `server/data/catalog.sqlite` and is gitignored — each
 clone builds its own local copy via `npm run sync`.

@@ -27,6 +27,16 @@ export function PokemonCard({ pokemon }: { pokemon: PokemonSummary }) {
       </div>
       <h3 className="mt-1 capitalize text-[var(--color-text)]">
         {pokemon.name.replace(/-/g, ' ')}
+        {/* How many cards exist for this Pokémon — omitted at zero rather than showing
+            "(0)" on every Pokémon with no cards synced. */}
+        {pokemon.cardCount > 0 && (
+          <span
+            className="ml-1 font-mono text-xs text-[var(--color-text-muted)]"
+            title={`${pokemon.cardCount} card${pokemon.cardCount === 1 ? '' : 's'}`}
+          >
+            ({pokemon.cardCount})
+          </span>
+        )}
       </h3>
       <div className="mt-2 flex gap-1.5">
         {pokemon.types.map((t) => (

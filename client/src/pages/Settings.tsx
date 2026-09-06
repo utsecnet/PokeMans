@@ -1,13 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
-  fetchSettings,
+  fetchDisplayCurrency,
   fetchSyncStatus,
-  removeTcgApiKey,
-  saveTcgApiKey,
+  setDisplayCurrency,
   triggerPokeApiSync,
+  triggerPriceSync,
   triggerTcgSync,
 } from '../lib/api';
 import type { SyncStatus } from '../types';
+import { LinkedAccounts } from '../components/LinkedAccounts';
 
 function formatTime(iso: string | null) {
   if (!iso) return '—';
@@ -25,19 +26,12 @@ function StatusPill({ status }: { status: string }) {
 }
 
 export function Settings() {
-  const [tcgApiKeySet, setTcgApiKeySet] = useState(false);
-  const [keyInput, setKeyInput] = useState('');
-  const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const loadSettings = () => {
-    fetchSettings()
-      .then((s) => setTcgApiKeySet(s.tcgApiKeySet))
-      .catch(() => {});
-  };
+  const [currency, setCurrency] = useState('USD');
+  const [supported, setSupported] = useState<string[]>(['USD']);
+  const isSyncing = !!syncStatus?.active;
 
   const loadSyncStatus = () => {
     fetchSyncStatus()
@@ -46,55 +40,34 @@ export function Settings() {
   };
 
   useEffect(() => {
-    loadSettings();
     loadSyncStatus();
+    fetchDisplayCurrency()
+      .then((res) => {
+        setCurrency(res.currency);
+        setSupported(res.supported);
+      })
+      .catch(() => {});
   }, []);
 
+  const changeCurrency = async (next: string) => {
+    const previous = currency;
+    setCurrency(next);
+    try {
+      await setDisplayCurrency(next);
+    } catch {
+      setCurrency(previous);
+    }
+  };
+
+  // `isSyncing` is a stable boolean, unlike `syncStatus.active` itself — a fresh object
+  // reference comes back on every poll even when nothing meaningful changed, which used
+  // to re-run this effect on every tick and (since the interval was cleared but the ref
+  // tracking it was never reset to null) silently stop polling after the very first one.
   useEffect(() => {
-    const isActive = !!syncStatus?.active;
-    if (isActive && !pollRef.current) {
-      pollRef.current = setInterval(loadSyncStatus, 1500);
-    }
-    if (!isActive && pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, [syncStatus?.active]);
-
-  const handleSaveKey = async () => {
-    if (!keyInput.trim()) return;
-    setSaving(true);
-    setError(null);
-    setMessage(null);
-    try {
-      await saveTcgApiKey(keyInput.trim());
-      setKeyInput('');
-      setMessage('API key saved securely.');
-      loadSettings();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save key');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleRemoveKey = async () => {
-    setSaving(true);
-    setError(null);
-    setMessage(null);
-    try {
-      await removeTcgApiKey();
-      setMessage('API key removed.');
-      loadSettings();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to remove key');
-    } finally {
-      setSaving(false);
-    }
-  };
+    if (!isSyncing) return;
+    const id = setInterval(loadSyncStatus, 1500);
+    return () => clearInterval(id);
+  }, [isSyncing]);
 
   const handleTrigger = async (fn: () => Promise<{ started: boolean }>) => {
     setError(null);
@@ -107,71 +80,16 @@ export function Settings() {
     }
   };
 
-  const isSyncing = !!syncStatus?.active;
-
   return (
     <div className="mx-auto max-w-2xl px-4 py-6">
       <h1 className="text-2xl font-bold">Settings</h1>
 
       <section className="mt-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
-        <h2 className="text-lg font-semibold">Pokémon TCG API Key</h2>
-        <p className="mt-1 text-sm text-[var(--color-text-muted)]">
-          Used to sync trading card images. Get a free key at{' '}
-          <a
-            href="https://dev.pokemontcg.io/"
-            target="_blank"
-            rel="noreferrer"
-            className="text-[var(--color-accent)] underline"
-          >
-            dev.pokemontcg.io
-          </a>
-          . The key is encrypted before being stored in the local database and never leaves
-          your machine.
-        </p>
-
-        <div className="mt-3 flex items-center gap-2">
-          <span
-            className={`h-2 w-2 rounded-full ${tcgApiKeySet ? 'bg-emerald-500' : 'bg-[var(--color-border)]'}`}
-          />
-          <span className="text-sm">{tcgApiKeySet ? 'Key saved' : 'No key saved'}</span>
-        </div>
-
-        <div className="mt-3 flex gap-2">
-          <input
-            type="password"
-            value={keyInput}
-            onChange={(e) => setKeyInput(e.target.value)}
-            placeholder={tcgApiKeySet ? 'Enter a new key to replace it' : 'Paste your API key'}
-            className="flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]"
-          />
-          <button
-            type="button"
-            disabled={saving || !keyInput.trim()}
-            onClick={handleSaveKey}
-            className="rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-[var(--color-accent-contrast)] disabled:opacity-50"
-          >
-            Save
-          </button>
-          {tcgApiKeySet && (
-            <button
-              type="button"
-              disabled={saving}
-              onClick={handleRemoveKey}
-              className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm disabled:opacity-50"
-            >
-              Remove
-            </button>
-          )}
-        </div>
-
-        {message && <p className="mt-2 text-sm text-emerald-600 dark:text-emerald-400">{message}</p>}
-        {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
-      </section>
-
-      <section className="mt-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
         <h2 className="text-lg font-semibold">Data Sync</h2>
         <p className="mt-1 text-sm text-[var(--color-text-muted)]">
-          Pull the latest species data from PokeAPI, or card images from the TCG API.
+          Pull the latest species data from PokeAPI, or card images from the pokemon-tcg-data
+          dataset. Prices for the cards you own sync automatically on launch, once a day —
+          use Refresh prices to update them yourself at any point.
         </p>
 
         <div className="mt-3 flex flex-wrap gap-2">
@@ -185,14 +103,24 @@ export function Settings() {
           </button>
           <button
             type="button"
-            disabled={isSyncing || !tcgApiKeySet}
+            disabled={isSyncing}
             onClick={() => handleTrigger(triggerTcgSync)}
-            title={!tcgApiKeySet ? 'Save an API key first' : undefined}
             className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm disabled:opacity-50"
           >
             Sync TCG cards
           </button>
+          <button
+            type="button"
+            disabled={isSyncing}
+            onClick={() => handleTrigger(triggerPriceSync)}
+            className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm disabled:opacity-50"
+          >
+            Refresh prices
+          </button>
         </div>
+
+        {message && <p className="mt-3 text-sm text-emerald-600 dark:text-emerald-400">{message}</p>}
+        {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
         {isSyncing && (
           <p className="mt-3 text-sm text-[var(--color-text-muted)]">
@@ -205,6 +133,7 @@ export function Settings() {
             <tr className="text-[var(--color-text-muted)]">
               <th className="pb-2 font-medium">Source</th>
               <th className="pb-2 font-medium">Started</th>
+              <th className="pb-2 font-medium">Trigger</th>
               <th className="pb-2 font-medium">Records</th>
               <th className="pb-2 font-medium">Status</th>
             </tr>
@@ -214,6 +143,9 @@ export function Settings() {
               <tr key={i} className="border-t border-[var(--color-border)]">
                 <td className="py-2 capitalize">{entry.source}</td>
                 <td className="py-2 text-[var(--color-text-muted)]">{formatTime(entry.startedAt)}</td>
+                <td className="py-2 capitalize text-[var(--color-text-muted)]">
+                  {entry.trigger ?? '—'}
+                </td>
                 <td className="py-2 tabular-nums">{entry.recordsSynced}</td>
                 <td className="py-2">
                   <StatusPill status={entry.status} />
@@ -222,7 +154,7 @@ export function Settings() {
             ))}
             {(syncStatus?.history ?? []).length === 0 && (
               <tr>
-                <td colSpan={4} className="py-4 text-center text-[var(--color-text-muted)]">
+                <td colSpan={5} className="py-4 text-center text-[var(--color-text-muted)]">
                   No syncs yet.
                 </td>
               </tr>
@@ -230,6 +162,31 @@ export function Settings() {
           </tbody>
         </table>
       </section>
+
+      <section className="mt-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+        <h2 className="text-lg font-semibold">Display</h2>
+        <p className="mt-1 text-sm text-[var(--color-text-muted)]">
+          Marketplaces quote in their own currencies — TCGplayer in dollars, Cardmarket in
+          euros. Prices are converted to the currency you pick here, using the exchange rate
+          from each price's own date.
+        </p>
+        <label className="mt-3 flex items-center gap-2 text-sm">
+          Currency
+          <select
+            value={currency}
+            onChange={(e) => changeCurrency(e.target.value)}
+            className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1.5 text-sm"
+          >
+            {supported.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </label>
+      </section>
+
+      <LinkedAccounts />
     </div>
   );
 }

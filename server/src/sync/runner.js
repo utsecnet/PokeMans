@@ -1,7 +1,8 @@
 import { run } from '../db/index.js';
-import { getTcgApiKey } from '../routes/settings.js';
 import { syncPokeApi } from './pokeapi.js';
 import { syncTcgCards } from './tcgapi.js';
+import { syncTcgdexEnrichment } from './tcgdex.js';
+import { syncOwnedCardPrices } from './prices.js';
 
 let activeSync = null;
 
@@ -9,11 +10,14 @@ export function getActiveSync() {
   return activeSync;
 }
 
-function startLog(source) {
+// `trigger` records whether a run was started by a button ('manual') or by the daily
+// schedule ('auto'), so both show up as their own entries in the sync log.
+function startLog(source, trigger = 'manual') {
   const startedAt = new Date().toISOString();
   const result = run(
-    'INSERT INTO sync_log (source, started_at, status) VALUES (@source, @startedAt, @status)',
-    { source, startedAt, status: 'running' },
+    `INSERT INTO sync_log (source, started_at, status, trigger)
+     VALUES (@source, @startedAt, @status, @trigger)`,
+    { source, startedAt, status: 'running', trigger },
   );
   return Number(result.lastInsertRowid);
 }
@@ -61,18 +65,46 @@ export async function runPokeApiSync({ start, end } = {}) {
 
 export async function runTcgSync() {
   if (activeSync) throw new Error('A sync is already running');
-  const apiKey = getTcgApiKey();
-  if (!apiKey) {
-    throw new Error('No TCG API key saved. Add one in Settings.');
-  }
-  const logId = startLog('tcgapi');
-  activeSync = { source: 'tcgapi', logId };
+  const logId = startLog('tcg');
+  activeSync = { source: 'tcg', logId };
   try {
     const result = await syncTcgCards({
-      apiKey,
       onProgress: (p) => progressLog(logId, p.synced),
     });
+    // Enrichment runs off the cards just stored, so it has to follow the catalogue sync.
+    // A failure here is not fatal: it only costs the lighter images and variant data, and
+    // the catalogue itself is already committed.
+    let enrichment = null;
+    try {
+      enrichment = await syncTcgdexEnrichment({
+        onProgress: () => progressLog(logId, result.synced),
+      });
+    } catch (err) {
+      console.error(`TCGdex enrichment failed (cards are still synced): ${err.message}`);
+    }
     finishLog(logId, result.synced);
+    return { ...result, enrichment };
+  } catch (err) {
+    failLog(logId, err);
+    throw err;
+  } finally {
+    activeSync = null;
+  }
+}
+
+// Prices go through the runner like the other syncs so a manual refresh shows up in the
+// same history table, and so a price refresh can't run on top of a catalogue sync. The
+// scheduled daily check calls this too — it's only the "is it due?" decision that lives in
+// prices.js.
+export async function runPriceSync({ trigger = 'manual' } = {}) {
+  if (activeSync) throw new Error('A sync is already running');
+  const logId = startLog('prices', trigger);
+  activeSync = { source: 'prices', logId };
+  try {
+    const result = await syncOwnedCardPrices({
+      onProgress: (p) => progressLog(logId, p.done),
+    });
+    finishLog(logId, result.rowsWritten);
     return result;
   } catch (err) {
     failLog(logId, err);

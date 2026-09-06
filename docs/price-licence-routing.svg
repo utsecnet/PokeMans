@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1008 672" width="1008" height="672" role="img" aria-label="Decision path classifying a price row as shareable or per-user, and what each classification permits">
+<title>Decision path classifying a price row as shareable or per-user, and what each classification permits</title>
+<style>
+  svg {
+    --f-ink:#0d1418; --f-muted:#5b6a77; --f-surface:#ffffff; --f-surface2:#f4f7f9;
+    --f-line:#c9d3db; --f-zone:#e7edf2; --f-zoneline:#a9b8c4; --f-accent:#17607d;
+    --f-shared:#1f6feb; --f-user:#7b4bb7; --f-secret:#a92e26;
+    font-family:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    svg {
+      --f-ink:#e6edf3; --f-muted:#93a4b3; --f-surface:#1a2027; --f-surface2:#151b21;
+      --f-line:#39444f; --f-zone:#161c22; --f-zoneline:#3d4954; --f-accent:#5cc2e8;
+      --f-shared:#6ea8fe; --f-user:#c08cf5; --f-secret:#f0837a;
+    }
+  }
+  .zn   { fill:var(--dg-zone,var(--f-zone)); stroke:var(--dg-zoneline,var(--f-zoneline)); stroke-width:1.25; stroke-dasharray:5 4; }
+  .zt   { fill:var(--dg-muted,var(--f-muted)); font-size:12px; font-weight:600; letter-spacing:.09em; text-transform:uppercase;
+          font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .zc   { fill:var(--dg-muted,var(--f-muted)); font-size:11.5px; font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .bx   { fill:var(--dg-surface,var(--f-surface)); stroke:var(--dg-line,var(--f-line)); stroke-width:1.25; }
+  .bx2  { fill:var(--dg-surface2,var(--f-surface2)); stroke:var(--dg-line,var(--f-line)); stroke-width:1.25; }
+  .bt   { fill:var(--dg-ink,var(--f-ink)); font-size:14px; font-weight:600; }
+  .bs   { fill:var(--dg-muted,var(--f-muted)); font-size:12px; }
+  .bm   { fill:var(--dg-muted,var(--f-muted)); font-size:11.5px; font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .ar   { fill:none; stroke:var(--dg-accent,var(--f-accent)); stroke-width:1.6; }
+  .ard  { fill:none; stroke:var(--dg-muted,var(--f-muted)); stroke-width:1.4; stroke-dasharray:5 4; }
+  .al   { fill:var(--dg-accent,var(--f-accent)); font-size:11.5px; font-weight:500;
+          font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .alm  { fill:var(--dg-muted,var(--f-muted)); font-size:11.5px; font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .tb   { fill:none; stroke:var(--dg-secret,var(--f-secret)); stroke-width:1.4; stroke-dasharray:7 5; opacity:.75; }
+  .tbt  { fill:var(--dg-secret,var(--f-secret)); font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase;
+          font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .ttl  { fill:var(--dg-ink,var(--f-ink)); font-size:15px; font-weight:700; letter-spacing:.02em;
+          font-family:"IBM Plex Sans Condensed","IBM Plex Sans",system-ui,sans-serif; }
+  .num  { fill:var(--dg-surface,var(--f-surface)); font-size:11px; font-weight:700;
+          font-family:"IBM Plex Mono",ui-monospace,monospace; }
+</style>
+<defs>
+  <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="var(--dg-accent,var(--f-accent))"/>
+  </marker>
+  <marker id="ahm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="var(--dg-muted,var(--f-muted))"/>
+  </marker>
+</defs>
+<text class="ttl" x="40" y="34">Figure 3 · How a price row is classified — the licence-critical path</text><rect class="bx" x="372" y="62" width="264" height="58" rx="5"/><text class="bt" x="386" y="85">Price fetched for a card</text><text class="bs" x="386" y="104">Sync worker, step 5.0</text><path d="M504,146 L616,196 L504,246 L392,196 Z" class="bx"/><text class="bt" x="504" y="192" text-anchor="middle">Whose credential</text><text class="bt" x="504" y="210" text-anchor="middle">paid for it?</text><polyline class="ar" points="504,120 504,140" marker-end="url(#ah)"/><rect class="bx" x="40" y="300" width="360" height="82" rx="5"/><path d="M40.5,305 a5,5 0 0 1 5,-5 h0 v72 h0 a5,5 0 0 1 -5,-5 z" fill="var(--dg-shared,var(--f-shared))"/>
+<rect x="41" y="301" width="4" height="80" fill="var(--dg-shared,var(--f-shared))"/><text class="bt" x="58" y="323">Your business licence</text><text class="bs" x="58" y="342">One server key, amortised</text><text class="bm" x="58" y="358">license_class = 'shareable'</text><rect class="bx" x="608" y="300" width="360" height="82" rx="5"/><path d="M608.5,305 a5,5 0 0 1 5,-5 h0 v72 h0 a5,5 0 0 1 -5,-5 z" fill="var(--dg-user,var(--f-user))"/>
+<rect x="609" y="301" width="4" height="80" fill="var(--dg-user,var(--f-user))"/><text class="bt" x="626" y="323">The user's own API key</text><text class="bs" x="626" y="342">They hold the licence, not you</text><text class="bm" x="626" y="358">license_class = 'per_user', user_id set</text><polyline class="ar" points="392,196 220,196 220,294" marker-end="url(#ah)"/><text class="al" x="300" y="186" text-anchor="middle">server key</text><polyline class="ar" points="616,196 788,196 788,294" marker-end="url(#ah)"/><text class="al" x="706" y="186" text-anchor="middle">user key</text><rect class="bx" x="40" y="424" width="360" height="96" rx="5"/><path d="M40.5,429 a5,5 0 0 1 5,-5 h0 v86 h0 a5,5 0 0 1 -5,-5 z" fill="var(--dg-shared,var(--f-shared))"/>
+<rect x="41" y="425" width="4" height="94" fill="var(--dg-shared,var(--f-shared))"/><text class="bt" x="58" y="447">Shared bucket</text><text class="bs" x="58" y="466">Readable by every user</text><text class="bs" x="58" y="482">Feeds market aggregates and</text><text class="bs" x="58" y="498">the public price charts</text><rect class="bx" x="608" y="424" width="360" height="96" rx="5"/><path d="M608.5,429 a5,5 0 0 1 5,-5 h0 v86 h0 a5,5 0 0 1 -5,-5 z" fill="var(--dg-user,var(--f-user))"/>
+<rect x="609" y="425" width="4" height="94" fill="var(--dg-user,var(--f-user))"/><text class="bt" x="626" y="447">Private to that user</text><text class="bs" x="626" y="466">RLS: user_id = auth.uid()</text><text class="bs" x="626" y="482">Excluded from every aggregate</text><text class="bs" x="626" y="498">Deleted with their account</text><polyline class="ar" points="220,382 220,418" marker-end="url(#ah)"/><polyline class="ar" points="788,382 788,418" marker-end="url(#ah)"/><rect class="bx" x="40" y="562" width="928" height="82" rx="5"/><rect x="41" y="563" width="4" height="80" fill="var(--dg-secret,var(--f-secret))"/><text class="bt" x="58" y="588">The failure mode this prevents</text><text class="bs" x="58" y="609">A "market average" computed over whatever rows happen to be present republishes data one user</text><text class="bs" x="58" y="627">licensed privately to everyone else. Aggregates must filter on license_class — not on table membership.</text>
+</svg>

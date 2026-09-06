@@ -1,0 +1,76 @@
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
+import { createCollectionBox, fetchCollectionBoxes, setCollectionBoxColor } from './api';
+import type { CollectionBox, ContainerType } from '../types';
+
+interface CollectionContextValue {
+  boxes: CollectionBox[];
+  lastUsedBoxId: number | null;
+  /** When the daily price job last ran — null until it has. */
+  pricesUpdatedAt: string | null;
+  loading: boolean;
+  refresh: () => Promise<void>;
+  createBox: (name: string, type?: ContainerType, color?: string | null) => Promise<CollectionBox>;
+  setBoxColor: (boxId: number, color: string | null) => Promise<void>;
+  setLastUsedBoxId: (id: number) => void;
+}
+
+const CollectionContext = createContext<CollectionContextValue | null>(null);
+
+export function CollectionProvider({ children }: { children: ReactNode }) {
+  const [boxes, setBoxes] = useState<CollectionBox[]>([]);
+  const [lastUsedBoxId, setLastUsedBoxIdState] = useState<number | null>(null);
+  const [pricesUpdatedAt, setPricesUpdatedAt] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    const res = await fetchCollectionBoxes();
+    setBoxes(res.boxes);
+    setLastUsedBoxIdState(res.lastUsedBoxId);
+    setPricesUpdatedAt(res.pricesUpdatedAt ?? null);
+  }, []);
+
+  useEffect(() => {
+    refresh().finally(() => setLoading(false));
+  }, [refresh]);
+
+  const createBox = useCallback(
+    async (name: string, type: ContainerType = 'box', color: string | null = null) => {
+      const box = await createCollectionBox(name, type, color);
+      setBoxes((prev) => [...prev, box]);
+      setLastUsedBoxIdState(box.id);
+      return box;
+    },
+    [],
+  );
+
+  const setBoxColor = useCallback(async (boxId: number, color: string | null) => {
+    await setCollectionBoxColor(boxId, color);
+    setBoxes((prev) => prev.map((b) => (b.id === boxId ? { ...b, color } : b)));
+  }, []);
+
+  const setLastUsedBoxId = useCallback((id: number) => setLastUsedBoxIdState(id), []);
+
+  // Memoised so consumers only re-render when the collection actually changes — a fresh
+  // object literal here would invalidate every consumer on each provider render, including
+  // the browsers' query schema (which is keyed off `boxes`) and with it their filter memo.
+  const value = useMemo(
+    () => ({ boxes, lastUsedBoxId, pricesUpdatedAt, loading, refresh, createBox, setBoxColor, setLastUsedBoxId }),
+    [boxes, lastUsedBoxId, pricesUpdatedAt, loading, refresh, createBox, setBoxColor, setLastUsedBoxId],
+  );
+
+  return <CollectionContext.Provider value={value}>{children}</CollectionContext.Provider>;
+}
+
+export function useCollection(): CollectionContextValue {
+  const ctx = useContext(CollectionContext);
+  if (!ctx) throw new Error('useCollection must be used within CollectionProvider');
+  return ctx;
+}

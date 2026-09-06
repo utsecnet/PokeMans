@@ -1,4 +1,4 @@
-export async function fetchJson(url, { retries = 3, headers = {} } = {}) {
+export async function fetchJson(url, { retries = 3, headers = {}, backoffMs = 300 } = {}) {
   let lastError;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
@@ -10,7 +10,7 @@ export async function fetchJson(url, { retries = 3, headers = {} } = {}) {
     } catch (err) {
       lastError = err;
       if (attempt < retries) {
-        await sleep(300 * (attempt + 1));
+        await sleep(backoffMs * (attempt + 1));
       }
     }
   }

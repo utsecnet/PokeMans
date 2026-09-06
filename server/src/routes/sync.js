@@ -1,14 +1,13 @@
 import { Router } from 'express';
 import { all } from '../db/index.js';
-import { getTcgApiKey } from './settings.js';
-import { getActiveSync, runPokeApiSync, runTcgSync } from '../sync/runner.js';
+import { getActiveSync, runPokeApiSync, runPriceSync, runTcgSync } from '../sync/runner.js';
 
 export const syncRouter = Router();
 
 syncRouter.get('/status', (_req, res) => {
   const rows = all(
     `SELECT source, started_at as startedAt, completed_at as completedAt,
-            status, records_synced as recordsSynced, error
+            status, records_synced as recordsSynced, error, trigger
      FROM sync_log ORDER BY id DESC LIMIT 10`,
   );
   res.json({ active: getActiveSync(), history: rows });
@@ -30,14 +29,27 @@ syncRouter.post('/tcg', (_req, res) => {
     res.status(409).json({ error: 'A sync is already running' });
     return;
   }
-  if (!getTcgApiKey()) {
-    res.status(400).json({ error: 'No TCG API key saved. Add one in Settings.' });
-    return;
-  }
   runTcgSync().then(
     () => {},
     (err) => {
       console.error('TCG sync failed:', err);
+    },
+  );
+  res.json({ started: true });
+});
+
+// Refreshes prices for owned cards now, ignoring the daily schedule — pressing the button
+// means "I want today's numbers", and a same-day run overwrites that day's rows rather
+// than adding duplicates, so there's no harm in running it more than once.
+syncRouter.post('/prices', (_req, res) => {
+  if (getActiveSync()) {
+    res.status(409).json({ error: 'A sync is already running' });
+    return;
+  }
+  runPriceSync().then(
+    () => {},
+    (err) => {
+      console.error('Price sync failed:', err);
     },
   );
   res.json({ started: true });

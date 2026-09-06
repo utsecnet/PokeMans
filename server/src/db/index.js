@@ -7,14 +7,145 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = path.join(__dirname, '..', '..', 'data');
 fs.mkdirSync(dataDir, { recursive: true });
 
-const dbPath = path.join(dataDir, 'pokedex.sqlite');
+// Named for what it holds — the synced card and species catalogue — rather than for the
+// app, which keeps it meaningful next to personal.sqlite and matches the `catalog` schema
+// this data moves into if the app is ever hosted.
+//
+// It was called pokedex.sqlite before the app was renamed. An install still holding that
+// file is opened as-is rather than ignored: starting an empty database here would silently
+// discard 20,000 synced cards, and the only symptom would be an app that looks empty.
+const catalogPath = path.join(dataDir, 'catalog.sqlite');
+const preRenamePath = path.join(dataDir, 'pokedex.sqlite');
+const dbPath =
+  !fs.existsSync(catalogPath) && fs.existsSync(preRenamePath) ? preRenamePath : catalogPath;
 export const db = new DatabaseSync(dbPath);
 
 db.exec('PRAGMA foreign_keys = ON;');
 db.exec('PRAGMA journal_mode = WAL;');
 
+// tcg_cards used to have a single pokemon_id FK; it's now a many-to-many via
+// tcg_card_pokemon (tag-team/GX cards can belong to more than one Pokemon). Migrate any
+// existing rows from the old shape before the new schema is applied.
+function migrateLegacyTcgCards() {
+  const columns = db.prepare("PRAGMA table_info(tcg_cards)").all();
+  if (columns.length === 0) return;
+  const hasPokemonId = columns.some((c) => c.name === 'pokemon_id');
+  if (!hasPokemonId) return;
+
+  db.exec('ALTER TABLE tcg_cards RENAME TO tcg_cards_legacy');
+  db.exec(`
+    CREATE TABLE tcg_cards (
+      id TEXT PRIMARY KEY,
+      name TEXT,
+      number TEXT,
+      set_id TEXT,
+      set_name TEXT,
+      series TEXT,
+      rarity TEXT,
+      release_date TEXT,
+      image_small TEXT,
+      image_large TEXT
+    );
+    CREATE TABLE IF NOT EXISTS tcg_card_pokemon (
+      card_id TEXT NOT NULL REFERENCES tcg_cards(id) ON DELETE CASCADE,
+      pokemon_id INTEGER NOT NULL REFERENCES pokemon(id) ON DELETE CASCADE,
+      PRIMARY KEY (card_id, pokemon_id)
+    );
+  `);
+  db.exec(`
+    INSERT INTO tcg_cards (id, name, set_name, series, rarity, image_small, image_large)
+    SELECT id, name, set_name, series, rarity, image_small, image_large FROM tcg_cards_legacy
+  `);
+  db.exec(`
+    INSERT OR IGNORE INTO tcg_card_pokemon (card_id, pokemon_id)
+    SELECT id, pokemon_id FROM tcg_cards_legacy WHERE pokemon_id IS NOT NULL
+  `);
+  db.exec('DROP TABLE tcg_cards_legacy');
+}
+
+migrateLegacyTcgCards();
+
+// Adds regional-variant support (Alolan/Galarian/Hisuian/Paldean forms) to an existing
+// pokemon table. Plain ALTER TABLE ADD COLUMN is enough here since these are new nullable
+// (or defaulted) columns, not a structural change.
+function migratePokemonVariantColumns() {
+  const columns = db.prepare('PRAGMA table_info(pokemon)').all();
+  if (columns.length === 0) return;
+  const names = columns.map((c) => c.name);
+  if (!names.includes('is_default_variety')) {
+    db.exec('ALTER TABLE pokemon ADD COLUMN is_default_variety INTEGER NOT NULL DEFAULT 1');
+  }
+  if (!names.includes('variant_label')) {
+    db.exec('ALTER TABLE pokemon ADD COLUMN variant_label TEXT');
+  }
+}
+
+migratePokemonVariantColumns();
+
+// Trainer/Energy cards were previously discarded at sync time (they link to no Pokémon), so
+// databases synced before that changed have no supertype column to record what a card is.
+function migrateTcgCardSupertype() {
+  const columns = db.prepare('PRAGMA table_info(tcg_cards)').all();
+  if (columns.length === 0) return;
+  if (columns.some((c) => c.name === 'supertype')) return;
+  db.exec('ALTER TABLE tcg_cards ADD COLUMN supertype TEXT');
+}
+
+migrateTcgCardSupertype();
+
+// The lighter TCGdex artwork is filled in by a separate enrichment pass, so existing
+// databases need the column before that pass can run.
+function migrateTcgCardImageWebp() {
+  const columns = db.prepare('PRAGMA table_info(tcg_cards)').all();
+  if (columns.length === 0) return;
+  if (columns.some((c) => c.name === 'image_webp')) return;
+  db.exec('ALTER TABLE tcg_cards ADD COLUMN image_webp TEXT');
+}
+
+migrateTcgCardImageWebp();
+
+// Distinguishes a scheduled run from one the user started; older rows keep a null trigger.
+function migrateSyncLogTrigger() {
+  const columns = db.prepare('PRAGMA table_info(sync_log)').all();
+  if (columns.length === 0) return;
+  if (columns.some((c) => c.name === 'trigger')) return;
+  db.exec('ALTER TABLE sync_log ADD COLUMN trigger TEXT');
+}
+
+migrateSyncLogTrigger();
+
+// The variant table used to hold one row per boolean flag (card_id, variant) and couldn't
+// tell two printings of the same finish apart. It now holds one row per actual printing.
+// Dropped rather than migrated because every row is re-derived from upstream by the
+// enrichment pass — this database is rebuildable by design.
+function migrateCardVariantsToPrintings() {
+  const columns = db.prepare('PRAGMA table_info(tcg_card_variants)').all();
+  if (columns.length === 0) return;
+  if (columns.some((c) => c.name === 'position')) return;
+  db.exec('DROP TABLE tcg_card_variants');
+  console.log('[db] Rebuilt tcg_card_variants for per-printing detail — re-run the TCG sync to refill it.');
+}
+
+migrateCardVariantsToPrintings();
+
+// collection_boxes/collection_entries/settings used to live in this database; they now
+// live in their own file (see personalDb.js) so personal data — collections and their
+// contents, and app settings — can eventually be hosted completely separately from the
+// synced Pokémon/card reference data. personalDb.js's own startup migrates any existing
+// rows out of this database (if present) and drops these tables here, so nothing in this
+// file's schema references them anymore.
+
 const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf-8');
 db.exec(schema);
+
+// A sync_log row can be orphaned in 'running' state if the process was killed or crashed
+// mid-sync (in-memory sync state always starts fresh on boot, so any row still claiming
+// 'running' at startup is stale, not actually in progress).
+db.prepare(
+  `UPDATE sync_log SET status = 'error', completed_at = @now,
+     error = 'Interrupted by server restart'
+   WHERE status = 'running'`,
+).run({ now: new Date().toISOString() });
 
 export function upsert(table, row, conflictColumns) {
   const columns = Object.keys(row);

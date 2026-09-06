@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 984" width="1400" height="984" role="img" aria-label="End-to-end map from Claude Code on the laptop through GitHub and CI to Cloudflare, Fly.io, Supabase and third-party services">
+<title>End-to-end map from Claude Code on the laptop through GitHub and CI to Cloudflare, Fly.io, Supabase and third-party services</title>
+<style>
+  svg {
+    --f-ink:#0d1418; --f-muted:#5b6a77; --f-surface:#ffffff; --f-surface2:#f4f7f9;
+    --f-line:#c9d3db; --f-zone:#e7edf2; --f-zoneline:#a9b8c4; --f-accent:#17607d;
+    --f-shared:#1f6feb; --f-user:#7b4bb7; --f-secret:#a92e26;
+    font-family:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    svg {
+      --f-ink:#e6edf3; --f-muted:#93a4b3; --f-surface:#1a2027; --f-surface2:#151b21;
+      --f-line:#39444f; --f-zone:#161c22; --f-zoneline:#3d4954; --f-accent:#5cc2e8;
+      --f-shared:#6ea8fe; --f-user:#c08cf5; --f-secret:#f0837a;
+    }
+  }
+  .zn   { fill:var(--dg-zone,var(--f-zone)); stroke:var(--dg-zoneline,var(--f-zoneline)); stroke-width:1.25; stroke-dasharray:5 4; }
+  .zt   { fill:var(--dg-muted,var(--f-muted)); font-size:12px; font-weight:600; letter-spacing:.09em; text-transform:uppercase;
+          font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .zc   { fill:var(--dg-muted,var(--f-muted)); font-size:11.5px; font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .bx   { fill:var(--dg-surface,var(--f-surface)); stroke:var(--dg-line,var(--f-line)); stroke-width:1.25; }
+  .bx2  { fill:var(--dg-surface2,var(--f-surface2)); stroke:var(--dg-line,var(--f-line)); stroke-width:1.25; }
+  .bt   { fill:var(--dg-ink,var(--f-ink)); font-size:14px; font-weight:600; }
+  .bs   { fill:var(--dg-muted,var(--f-muted)); font-size:12px; }
+  .bm   { fill:var(--dg-muted,var(--f-muted)); font-size:11.5px; font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .ar   { fill:none; stroke:var(--dg-accent,var(--f-accent)); stroke-width:1.6; }
+  .ard  { fill:none; stroke:var(--dg-muted,var(--f-muted)); stroke-width:1.4; stroke-dasharray:5 4; }
+  .al   { fill:var(--dg-accent,var(--f-accent)); font-size:11.5px; font-weight:500;
+          font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .alm  { fill:var(--dg-muted,var(--f-muted)); font-size:11.5px; font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .tb   { fill:none; stroke:var(--dg-secret,var(--f-secret)); stroke-width:1.4; stroke-dasharray:7 5; opacity:.75; }
+  .tbt  { fill:var(--dg-secret,var(--f-secret)); font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase;
+          font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .ttl  { fill:var(--dg-ink,var(--f-ink)); font-size:15px; font-weight:700; letter-spacing:.02em;
+          font-family:"IBM Plex Sans Condensed","IBM Plex Sans",system-ui,sans-serif; }
+  .num  { fill:var(--dg-surface,var(--f-surface)); font-size:11px; font-weight:700;
+          font-family:"IBM Plex Mono",ui-monospace,monospace; }
+</style>
+<defs>
+  <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="var(--dg-accent,var(--f-accent))"/>
+  </marker>
+  <marker id="ahm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="var(--dg-muted,var(--f-muted))"/>
+  </marker>
+</defs>
+
+<rect class="zn" x="40" y="70" width="380" height="180" rx="8"/>
+<text class="zt" x="54" y="91">Your laptop</text>
+<rect class="bx" x="60" y="108" width="340" height="60" rx="5"/><text class="bt" x="74" y="131">Claude Code</text><text class="bs" x="74" y="150">Edits, builds, runs 298 tests</text><rect class="bx" x="60" y="186" width="340" height="54" rx="5"/><text class="bt" x="74" y="209">One git repo</text><text class="bm" x="74" y="228">main + feature branches — no mirror</text><polyline class="ar" points="230,168 230,180" marker-end="url(#ah)"/>
+<rect class="zn" x="460" y="70" width="320" height="180" rx="8"/>
+<text class="zt" x="474" y="91">GitHub · private</text>
+<text class="zc" x="766" y="91" text-anchor="end">$0</text><rect class="bx" x="480" y="108" width="280" height="58" rx="5"/><text class="bt" x="494" y="131">main</text><text class="bs" x="494" y="150">Merging here deploys</text><rect class="bx" x="480" y="182" width="280" height="58" rx="5"/><text class="bt" x="494" y="205">feature/*</text><text class="bs" x="494" y="224">PR → CI → preview URL</text>
+<rect class="zn" x="820" y="70" width="540" height="180" rx="8"/>
+<text class="zt" x="834" y="91">GitHub Actions</text>
+<text class="zc" x="1346" y="91" text-anchor="end">$0</text><rect class="bx" x="840" y="104" width="236" height="54" rx="5"/><text class="bt" x="854" y="127">ci.yml</text><text class="bm" x="854" y="146">lint · build · 298 tests</text><rect class="bx" x="1104" y="104" width="236" height="54" rx="5"/><text class="bt" x="1118" y="127">migrate.yml</text><text class="bm" x="1118" y="146">supabase db push</text><rect class="bx" x="840" y="172" width="236" height="54" rx="5"/><text class="bt" x="854" y="195">deploy-api.yml</text><text class="bm" x="854" y="214">flyctl deploy</text><rect class="bx" x="1104" y="172" width="236" height="54" rx="5"/><text class="bt" x="1118" y="195">sync-prices.yml</text><text class="bm" x="1118" y="214">schedule · 06:00 UTC</text><polyline class="ar" points="400,210 474,210" marker-end="url(#ah)"/><text class="al" x="437" y="200" text-anchor="middle">git push</text><polyline class="ar" points="760,137 800,137 800,131 834,131" marker-end="url(#ah)"/><text class="al" x="800" y="154" text-anchor="middle">push</text><polyline class="ar" points="1076,131 1098,131" marker-end="url(#ah)"/><polyline class="ar" points="1222,158 1222,165 958,165 958,166" marker-end="url(#ah)"/>
+<rect class="zn" x="40" y="326" width="380" height="334" rx="8"/>
+<text class="zt" x="54" y="347">Cloudflare Pages</text>
+<text class="zc" x="406" y="347" text-anchor="end">$0</text><rect class="bx" x="60" y="370" width="340" height="66" rx="5"/><text class="bt" x="74" y="393">Native GitHub integration</text><text class="bs" x="74" y="412">Builds on push — no workflow</text><rect class="bx" x="60" y="452" width="340" height="66" rx="5"/><text class="bt" x="74" y="475">Static bundle · global CDN</text><text class="bm" x="74" y="494">React SPA — 107 KB gzip</text><rect class="bx" x="60" y="534" width="340" height="66" rx="5"/><text class="bt" x="74" y="557">Preview URL per branch</text><text class="bs" x="74" y="576">Free, on every PR</text>
+<rect class="zn" x="460" y="326" width="440" height="334" rx="8"/>
+<text class="zt" x="474" y="347">Fly.io · region iad</text>
+<text class="zc" x="886" y="347" text-anchor="end">$3.32/mo</text><rect class="bx" x="480" y="370" width="400" height="190" rx="5"/><text class="bt" x="494" y="393">Machine — shared-cpu-1x, 512 MB</text><rect class="bx2" x="496" y="408" width="368" height="58" rx="5"/><text class="bt" x="510" y="431">Express API</text><text class="bm" x="510" y="450">/api/* — serves the browser</text><rect class="bx2" x="496" y="478" width="368" height="58" rx="5"/><text class="bt" x="510" y="501">Sync worker</text><text class="bm" x="510" y="520">/internal/sync — service role</text><rect class="bx" x="480" y="576" width="400" height="68" rx="5"/><path d="M480.5,581 a5,5 0 0 1 5,-5 h0 v58 h0 a5,5 0 0 1 -5,-5 z" fill="var(--dg-secret,var(--f-secret))"/>
+<rect x="481" y="577" width="4" height="66" fill="var(--dg-secret,var(--f-secret))"/><text class="bt" x="498" y="599">Fly secrets</text><text class="bm" x="498" y="618">SECRETS_DEK · SERVICE_ROLE</text><text class="bm" x="498" y="634">SYNC_SHARED_SECRET</text>
+<rect class="zn" x="940" y="326" width="420" height="334" rx="8"/>
+<text class="zt" x="954" y="347">Supabase · managed</text>
+<text class="zc" x="1346" y="347" text-anchor="end">free tier — $0</text><rect class="bx" x="960" y="370" width="380" height="72" rx="5"/><text class="bt" x="974" y="393">Auth (GoTrue)</text><text class="bs" x="974" y="412">Issues and verifies the JWT</text><text class="bm" x="974" y="428">50,000 MAU included</text><rect class="bx" x="960" y="458" width="380" height="88" rx="5"/><text class="bt" x="974" y="481">Postgres 17</text><text class="bm" x="974" y="500">catalog · market · app schemas</text><text class="bs" x="974" y="516">RLS on every per-user table</text><rect class="bx2" x="960" y="562" width="380" height="82" rx="5"/><text class="bt" x="974" y="585">One database</text><text class="bs" x="974" y="604">No branching on the free tier —</text><text class="bs" x="974" y="620">migrations use expand / contract</text><polyline class="ar" points="560,250 560,306 230,306 230,320" marker-end="url(#ah)"/><text class="al" x="352" y="298" text-anchor="middle">build on push</text><polyline class="ar" points="900,226 900,282 620,282 620,320" marker-end="url(#ah)"/><text class="al" x="742" y="274" text-anchor="middle">flyctl deploy</text><polyline class="ar" points="1222,226 1222,300 800,300 800,320" marker-end="url(#ah)"/><text class="al" x="1010" y="292" text-anchor="middle">daily trigger</text><polyline class="ar" points="1340,131 1376,131 1376,312 1150,312 1150,320" marker-end="url(#ah)"/><text class="al" x="1264" y="304" text-anchor="middle">db push</text>
+<rect class="zn" x="40" y="710" width="380" height="210" rx="8"/>
+<text class="zt" x="54" y="731">Anyone with the link</text>
+<text class="zc" x="406" y="731" text-anchor="end">untrusted</text><rect class="bx" x="60" y="752" width="340" height="120" rx="5"/><text class="bt" x="74" y="775">Browser</text><text class="bs" x="74" y="794">React SPA</text><text class="bm" x="74" y="810">anon key + session JWT</text><text class="bs" x="74" y="826">Fetches card art directly</text>
+<rect class="zn" x="460" y="710" width="900" height="210" rx="8"/>
+<text class="zt" x="474" y="731">Third parties · untrusted</text>
+<rect class="bx2" x="480" y="752" width="190" height="120" rx="5"/><text class="bt" x="494" y="775">Card art</text><text class="bs" x="494" y="794">images.</text><text class="bs" x="494" y="810">pokemontcg.io</text><text class="bs" x="494" y="826">Hotlinked</text><rect class="bx2" x="686" y="752" width="220" height="120" rx="5"/><text class="bt" x="700" y="775">Catalogue</text><text class="bs" x="700" y="794">TCGdex</text><text class="bs" x="700" y="810">PokeAPI</text><rect class="bx2" x="922" y="752" width="210" height="120" rx="5"/><text class="bt" x="936" y="775">Prices + FX</text><text class="bs" x="936" y="794">PokemonPrice-</text><text class="bs" x="936" y="810">Tracker</text><text class="bs" x="936" y="826">Frankfurter (ECB)</text><rect class="bx2" x="1148" y="752" width="192" height="120" rx="5"/><text class="bt" x="1162" y="775">Social OAuth</text><text class="bs" x="1162" y="794">Google</text><text class="bs" x="1162" y="810">Facebook</text><polyline class="ar" points="230,748 230,666" marker-end="url(#ah)"/><text class="al" x="238" y="706" text-anchor="start">loads the SPA</text><polyline class="ar" points="400,786 436,786 436,692 620,692 620,666" marker-end="url(#ah)"/><text class="al" x="530" y="686" text-anchor="middle">API calls · JWT</text><polyline class="ar" points="400,884 1244,884 1244,876" marker-end="url(#ah)"/><text class="al" x="700" y="906" text-anchor="middle">sign-in redirect</text><polyline class="ar" points="1244,664 1244,746" marker-end="url(#ah)" marker-start="url(#ah)"/><text class="al" x="1252" y="706" text-anchor="start">callback + JWT</text><polyline class="ard" points="400,812 474,812" marker-end="url(#ahm)"/><text class="alm" x="437" y="803" text-anchor="middle">card art</text><polyline class="ar" points="796,664 796,746" marker-end="url(#ah)"/><text class="al" x="804" y="706" text-anchor="start">fetch</text><polyline class="ar" points="880,664 880,716 1027,716 1027,746" marker-end="url(#ah)"/><polyline class="ar" points="864,437 912,437 912,502 954,502" marker-end="url(#ah)"/><text class="al" x="916" y="470" text-anchor="start">SQL</text><text class="ttl" x="40" y="962">Figure 4 · The whole system — laptop to production</text>
+</svg>

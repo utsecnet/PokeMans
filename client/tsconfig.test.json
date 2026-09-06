@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.test.tsbuildinfo",
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": ["src/lib/__tests__", "src/lib/__perf_tests__"],
+  "exclude": []
+}

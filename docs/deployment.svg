@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 700" width="1160" height="700" role="img" aria-label="Hosting boundaries: browser, Cloudflare Pages, Fly.io, Supabase, GitHub Actions and third-party APIs">
+<title>Hosting boundaries: browser, Cloudflare Pages, Fly.io, Supabase, GitHub Actions and third-party APIs</title>
+<style>
+  svg {
+    --f-ink:#0d1418; --f-muted:#5b6a77; --f-surface:#ffffff; --f-surface2:#f4f7f9;
+    --f-line:#c9d3db; --f-zone:#e7edf2; --f-zoneline:#a9b8c4; --f-accent:#17607d;
+    --f-shared:#1f6feb; --f-user:#7b4bb7; --f-secret:#a92e26;
+    font-family:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    svg {
+      --f-ink:#e6edf3; --f-muted:#93a4b3; --f-surface:#1a2027; --f-surface2:#151b21;
+      --f-line:#39444f; --f-zone:#161c22; --f-zoneline:#3d4954; --f-accent:#5cc2e8;
+      --f-shared:#6ea8fe; --f-user:#c08cf5; --f-secret:#f0837a;
+    }
+  }
+  .zn   { fill:var(--dg-zone,var(--f-zone)); stroke:var(--dg-zoneline,var(--f-zoneline)); stroke-width:1.25; stroke-dasharray:5 4; }
+  .zt   { fill:var(--dg-muted,var(--f-muted)); font-size:12px; font-weight:600; letter-spacing:.09em; text-transform:uppercase;
+          font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .zc   { fill:var(--dg-muted,var(--f-muted)); font-size:11.5px; font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .bx   { fill:var(--dg-surface,var(--f-surface)); stroke:var(--dg-line,var(--f-line)); stroke-width:1.25; }
+  .bx2  { fill:var(--dg-surface2,var(--f-surface2)); stroke:var(--dg-line,var(--f-line)); stroke-width:1.25; }
+  .bt   { fill:var(--dg-ink,var(--f-ink)); font-size:14px; font-weight:600; }
+  .bs   { fill:var(--dg-muted,var(--f-muted)); font-size:12px; }
+  .bm   { fill:var(--dg-muted,var(--f-muted)); font-size:11.5px; font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .ar   { fill:none; stroke:var(--dg-accent,var(--f-accent)); stroke-width:1.6; }
+  .ard  { fill:none; stroke:var(--dg-muted,var(--f-muted)); stroke-width:1.4; stroke-dasharray:5 4; }
+  .al   { fill:var(--dg-accent,var(--f-accent)); font-size:11.5px; font-weight:500;
+          font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .alm  { fill:var(--dg-muted,var(--f-muted)); font-size:11.5px; font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .tb   { fill:none; stroke:var(--dg-secret,var(--f-secret)); stroke-width:1.4; stroke-dasharray:7 5; opacity:.75; }
+  .tbt  { fill:var(--dg-secret,var(--f-secret)); font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase;
+          font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .ttl  { fill:var(--dg-ink,var(--f-ink)); font-size:15px; font-weight:700; letter-spacing:.02em;
+          font-family:"IBM Plex Sans Condensed","IBM Plex Sans",system-ui,sans-serif; }
+  .num  { fill:var(--dg-surface,var(--f-surface)); font-size:11px; font-weight:700;
+          font-family:"IBM Plex Mono",ui-monospace,monospace; }
+</style>
+<defs>
+  <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="var(--dg-accent,var(--f-accent))"/>
+  </marker>
+  <marker id="ahm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="var(--dg-muted,var(--f-muted))"/>
+  </marker>
+</defs>
+
+<rect class="zn" x="60" y="64" width="290" height="190" rx="8"/>
+<text class="zt" x="74" y="85">Client</text>
+<text class="zc" x="336" y="85" text-anchor="end">untrusted</text><rect class="bx" x="80" y="108" width="250" height="120" rx="5"/><text class="bt" x="94" y="131">Browser</text><text class="bs" x="94" y="150">React SPA (Vite build)</text><text class="bm" x="94" y="166">364 KB JS / 107 KB gzip</text><text class="bs" x="94" y="182">Holds: anon key, session JWT</text>
+<rect class="zn" x="60" y="286" width="290" height="118" rx="8"/>
+<text class="zt" x="74" y="307">Cloudflare Pages</text>
+<text class="zc" x="336" y="307" text-anchor="end">$0</text><rect class="bx" x="80" y="326" width="250" height="58" rx="5"/><text class="bt" x="94" y="349">Static bundle + CDN</text><text class="bs" x="94" y="368">No compute, no secrets</text>
+<rect class="zn" x="60" y="470" width="290" height="118" rx="8"/>
+<text class="zt" x="74" y="491">Image CDN · third party</text>
+<text class="zc" x="336" y="491" text-anchor="end">$0</text><rect class="bx2" x="80" y="510" width="250" height="58" rx="5"/><text class="bt" x="94" y="533">images.pokemontcg.io</text><text class="bs" x="94" y="552">Hotlinked — never proxied</text>
+<rect class="zn" x="412" y="64" width="320" height="340" rx="8"/>
+<text class="zt" x="426" y="85">Fly.io · region iad</text>
+<text class="zc" x="718" y="85" text-anchor="end">$3.32/mo</text><rect class="bx" x="432" y="112" width="280" height="180" rx="5"/><text class="bt" x="446" y="135">Machine — shared-cpu-1x, 512 MB</text><rect class="bx2" x="448" y="150" width="248" height="66" rx="5"/><text class="bt" x="462" y="173">Express API (Node 24)</text><text class="bm" x="462" y="192">/api/* · /internal/sync</text><rect class="bx2" x="448" y="226" width="248" height="50" rx="5"/><path d="M448.5,231 a5,5 0 0 1 5,-5 h0 v40 h0 a5,5 0 0 1 -5,-5 z" fill="var(--dg-secret,var(--f-secret))"/>
+<rect x="449" y="227" width="4" height="48" fill="var(--dg-secret,var(--f-secret))"/><text class="bt" x="466" y="249">Fly secrets</text><text class="bm" x="466" y="268">SECRETS_DEK, SERVICE_ROLE</text>
+<rect class="zn" x="412" y="470" width="320" height="118" rx="8"/>
+<text class="zt" x="426" y="491">GitHub Actions</text>
+<text class="zc" x="718" y="491" text-anchor="end">$0</text><rect class="bx" x="432" y="510" width="280" height="58" rx="5"/><text class="bt" x="446" y="533">Daily sync — 06:00 UTC</text><text class="bs" x="446" y="552">Also keeps Supabase awake</text>
+<rect class="zn" x="794" y="64" width="338" height="340" rx="8"/>
+<text class="zt" x="808" y="85">Supabase · managed</text>
+<text class="zc" x="1118" y="85" text-anchor="end">free tier — $0</text><rect class="bx" x="814" y="112" width="298" height="76" rx="5"/><text class="bt" x="828" y="135">Auth (GoTrue)</text><text class="bs" x="828" y="154">Google · Facebook · Discord</text><text class="bm" x="828" y="170">50,000 MAU included</text><rect class="bx" x="814" y="214" width="298" height="90" rx="5"/><text class="bt" x="828" y="237">Postgres 17</text><text class="bs" x="828" y="256">Row Level Security enforced</text><text class="bm" x="828" y="272">500 MB — catalogue is 11 MB</text><rect class="bx2" x="814" y="326" width="298" height="56" rx="5"/><text class="bt" x="828" y="349">No code of ours runs here</text><text class="bs" x="828" y="368">Managed service only</text>
+<rect class="zn" x="794" y="470" width="338" height="172" rx="8"/>
+<text class="zt" x="808" y="491">Third-party APIs</text>
+<text class="zc" x="1118" y="491" text-anchor="end">untrusted</text><rect class="bx2" x="814" y="510" width="298" height="112" rx="5"/><text class="bt" x="828" y="533">Outbound only</text><text class="bs" x="828" y="552">TCGdex — catalogue + prices</text><text class="bs" x="828" y="568">PokemonPriceTracker — history</text><text class="bs" x="828" y="584">Frankfurter (ECB) — FX rates</text><text class="bs" x="828" y="600">PokeAPI — species data</text><polyline class="ar" points="205,228 205,320" marker-end="url(#ah)"/><text class="al" x="213" y="278" text-anchor="start">static bundle</text><polyline class="ard" points="80,190 36,190 36,539 74,539" marker-end="url(#ahm)"/><text class="alm" x="46" y="452" text-anchor="start">card art</text><polyline class="ar" points="330,168 381,168 381,183 426,183" marker-end="url(#ah)"/><text class="al" x="356" y="152" text-anchor="middle">HTTPS + JWT</text><polyline class="ar" points="205,108 205,36 963,36 963,106" marker-end="url(#ah)"/><text class="al" x="584" y="28" text-anchor="middle">OAuth redirect — Google / Facebook</text><polyline class="ar" points="696,183 753,183 753,250 808,250" marker-end="url(#ah)"/><text class="al" x="757" y="218" text-anchor="start">SQL</text><polyline class="ar" points="500,510 500,298" marker-end="url(#ah)"/><text class="al" x="492" y="440" text-anchor="end">POST /internal/sync</text><polyline class="ar" points="572,292 572,432 963,432 963,504" marker-end="url(#ah)"/><text class="al" x="770" y="424" text-anchor="middle">daily fetch</text><text class="ttl" x="60" y="678">Figure 1 · Hosting boundaries — what runs where</text>
+</svg>

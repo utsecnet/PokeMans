@@ -14,6 +14,18 @@
   --color-text-muted: #6b6558;
   --color-accent: #d6394a;
   --color-accent-contrast: #ffffff;
+}
+
+/*
+ * Type colors live in a plain :root block, not @theme. Tailwind v4 only keeps @theme
+ * tokens it can see referenced by an actual scanned class name (e.g. bg-[var(--color-bg)]);
+ * these are only ever read dynamically via JS template literals in inline styles
+ * (var(--color-type-${type})), which the scanner can't see, so Tailwind was silently
+ * dropping all 18 of them from the build output. Plain :root custom properties are passed
+ * through unconditionally regardless of how they're consumed.
+ */
+:root {
+  color-scheme: light;
 
   --color-type-normal: #a5a48f;
   --color-type-fire: #e2762f;
@@ -35,10 +47,6 @@
   --color-type-fairy: #d98cb3;
 }
 
-:root {
-  color-scheme: light;
-}
-
 .dark {
   color-scheme: dark;
   --color-bg: #16151a;
@@ -53,6 +61,161 @@
 
 * {
   border-color: var(--color-border);
+}
+
+/*
+ * Light/dark switching fades rather than snaps. Custom properties don't animate, so the
+ * transition has to sit on the properties that read them — and it's applied only while the
+ * switch is happening (theme.tsx adds this class, then removes it once the fade is done)
+ * because a permanent transition this long would make every hover and focus state feel
+ * broken. !important is needed to outrank component-level `transition` utilities, which
+ * would otherwise finish in 150ms and snap ahead of the page.
+ *
+ * Keep the duration in step with THEME_TRANSITION_MS in lib/theme.tsx.
+ */
+.theme-transition,
+.theme-transition *,
+.theme-transition *::before,
+.theme-transition *::after {
+  transition:
+    background-color 2s ease,
+    color 2s ease,
+    border-color 2s ease,
+    fill 2s ease,
+    stroke 2s ease,
+    box-shadow 2s ease !important;
+}
+
+/* A two-second colour sweep is exactly the kind of motion this setting asks us to skip. */
+@media (prefers-reduced-motion: reduce) {
+  .theme-transition,
+  .theme-transition *,
+  .theme-transition *::before,
+  .theme-transition *::after {
+    transition: none !important;
+  }
+}
+
+/*
+ * Card tilt. TiltCard sets --tilt-*, --glare-* and --shadow-* from the pointer; everything
+ * below is what those properties drive. Keeping the visuals in CSS means a pointer move
+ * costs a few property writes on one element instead of a React render per frame.
+ */
+.tilt {
+  --tilt-x: 0deg;
+  --tilt-y: 0deg;
+  --glare-x: 50%;
+  --glare-y: 50%;
+  --glare: 0;
+  --shadow-x: 0px;
+  --shadow-y: 12px;
+  display: flex;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  perspective: 1200px;
+  /* A drag on the card turns it, so the browser must not claim the gesture for scrolling. */
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/*
+ * A one-cell grid, not a positioned box: whether the image ends up limited by the column
+ * width or by max-height, the cell is exactly the size the image actually renders, and the
+ * glare and sheen sharing that cell line up with it. Absolute insets would track whichever
+ * dimension wasn't the binding one and leave the overlays hanging off an edge.
+ */
+.tilt-inner {
+  display: grid;
+  max-width: 100%;
+  line-height: 0;
+  border-radius: var(--tilt-radius, 0.5rem);
+  /* Clips the glare and sheen to the card's corners. An element's own shadow isn't clipped
+     by its own overflow, so the shadow below still reads outside the card. */
+  overflow: hidden;
+  box-shadow: var(--shadow-x) var(--shadow-y) 26px rgb(0 0 0 / 0.34);
+  transform: rotateY(var(--tilt-y)) rotateX(var(--tilt-x));
+  /* Short enough to read as following the pointer, long enough to smooth the sampling. */
+  transition: transform 120ms ease-out;
+  will-change: transform;
+}
+
+/* Let go and the card falls back level, rather than snapping. */
+.tilt[data-settling='true'] .tilt-inner {
+  transition: transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.tilt-image {
+  grid-area: 1 / 1;
+  display: block;
+  height: auto;
+  max-width: 100%;
+  user-select: none;
+}
+
+.tilt-glare,
+.tilt-sheen {
+  grid-area: 1 / 1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 240ms ease;
+}
+
+/*
+ * The specular highlight: a bright spot sitting where the light is. Kept deliberately
+ * tight — screen blending over a white-bordered card spreads fast, and a wider falloff
+ * washes the art out instead of reading as a reflection.
+ */
+.tilt-glare {
+  opacity: calc(var(--glare) * 0.6);
+  background: radial-gradient(
+    circle at var(--glare-x) var(--glare-y),
+    rgb(255 255 255 / 0.4),
+    rgb(255 255 255 / 0.09) 18%,
+    rgb(255 255 255 / 0) 42%
+  );
+  mix-blend-mode: screen;
+}
+
+/*
+ * The holo sheen: a rainbow band that slides across the foil as the angle changes, faded
+ * out away from the highlight so it reads as light catching the surface rather than a
+ * pattern printed on the card.
+ */
+.tilt-sheen {
+  opacity: calc(var(--glare) * 0.3);
+  background: repeating-linear-gradient(
+    112deg,
+    rgb(255 92 130 / 0.42) 0%,
+    rgb(255 214 106 / 0.42) 7%,
+    rgb(112 240 196 / 0.42) 14%,
+    rgb(126 158 255 / 0.42) 21%,
+    rgb(255 92 130 / 0.42) 28%
+  );
+  background-size: 300% 300%;
+  background-position: var(--glare-x) var(--glare-y);
+  mix-blend-mode: overlay;
+  -webkit-mask-image: radial-gradient(circle at var(--glare-x) var(--glare-y), #000 5%, transparent 55%);
+  mask-image: radial-gradient(circle at var(--glare-x) var(--glare-y), #000 5%, transparent 55%);
+}
+
+/* Leaning and glaring is exactly the decorative motion this setting asks us to drop. */
+@media (prefers-reduced-motion: reduce) {
+  .tilt-inner {
+    transform: none;
+    transition: none;
+  }
+
+  .tilt-glare,
+  .tilt-sheen {
+    display: none;
+  }
+
+  /* The shadow is still being offset by the pointer; pin it so nothing moves. */
+  .tilt-inner {
+    box-shadow: 0 12px 26px rgb(0 0 0 / 0.34);
+  }
 }
 
 html,

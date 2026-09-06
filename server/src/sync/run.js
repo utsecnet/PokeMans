@@ -1,5 +1,4 @@
 import 'dotenv/config';
-import { getTcgApiKey } from '../routes/settings.js';
 import { runPokeApiSync, runTcgSync } from './runner.js';
 
 function parseArgs() {
@@ -26,17 +25,22 @@ async function main() {
     return;
   }
 
-  if (!getTcgApiKey()) {
-    console.log(
-      'No TCG API key saved — skipping card sync. Add one in Settings (in the app) or set ' +
-        'TCG_API_KEY in server/.env. Get a free key at https://dev.pokemontcg.io/',
-    );
-    return;
-  }
-
-  console.log('Syncing Pokemon TCG card images...');
+  console.log('Syncing Pokemon TCG card images (full catalog)...');
   const tcgResult = await runTcgSync();
-  console.log(`TCG sync done: ${tcgResult.cardCount} cards across ${tcgResult.synced} pokemon.`);
+  console.log(
+    `TCG sync done: ${tcgResult.synced} cards stored, ${tcgResult.cardsLinked} of them linked to a Pokemon ` +
+      `(the rest are Trainer/Energy cards, which have no dex number). Scanned ${tcgResult.cardsSeen} cards.`,
+  );
+  if (tcgResult.recoveredByName) {
+    console.log(
+      `${tcgResult.recoveredByName} card(s) had no dex number in the data and were linked by name instead.`,
+    );
+  }
+  if (tcgResult.failedPages?.length) {
+    console.log(
+      `${tcgResult.failedPages.length} set(s) failed and were skipped — re-run the sync to fill gaps.`,
+    );
+  }
 }
 
 main()
