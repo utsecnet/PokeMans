@@ -1,0 +1,11 @@
+# Every text file is stored in the repository, and checked out, with LF.
+#
+# core.autocrlf is true system-wide on Windows (the Git for Windows default), so without this
+# a fresh clone here would get CRLF working copies while CI on Linux gets LF. Pinning eol=lf
+# makes both identical and stops a differently-configured machine committing CRLF and
+# producing whole-file diffs.
+#
+# text=auto rather than a bare `text`: auto keeps git's binary detection, and
+# queryLanguage.fuzz.test.ts carries a NUL and a 0x01 byte as deliberate fuzz inputs. Forcing
+# conversion on it would rewrite those bytes and change what the test actually exercises.
+* text=auto eol=lf
