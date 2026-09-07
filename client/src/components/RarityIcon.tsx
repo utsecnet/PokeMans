@@ -41,22 +41,19 @@ export function rarityGlyph(rarity: string) {
   return RULES.find((r) => r.test.test(rarity)) ?? FALLBACK;
 }
 
-export function RarityIcon({ rarity, active }: { rarity: string; active: boolean }) {
+export function RarityIcon({ rarity }: { rarity: string; active?: boolean }) {
   const { shape, tone } = rarityGlyph(rarity);
+
+  // Always coloured: the tone is half of what separates a star from a star, and unlike the
+  // type chips there is no coloured background here for it to compete with — selection is
+  // shown by the checkbox beside it.
   return (
     <span
-      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition-colors"
-      style={{ backgroundColor: active ? tone : '#9ca3af' }}
+      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full"
+      style={{ backgroundColor: tone }}
       title={rarity}
     >
-      <svg
-        viewBox="0 0 24 24"
-        width="12"
-        height="12"
-        fill="currentColor"
-        className={active ? 'text-white' : 'text-white/80'}
-        aria-hidden="true"
-      >
+      <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" className="text-white" aria-hidden="true">
         {SHAPES[shape]}
       </svg>
     </span>

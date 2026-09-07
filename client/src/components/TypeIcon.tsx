@@ -103,17 +103,24 @@ export function typeKey(type: string): string {
 export function TypeIcon({ type, active }: { type: string; active: boolean }) {
   const key = typeKey(type);
   const glyph = TYPE_GLYPHS[key] ?? TYPE_GLYPHS.normal;
+  const color = `var(--color-type-${key})`;
+
+  // Colour is how these glyphs are told apart — several are near-identical in silhouette at
+  // 12px, and fire, fighting and psychic are only really distinguishable by hue. So the icon
+  // stays coloured in both states and inverts instead: a coloured badge on the plain
+  // unselected chip, and a white badge once the chip itself turns that colour, which would
+  // otherwise swallow it.
   return (
     <span
       className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition-colors"
-      style={{ backgroundColor: active ? `var(--color-type-${key})` : '#9ca3af' }}
+      style={{ backgroundColor: active ? '#ffffff' : color }}
     >
       <svg
         viewBox="0 0 24 24"
         width="12"
         height="12"
         fill="currentColor"
-        className={active ? 'text-white' : 'text-white/80'}
+        style={{ color: active ? color : '#ffffff' }}
       >
         {glyph}
       </svg>
