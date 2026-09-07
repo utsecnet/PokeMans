@@ -5,3 +5,5 @@ build/
 server/data/
 *.log
 .DS_Store
+.env.local
+.env.*.local
