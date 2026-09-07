@@ -48,17 +48,17 @@
 
   /* Motes in the hover backlight. Bright on a dark ground; on the light theme the glow is
      too pale for white to register, so they darken instead and read as dust either way. */
-  --color-speck: rgba(38, 38, 48, 0.42);
+  --color-speck: rgba(38, 38, 48, 0.26);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --color-speck: rgba(255, 255, 255, 0.92);
+    --color-speck: rgba(255, 255, 255, 0.55);
   }
 }
 
 :root[data-theme='dark'] {
-  --color-speck: rgba(255, 255, 255, 0.92);
+  --color-speck: rgba(255, 255, 255, 0.55);
 }
 
 .dark {
@@ -229,6 +229,40 @@
   /* The shadow is still being offset by the pointer; pin it so nothing moves. */
   .tilt-inner {
     box-shadow: 0 12px 26px rgb(0 0 0 / 0.34);
+  }
+}
+
+/*
+ * Motes drifting up through the hover backlight. Each layer moves by exactly one of its own
+ * tile heights, so the pattern lands back on itself and the loop is seamless; because the
+ * tiles differ (16 / 23 / 31px) they travel at three speeds over the same duration, which is
+ * what stops it reading as one sheet sliding.
+ *
+ * Slow enough to be noticed only once you've settled on a card, which is the point — it is
+ * ambience behind the artwork, not an effect competing with it.
+ */
+@keyframes speck-drift {
+  from {
+    background-position:
+      0 0,
+      0 0,
+      0 0;
+  }
+  to {
+    background-position:
+      0 -16px,
+      0 -23px,
+      0 -31px;
+  }
+}
+
+.speck-drift {
+  animation: speck-drift 24s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .speck-drift {
+    animation: none;
   }
 }
 

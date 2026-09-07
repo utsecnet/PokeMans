@@ -30,9 +30,9 @@ function backlight(types: string[]): string {
  * an edge, and blurring these just dims the glow further.
  */
 const SPECKLES =
-  'radial-gradient(circle at 30% 40%, var(--color-speck) 1.1px, transparent 1.7px), ' +
-  'radial-gradient(circle at 70% 15%, var(--color-speck) 0.9px, transparent 1.5px), ' +
-  'radial-gradient(circle at 15% 75%, var(--color-speck) 0.7px, transparent 1.3px)';
+  'radial-gradient(circle at 30% 40%, var(--color-speck) 0.9px, transparent 1.5px), ' +
+  'radial-gradient(circle at 70% 15%, var(--color-speck) 0.7px, transparent 1.3px), ' +
+  'radial-gradient(circle at 15% 75%, var(--color-speck) 0.6px, transparent 1.1px)';
 const SPECKLE_SIZES = '19px 16px, 26px 23px, 14px 31px';
 
 export function PokemonCard({ pokemon }: { pokemon: PokemonSummary }) {
@@ -64,12 +64,18 @@ export function PokemonCard({ pokemon }: { pokemon: PokemonSummary }) {
             aria-hidden="true"
             className="pointer-events-none absolute -inset-6 rounded-full opacity-0 transition-opacity duration-500 group-hover:opacity-100 motion-reduce:transition-none"
             style={{
-              backgroundImage: SPECKLES,
-              backgroundSize: SPECKLE_SIZES,
               maskImage: 'radial-gradient(closest-side at 50% 52%, #000 25%, #000 62%, transparent 92%)',
               WebkitMaskImage: 'radial-gradient(closest-side at 50% 52%, #000 25%, #000 62%, transparent 92%)',
             }}
-          />
+          >
+            {/* The drift lives on an inner layer so it isn't fighting the hover fade for the
+                same opacity property, and keeps running while the card is idle — motes
+                already in motion when the light comes up, rather than starting on cue. */}
+            <span
+              className="speck-drift absolute inset-0"
+              style={{ backgroundImage: SPECKLES, backgroundSize: SPECKLE_SIZES }}
+            />
+          </span>
         )}
         {image ? (
           <img
