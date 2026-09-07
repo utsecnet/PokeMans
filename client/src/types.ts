@@ -346,6 +346,8 @@ export interface Expansion {
   name: string;
   series: string | null;
   releaseDate: string | null;
+  /** The small set symbol printed on the card; null for sets synced before it was stored. */
+  symbolUrl: string | null;
 }
 
 export interface PokemonVariant {

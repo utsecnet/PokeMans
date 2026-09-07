@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import type { Expansion } from '../types';
 import { formatGeneration } from '../lib/format';
-import { TypeIcon } from './TypeIcon';
+import { TypeIcon, typeKey } from './TypeIcon';
 import { FilterSection } from './FilterSection';
 
 // Every piece the Pokémon and card sidebars have in common lives here, so the two panels
@@ -14,13 +14,9 @@ export function toggleInList(list: string[], value: string): string[] {
 }
 
 function typePillStyle(type: string, selected: boolean): CSSProperties {
-  // Cards print the TCG's energy names (Lightning, Colorless) where the palette is keyed
-  // by Pokémon type, so the four that differ are mapped onto the same colours.
-  const key =
-    ({ colorless: 'normal', lightning: 'electric', darkness: 'dark', metal: 'steel' })[
-      type.toLowerCase()
-    ] ?? type.toLowerCase();
-  const color = `var(--color-type-${key})`;
+  // Shares typeKey with the icon so the chip's colour and its glyph can't disagree — they
+  // did, which left card energies coloured correctly but wearing the fallback icon.
+  const color = `var(--color-type-${typeKey(type)})`;
   return selected
     ? { backgroundColor: color, borderColor: color, color: 'white' }
     : { borderColor: color, color };
@@ -171,6 +167,16 @@ export function ExpansionFilterSection({
               onChange={() => onToggle(exp.id)}
               className="accent-[var(--color-accent)]"
             />
+            {/* The set symbol, at text size. Sets synced before symbols were stored have
+                none, so the row simply has no icon rather than a gap. */}
+            {exp.symbolUrl && (
+              <img
+                src={exp.symbolUrl}
+                alt=""
+                loading="lazy"
+                className="h-4 w-4 shrink-0 object-contain"
+              />
+            )}
             <span className="truncate">{exp.name}</span>
             {exp.series && (
               <span className="shrink-0 text-xs text-[var(--color-text-muted)]">{exp.series}</span>
@@ -194,6 +200,8 @@ export function CheckboxListSection({
   label,
   emptyText = 'No matches.',
   capitalize = false,
+  /** Optional glyph shown before each value — used by Rarity, left off elsewhere. */
+  icon,
   children,
 }: {
   title: string;
@@ -201,6 +209,7 @@ export function CheckboxListSection({
   selected: string[];
   onToggle: (value: string) => void;
   label?: (value: string) => string;
+  icon?: (value: string, selected: boolean) => ReactNode;
   emptyText?: string;
   capitalize?: boolean;
   children?: ReactNode;
@@ -220,6 +229,7 @@ export function CheckboxListSection({
               onChange={() => onToggle(v)}
               className="accent-[var(--color-accent)]"
             />
+            {icon?.(v, selected.includes(v))}
             <span className="truncate">{label ? label(v) : v}</span>
           </label>
         ))}

@@ -139,8 +139,14 @@ export const POKEMON_FIXTURE: PokemonSummary[] = [
 ];
 
 export const CARD_EXPANSIONS = [
-  { id: 'base1', name: 'Base', series: 'Base', releaseDate: '1999/01/09' },
-  { id: 'sv5', name: 'Temporal Forces', series: 'Scarlet & Violet', releaseDate: '2024/03/22' },
+  { id: 'base1', name: 'Base', series: 'Base', releaseDate: '1999/01/09', symbolUrl: null },
+  {
+    id: 'sv5',
+    name: 'Temporal Forces',
+    series: 'Scarlet & Violet',
+    releaseDate: '2024/03/22',
+    symbolUrl: null,
+  },
 ];
 export const CARD_SERIES = ['Base', 'Scarlet & Violet'];
 export const CARD_RARITIES = ['Common', 'Uncommon', 'Rare', 'Double Rare'];

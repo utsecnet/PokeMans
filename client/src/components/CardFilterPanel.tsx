@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { CardFilters, CardSortField, Expansion } from '../types';
 import { FilterSection } from './FilterSection';
+import { RarityIcon } from './RarityIcon';
 import {
   CheckboxListSection,
   ExpansionFilterSection,
@@ -118,6 +119,7 @@ export function CardFilterPanel({
         values={rarities}
         selected={filters.rarities}
         onToggle={(r) => onChange({ ...filters, rarities: toggleInList(filters.rarities, r) })}
+        icon={(r, on) => <RarityIcon rarity={r} active={on} />}
         emptyText="No rarities synced yet."
       />
 

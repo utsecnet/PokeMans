@@ -306,9 +306,12 @@ pokemonRouter.get('/meta/abilities', (_req, res) => {
 
 pokemonRouter.get('/meta/expansions', (_req, res) => {
   const rows = all(
-    `SELECT set_id as id, set_name as name, series, MIN(release_date) as releaseDate
-     FROM tcg_cards WHERE set_id IS NOT NULL
-     GROUP BY set_id, set_name, series
+    `SELECT c.set_id as id, c.set_name as name, c.series, MIN(c.release_date) as releaseDate,
+            s.symbol_url as symbolUrl
+     FROM tcg_cards c
+     LEFT JOIN tcg_sets s ON s.id = c.set_id
+     WHERE c.set_id IS NOT NULL
+     GROUP BY c.set_id, c.set_name, c.series, s.symbol_url
      ORDER BY releaseDate, name`,
   );
   res.json(rows);

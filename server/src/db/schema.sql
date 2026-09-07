@@ -150,3 +150,16 @@ CREATE INDEX IF NOT EXISTS idx_evolutions_to ON evolutions(evolves_into_id);
 -- Only the default chain is covered; the other sort options still fall back to a sort.
 CREATE INDEX IF NOT EXISTS idx_tcg_cards_default_sort
   ON tcg_cards((release_date IS NULL), release_date, set_name, CAST(number as INTEGER), id);
+
+-- Sets get their own table rather than more columns on tcg_cards: 174 rows against 20,000+,
+-- and the symbol is the same string for every card in a set.
+CREATE TABLE IF NOT EXISTS tcg_sets (
+  id TEXT PRIMARY KEY,
+  name TEXT,
+  series TEXT,
+  release_date TEXT,
+  -- The small set symbol printed on the card, and the full wordmark. Both ship in the same
+  -- dataset the cards come from.
+  symbol_url TEXT,
+  logo_url TEXT
+);

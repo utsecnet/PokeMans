@@ -77,6 +77,21 @@ export async function syncTcgCards({ onProgress } = {}) {
 
   for (let i = 0; i < sets.length; i++) {
     const set = sets[i];
+
+    // Once per set, not once per card: the symbol is the same string for all of them.
+    upsert(
+      'tcg_sets',
+      {
+        id: set.id,
+        name: set.name ?? null,
+        series: set.series ?? null,
+        release_date: set.releaseDate ?? null,
+        symbol_url: set.images?.symbol ?? null,
+        logo_url: set.images?.logo ?? null,
+      },
+      ['id'],
+    );
+
     let cards;
     try {
       cards = await fetchJson(cardsUrl(set.id), { retries: RETRIES, backoffMs: BACKOFF_MS });

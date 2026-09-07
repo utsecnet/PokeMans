@@ -79,12 +79,34 @@ const TYPE_GLYPHS: Record<string, ReactNode> = {
   fairy: <path d="M12 2l2 7 7 2-7 2-2 7-2-7-7-2 7-2z" />,
 };
 
+/**
+ * The TCG prints its own energy names, which only partly overlap the Pokémon type names the
+ * glyphs are keyed on: "Lightning" for electric, "Darkness" for dark, "Metal" for steel, and
+ * "Colorless" with no Pokémon equivalent at all. Card names also arrive capitalised.
+ *
+ * Without this the card filters fell through to the fallback glyph on a grey chip — the same
+ * icon and colour for every energy, which read as having no icons at all.
+ */
+const ENERGY_ALIASES: Record<string, string> = {
+  lightning: 'electric',
+  darkness: 'dark',
+  metal: 'steel',
+  colorless: 'normal',
+};
+
+/** The glyph and palette key for a Pokémon type or a TCG energy name. */
+export function typeKey(type: string): string {
+  const lower = type.toLowerCase();
+  return ENERGY_ALIASES[lower] ?? lower;
+}
+
 export function TypeIcon({ type, active }: { type: string; active: boolean }) {
-  const glyph = TYPE_GLYPHS[type] ?? TYPE_GLYPHS.normal;
+  const key = typeKey(type);
+  const glyph = TYPE_GLYPHS[key] ?? TYPE_GLYPHS.normal;
   return (
     <span
       className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition-colors"
-      style={{ backgroundColor: active ? `var(--color-type-${type})` : '#9ca3af' }}
+      style={{ backgroundColor: active ? `var(--color-type-${key})` : '#9ca3af' }}
     >
       <svg
         viewBox="0 0 24 24"
