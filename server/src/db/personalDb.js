@@ -89,6 +89,68 @@ function migrateFromLegacyDatabase() {
 
 migrateFromLegacyDatabase();
 
+// A copy of a card is now its own row rather than a quantity on a shared one: two copies of
+// the same card can differ in printing, condition and what they are worth, and a single
+// counter cannot hold any of that.
+//
+// The rebuild is needed for the UNIQUE(box_id, card_id, variant_position) constraint as much
+// as the column — that constraint is precisely what forced a second copy to become a count.
+// SQLite cannot drop either in place, so the table is recreated and the rows carried over,
+// with any quantity above one expanded into that many rows.
+function migrateCollectionEntriesToOneRowPerCopy() {
+  const columns = personalDb.prepare('PRAGMA table_info(collection_entries)').all();
+  if (columns.length === 0) return;
+  if (!columns.some((c) => c.name === 'quantity')) return;
+
+  const rows = personalDb
+    .prepare('SELECT id, box_id, card_id, quantity, added_at, variant_position FROM collection_entries')
+    .all();
+
+  personalDb.exec('PRAGMA foreign_keys = OFF');
+  personalDb.exec('BEGIN');
+  try {
+    personalDb.exec('ALTER TABLE collection_entries RENAME TO collection_entries_old');
+    personalDb.exec(`CREATE TABLE collection_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      box_id INTEGER NOT NULL REFERENCES collection_boxes(id) ON DELETE CASCADE,
+      card_id TEXT NOT NULL,
+      added_at TEXT NOT NULL,
+      variant_position INTEGER
+    )`);
+    const insert = personalDb.prepare(
+      `INSERT INTO collection_entries (box_id, card_id, added_at, variant_position)
+       VALUES (@boxId, @cardId, @addedAt, @variantPosition)`,
+    );
+    let written = 0;
+    for (const row of rows) {
+      for (let copy = 0; copy < Math.max(1, row.quantity ?? 1); copy++) {
+        insert.run({
+          boxId: row.box_id,
+          cardId: row.card_id,
+          addedAt: row.added_at,
+          variantPosition: row.variant_position,
+        });
+        written++;
+      }
+    }
+    personalDb.exec('DROP TABLE collection_entries_old');
+    personalDb.exec('CREATE INDEX IF NOT EXISTS idx_collection_entries_card ON collection_entries(card_id)');
+    personalDb.exec('CREATE INDEX IF NOT EXISTS idx_collection_entries_box ON collection_entries(box_id)');
+    personalDb.exec('COMMIT');
+    console.log(
+      `[personal-db] Collection entries are one row per copy: ${rows.length} rows became ${written}.`,
+    );
+  } catch (err) {
+    personalDb.exec('ROLLBACK');
+    throw err;
+  } finally {
+    personalDb.exec('PRAGMA foreign_keys = ON');
+  }
+}
+
+migrateCollectionEntriesToOneRowPerCopy();
+
+
 // Adds the print-variant dimension to collection_entries. The column itself could be added
 // in place, but the UNIQUE constraint has to widen from (box_id, card_id) to include the
 // variant, and SQLite can't alter a constraint — so the table is rebuilt and copied. Runs
@@ -96,7 +158,10 @@ migrateFromLegacyDatabase();
 function migrateCollectionEntryVariants() {
   const columns = personalDb.prepare('PRAGMA table_info(collection_entries)').all();
   if (columns.length === 0) return;
-  if (columns.some((c) => c.name === 'variant')) return;
+  // `variant_position` as well as `variant`: a later migration renamed the column, so a
+  // database past that point has neither the old name nor any need of this rebuild. Checking
+  // only for `variant` meant this ran again on every start, quietly rebuilding the table.
+  if (columns.some((c) => c.name === 'variant' || c.name === 'variant_position')) return;
 
   const before = personalDb.prepare('SELECT COUNT(*) as c FROM collection_entries').get().c;
   personalDb.exec('BEGIN');

@@ -314,8 +314,10 @@ export interface CollectionBoxesResponse {
 export interface CollectionEntry {
   id: number;
   cardId: string;
-  quantity: number;
   addedAt: string;
+  /** Latest TCGplayer market price for the chosen printing; null until a printing is set. */
+  price: number | null;
+  priceCurrency: string | null;
   name: string;
   number: string | null;
   setId: string | null;

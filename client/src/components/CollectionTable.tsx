@@ -2,6 +2,15 @@ import { Link } from 'react-router-dom';
 import type { CollectionBoxDetail } from '../types';
 import { formatName } from '../lib/format';
 
+/** Prices arrive in the marketplace's own currency; no conversion happens here. */
+function formatPrice(value: number, currency: string | null) {
+  return new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: currency ?? 'USD',
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
 /**
  * A collection as rows rather than tiles — the same controls as the tile view, laid out so a
  * large box can be read and edited without scrolling past card art.
@@ -12,13 +21,11 @@ import { formatName } from '../lib/format';
 export function CollectionTable({
   entries,
   onOpenCard,
-  onChangeQuantity,
   onChangeVariant,
   onRemove,
 }: {
   entries: CollectionBoxDetail['entries'];
   onOpenCard: (cardId: string) => void;
-  onChangeQuantity: (entryId: number, delta: number) => void;
   onChangeVariant: (entryId: number, position: number | null) => void;
   onRemove: (entryId: number) => void;
 }) {
@@ -32,7 +39,7 @@ export function CollectionTable({
             <th className="px-3 py-2 text-left font-medium">Number</th>
             <th className="px-3 py-2 text-left font-medium">Pokémon</th>
             <th className="px-3 py-2 text-left font-medium">Printing</th>
-            <th className="px-3 py-2 text-left font-medium">Qty</th>
+            <th className="px-3 py-2 text-left font-medium">Price</th>
             <th className="px-3 py-2 text-left font-medium sr-only">Remove</th>
           </tr>
         </thead>
@@ -89,28 +96,17 @@ export function CollectionTable({
                   <span className="text-xs text-[var(--color-text-muted)]">—</span>
                 )}
               </td>
-              <td className="px-3 py-1">
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => onChangeQuantity(entry.id, -1)}
-                    aria-label={`One fewer ${entry.name}`}
-                    className="h-6 w-6 rounded border border-[var(--color-border)] text-sm"
+              <td className="whitespace-nowrap px-3 py-1 tabular-nums">
+                {entry.price != null ? (
+                  formatPrice(entry.price, entry.priceCurrency)
+                ) : (
+                  <span
+                    className="text-[var(--color-text-muted)]"
+                    title="Set this copy's printing to price it — prints of the same card can differ several-fold"
                   >
-                    −
-                  </button>
-                  <span className="w-5 text-center text-sm font-semibold tabular-nums">
-                    {entry.quantity}
+                    —
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => onChangeQuantity(entry.id, 1)}
-                    aria-label={`One more ${entry.name}`}
-                    className="h-6 w-6 rounded border border-[var(--color-border)] text-sm"
-                  >
-                    +
-                  </button>
-                </div>
+                )}
               </td>
               <td className="px-3 py-1">
                 <button

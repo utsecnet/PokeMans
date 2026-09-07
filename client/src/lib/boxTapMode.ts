@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { addToCollection, removeCollectionEntry, setCollectionEntryQuantity } from './api';
+import { addToCollection, removeCollectionEntry } from './api';
 import { useCollection } from './collectionContext';
 import type { CollectionBoxRef } from '../types';
 import type { RailMode } from '../components/AddToBoxRail';
@@ -52,16 +52,18 @@ export function useBoxTapMode() {
       if (railMode === 'remove') {
         const existing = card.inBoxes.find((b) => b.boxId === activeBoxId);
         if (!existing) return; // nothing to remove from this box
-        const nextQty = existing.quantity - 1;
-        if (nextQty <= 0) {
-          await removeCollectionEntry(existing.entryId);
-          onUpdate(card.inBoxes.filter((b) => b.boxId !== activeBoxId));
-        } else {
-          await setCollectionEntryQuantity(existing.entryId, nextQty);
-          onUpdate(
-            card.inBoxes.map((b) => (b.boxId === activeBoxId ? { ...b, quantity: nextQty } : b)),
-          );
-        }
+        // Each copy is its own row, so removing one is a delete. entryId is the newest copy
+        // in this box, which is the one to drop — an older copy is likelier to have had its
+        // printing identified.
+        await removeCollectionEntry(existing.entryId);
+        const remaining = existing.quantity - 1;
+        onUpdate(
+          remaining <= 0
+            ? card.inBoxes.filter((b) => b.boxId !== activeBoxId)
+            : card.inBoxes.map((b) =>
+                b.boxId === activeBoxId ? { ...b, quantity: remaining } : b,
+              ),
+        );
         setActionCount((n) => n + 1);
         refresh();
         return;

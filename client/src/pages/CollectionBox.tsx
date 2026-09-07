@@ -5,7 +5,6 @@ import {
   fetchCollectionBox,
   removeCollectionEntry,
   renameCollectionBox,
-  setCollectionEntryQuantity,
   setCollectionEntryVariant,
 } from '../lib/api';
 import { useCollection } from '../lib/collectionContext';
@@ -45,31 +44,15 @@ export function CollectionBoxPage() {
 
   useEffect(load, [boxId]);
 
-  const totalQuantity = box?.entries.reduce((sum, e) => sum + e.quantity, 0) ?? 0;
+  // Each row is one copy, so the box's value is simply the priced rows added up.
+  const pricedTotal = box?.entries.reduce((sum, e) => sum + (e.price ?? 0), 0) ?? 0;
+  const unpriced = box?.entries.filter((e) => e.price == null).length ?? 0;
 
-  // Setting a printing can merge this copy into one the box already holds, so the box is
-  // reloaded rather than patched in place — the server decides what merged into what.
+  // Reloaded rather than patched in place: naming a printing changes what this copy is
+  // worth, and the price comes from the server.
   const changeVariant = async (entryId: number, variantPosition: number | null) => {
     await setCollectionEntryVariant(entryId, variantPosition);
     load();
-  };
-
-  const adjustQuantity = async (entryId: number, delta: number) => {
-    if (!box) return;
-    const entry = box.entries.find((e) => e.id === entryId);
-    if (!entry) return;
-    const nextQty = entry.quantity + delta;
-    if (nextQty <= 0) {
-      await removeCollectionEntry(entryId);
-      setBox({ ...box, entries: box.entries.filter((e) => e.id !== entryId) });
-    } else {
-      await setCollectionEntryQuantity(entryId, nextQty);
-      setBox({
-        ...box,
-        entries: box.entries.map((e) => (e.id === entryId ? { ...e, quantity: nextQty } : e)),
-      });
-    }
-    refresh();
   };
 
   const removeEntry = async (entryId: number) => {
@@ -168,7 +151,9 @@ export function CollectionBoxPage() {
       <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-[var(--color-text-muted)]">
           {box.entries.length} card{box.entries.length === 1 ? '' : 's'}
-          {totalQuantity !== box.entries.length ? ` · ${totalQuantity} total copies` : ''}
+          {pricedTotal > 0 &&
+            ` · ${new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(pricedTotal)}`}
+          {unpriced > 0 && ` · ${unpriced} without a printing set`}
         </p>
         {box.entries.length > 0 && <ViewToggle mode={viewMode} onChange={setViewMode} />}
       </div>
@@ -184,7 +169,6 @@ export function CollectionBoxPage() {
           <CollectionTable
             entries={box.entries}
             onOpenCard={setLightbox}
-            onChangeQuantity={adjustQuantity}
             onChangeVariant={changeVariant}
             onRemove={removeEntry}
           />
@@ -244,22 +228,20 @@ export function CollectionBoxPage() {
                 ))}
               </select>
             )}
-            <div className="mt-2 flex items-center justify-between">
-              <button
-                type="button"
-                onClick={() => adjustQuantity(entry.id, -1)}
-                className="h-6 w-6 rounded border border-[var(--color-border)] text-sm"
-              >
-                −
-              </button>
-              <span className="text-sm font-semibold tabular-nums">{entry.quantity}</span>
-              <button
-                type="button"
-                onClick={() => adjustQuantity(entry.id, 1)}
-                className="h-6 w-6 rounded border border-[var(--color-border)] text-sm"
-              >
-                +
-              </button>
+            <div className="mt-2 text-sm font-semibold tabular-nums">
+              {entry.price != null ? (
+                new Intl.NumberFormat(undefined, {
+                  style: 'currency',
+                  currency: entry.priceCurrency ?? 'USD',
+                }).format(entry.price)
+              ) : (
+                <span
+                  className="text-xs font-normal text-[var(--color-text-muted)]"
+                  title="Set this copy's printing to price it"
+                >
+                  Printing not set
+                </span>
+              )}
             </div>
             <button
               type="button"

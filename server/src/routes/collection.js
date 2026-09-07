@@ -29,27 +29,61 @@ function setLastUsedBoxId(boxId) {
   );
 }
 
+
+/**
+ * The latest TCGplayer market price for each (card, printing) pair in one query, keyed
+ * `cardId:position`.
+ *
+ * Only priced when a printing is set. An entry whose printing is unknown genuinely has no
+ * price: the printings of a vintage card can differ several-fold, so picking one on the
+ * owner's behalf would invent a number rather than report one.
+ */
+function latestPricesFor(entries) {
+  const wanted = entries.filter((e) => e.variantPosition != null);
+  if (wanted.length === 0) return new Map();
+
+  const params = {};
+  const pairs = wanted.map((e, i) => {
+    params[`c${i}`] = e.cardId;
+    params[`v${i}`] = e.variantPosition;
+    return `(p.card_id = @c${i} AND p.variant_position = @v${i})`;
+  });
+
+  const rows = personalAll(
+    `SELECT p.card_id AS cardId, p.variant_position AS variantPosition, p.currency, p.market
+       FROM card_price_history p
+      WHERE p.source = 'tcgplayer' AND p.market IS NOT NULL AND (${pairs.join(' OR ')})
+        AND p.captured_on = (
+          SELECT MAX(p2.captured_on) FROM card_price_history p2
+           WHERE p2.card_id = p.card_id AND p2.variant_position = p.variant_position
+             AND p2.source = p.source AND p2.market IS NOT NULL
+        )`,
+    params,
+  );
+  return new Map(rows.map((r) => [`${r.cardId}:${r.variantPosition}`, r]));
+}
+
 collectionRouter.get('/boxes', (_req, res) => {
   const boxes = personalAll(
     `SELECT b.id, b.name, b.type, b.color, b.created_at as createdAt,
             COUNT(DISTINCT e.card_id) as cardCount,
-            COALESCE(SUM(e.quantity), 0) as totalQuantity,
+            COUNT(e.id) as totalQuantity,
             -- Value from the most recent daily snapshot, in USD (TCGplayer is the only
             -- source quoted per finish, so mixing in Cardmarket's EUR would need a rate).
             -- A card with no snapshot yet simply contributes nothing rather than blocking
             -- the total, so this reads as "value of what we have prices for".
             COALESCE((
-              SELECT SUM(e2.quantity * p.market)
+              SELECT SUM(p.market)
               FROM collection_entries e2
               JOIN card_price_history p ON p.card_id = e2.card_id
               WHERE e2.box_id = b.id
                 AND p.source = 'tcgplayer'
                 AND p.market IS NOT NULL
-                AND p.variant_position = COALESCE(e2.variant_position, (
-                  SELECT p3.variant_position FROM card_price_history p3
-                  WHERE p3.card_id = e2.card_id AND p3.source = 'tcgplayer'
-                  ORDER BY p3.market DESC LIMIT 1
-                ))
+                -- Only copies whose printing is known. Falling back to another printing
+                -- would report a number the owner never claimed; a vintage card's prints
+                -- can differ several-fold.
+                AND e2.variant_position IS NOT NULL
+                AND p.variant_position = e2.variant_position
                 AND p.captured_on = (
                   SELECT MAX(p2.captured_on) FROM card_price_history p2
                   WHERE p2.card_id = p.card_id AND p2.variant_position = p.variant_position
@@ -154,8 +188,8 @@ collectionRouter.get('/boxes/:id', (req, res) => {
   }
 
   const rows = personalAll(
-    `SELECT id, card_id as cardId, quantity, added_at as addedAt, variant_position as variantPosition
-     FROM collection_entries WHERE box_id = @id ORDER BY added_at DESC`,
+    `SELECT id, card_id as cardId, added_at as addedAt, variant_position as variantPosition
+     FROM collection_entries WHERE box_id = @id ORDER BY added_at DESC, id DESC`,
     { id },
   );
 
@@ -178,6 +212,7 @@ collectionRouter.get('/boxes/:id', (req, res) => {
       : [],
   );
 
+  const prices = latestPricesFor(rows);
   const entries = rows
     .map((row) => {
       const card = cardsById.get(row.cardId);
@@ -191,8 +226,9 @@ collectionRouter.get('/boxes/:id', (req, res) => {
         ...card,
         id: row.id,
         cardId: row.cardId,
-        quantity: row.quantity,
         addedAt: row.addedAt,
+        price: prices.get(`${row.cardId}:${row.variantPosition}`)?.market ?? null,
+        priceCurrency: prices.get(`${row.cardId}:${row.variantPosition}`)?.currency ?? null,
         variantPosition: row.variantPosition ?? null,
         variantLabel: chosen?.label ?? null,
         printings,
@@ -203,10 +239,11 @@ collectionRouter.get('/boxes/:id', (req, res) => {
   res.json({ ...box, entries });
 });
 
-// Quick-add: bumps quantity by `delta` (default 1) for this (box, card, variant) triple,
-// creating the entry if needed. Also remembers this as the last-used box for future
-// one-click adds. `variant` is optional and defaults to null ("printing not recorded"),
-// which is what the one-tap flow sends — naming a printing is a separate, deliberate act.
+// Quick-add: files `delta` more copies of this card (or removes that many when negative).
+// Each copy is its own row, so adding the same card twice gives two rows that can later be
+// told apart by printing. Also remembers this as the last-used box for future one-click
+// adds. `variant` is optional and defaults to null ("printing not recorded"), which is what
+// the one-tap flow sends — naming a printing is a separate, deliberate act.
 collectionRouter.post('/entries', (req, res) => {
   const boxId = Number(req.body?.boxId);
   const cardId = String(req.body?.cardId ?? '');
@@ -226,30 +263,37 @@ collectionRouter.post('/entries', (req, res) => {
     return;
   }
 
-  // `IS` rather than `=` so an unrecorded printing (NULL) matches the existing unrecorded
-  // row instead of inserting a second one — SQLite's UNIQUE treats NULLs as distinct, so
-  // this match is what actually keeps them collapsed.
-  const existing = personalGet(
-    `SELECT id, quantity FROM collection_entries
-     WHERE box_id = @boxId AND card_id = @cardId AND variant_position IS @variantPosition`,
-    { boxId, cardId, variantPosition },
-  );
+  // `IS` rather than `=` so an unrecorded printing (NULL) matches the unrecorded rows
+  // instead of missing them — SQLite compares NULLs as distinct under `=`.
+  const matching = () =>
+    personalAll(
+      `SELECT id FROM collection_entries
+        WHERE box_id = @boxId AND card_id = @cardId AND variant_position IS @variantPosition
+        ORDER BY id DESC`,
+      { boxId, cardId, variantPosition },
+    );
 
   let entry;
-  if (existing) {
-    const quantity = Math.max(1, existing.quantity + delta);
-    personalRun('UPDATE collection_entries SET quantity = @quantity WHERE id = @id', {
-      quantity,
-      id: existing.id,
-    });
-    entry = { id: existing.id, quantity };
+  if (delta < 0) {
+    // Removing takes the most recently filed copies first, so an older copy that has had a
+    // printing identified isn't the one discarded.
+    const doomed = matching().slice(0, Math.abs(delta));
+    for (const row of doomed) {
+      personalRun('DELETE FROM collection_entries WHERE id = @id', { id: row.id });
+    }
+    const left = matching();
+    entry = { id: left[0]?.id ?? null, quantity: left.length };
   } else {
-    const result = personalRun(
-      `INSERT INTO collection_entries (box_id, card_id, quantity, added_at, variant_position)
-       VALUES (@boxId, @cardId, @quantity, @now, @variantPosition)`,
-      { boxId, cardId, quantity: Math.max(1, delta), now: new Date().toISOString(), variantPosition },
-    );
-    entry = { id: Number(result.lastInsertRowid), quantity: Math.max(1, delta) };
+    let lastId = null;
+    for (let copy = 0; copy < Math.max(1, delta); copy++) {
+      const result = personalRun(
+        `INSERT INTO collection_entries (box_id, card_id, added_at, variant_position)
+         VALUES (@boxId, @cardId, @now, @variantPosition)`,
+        { boxId, cardId, now: new Date().toISOString(), variantPosition },
+      );
+      lastId = Number(result.lastInsertRowid);
+    }
+    entry = { id: lastId, quantity: matching().length };
   }
 
   setLastUsedBoxId(boxId);
@@ -269,60 +313,29 @@ collectionRouter.post('/entries', (req, res) => {
   res.json({ ...entry, boxId, cardId, variantPosition });
 });
 
+// Records which printing a copy is. With one row per copy there is nothing to merge any
+// more: two rows set to the same printing are two cards that happen to match, which is
+// exactly what they were before anyone said so.
 collectionRouter.patch('/entries/:id', (req, res) => {
   const id = Number(req.params.id);
+  if (!('variantPosition' in (req.body ?? {}))) {
+    res.status(400).json({ error: 'variantPosition is required' });
+    return;
+  }
+  const variantPosition =
+    req.body.variantPosition === null || req.body.variantPosition === undefined
+      ? null
+      : Number(req.body.variantPosition);
 
-  // Recording which printing a copy is — sent on its own, without a quantity.
-  if (req.body?.quantity === undefined && 'variantPosition' in (req.body ?? {})) {
-    const variantPosition =
-      req.body.variantPosition === null || req.body.variantPosition === undefined
-        ? null
-        : Number(req.body.variantPosition);
-    const entry = personalGet(
-      'SELECT box_id as boxId, card_id as cardId FROM collection_entries WHERE id = @id',
-      { id },
-    );
-    if (!entry) {
-      res.status(404).json({ error: 'Entry not found' });
-      return;
-    }
-    // Naming a printing can collide with a row that already holds it; merge rather than
-    // failing the UNIQUE, so setting two separate rows to "reverse" adds up.
-    const clash = personalGet(
-      `SELECT id, quantity FROM collection_entries
-       WHERE box_id = @boxId AND card_id = @cardId AND variant_position IS @variantPosition AND id != @id`,
-      { boxId: entry.boxId, cardId: entry.cardId, variantPosition, id },
-    );
-    if (clash) {
-      const mine = personalGet('SELECT quantity FROM collection_entries WHERE id = @id', { id });
-      personalRun('UPDATE collection_entries SET quantity = @quantity WHERE id = @clashId', {
-        quantity: clash.quantity + (mine?.quantity ?? 0),
-        clashId: clash.id,
-      });
-      personalRun('DELETE FROM collection_entries WHERE id = @id', { id });
-      res.json({ ok: true, variantPosition, mergedInto: clash.id });
-      return;
-    }
-    personalRun('UPDATE collection_entries SET variant_position = @variantPosition WHERE id = @id', {
-      variantPosition,
-      id,
-    });
-    res.json({ ok: true, variantPosition });
+  if (!personalGet('SELECT id FROM collection_entries WHERE id = @id', { id })) {
+    res.status(404).json({ error: 'Entry not found' });
     return;
   }
-
-  const quantity = Number(req.body?.quantity);
-  if (!Number.isFinite(quantity)) {
-    res.status(400).json({ error: 'quantity is required' });
-    return;
-  }
-  if (quantity <= 0) {
-    personalRun('DELETE FROM collection_entries WHERE id = @id', { id });
-    res.json({ ok: true, deleted: true });
-    return;
-  }
-  personalRun('UPDATE collection_entries SET quantity = @quantity WHERE id = @id', { quantity, id });
-  res.json({ ok: true, quantity });
+  personalRun('UPDATE collection_entries SET variant_position = @variantPosition WHERE id = @id', {
+    variantPosition,
+    id,
+  });
+  res.json({ ok: true, variantPosition });
 });
 
 collectionRouter.delete('/entries/:id', (req, res) => {

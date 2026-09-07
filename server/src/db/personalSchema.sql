@@ -34,10 +34,11 @@ CREATE TABLE IF NOT EXISTS collection_entries (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   box_id INTEGER NOT NULL REFERENCES collection_boxes(id) ON DELETE CASCADE,
   card_id TEXT NOT NULL,
-  quantity INTEGER NOT NULL DEFAULT 1,
   added_at TEXT NOT NULL,
-  variant_position INTEGER,
-  UNIQUE(box_id, card_id, variant_position)
+  -- One row per physical copy: two copies of a card can be different printings worth very
+  -- different amounts, so there is deliberately no quantity and no uniqueness across
+  -- (box, card, printing) that would collapse them back into a count.
+  variant_position INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS settings (

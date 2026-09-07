@@ -309,16 +309,6 @@ export function addToCollection(
   }).then(json<{ id: number; quantity: number; boxId: number; cardId: string }>);
 }
 
-export function setCollectionEntryQuantity(
-  entryId: number,
-  quantity: number,
-): Promise<{ ok: boolean }> {
-  return fetch(`/api/collection/entries/${entryId}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ quantity }),
-  }).then(json<{ ok: boolean }>);
-}
 
 /**
  * Records which printing a copy is. Passing null clears it back to unrecorded. If the box
