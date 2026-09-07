@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   fetchDisplayCurrency,
   fetchSyncSources,
@@ -10,6 +10,7 @@ import {
 } from '../lib/api';
 import type { SourceState, SyncStatus } from '../types';
 import { LinkedAccounts } from '../components/LinkedAccounts';
+import { useCollection } from '../lib/collectionContext';
 import { DataSources } from '../components/DataSources';
 
 function formatTime(iso: string | null) {
@@ -35,6 +36,7 @@ export function Settings() {
   const [currency, setCurrency] = useState('USD');
   const [supported, setSupported] = useState<string[]>(['USD']);
   const isSyncing = !!syncStatus?.active;
+  const { refresh: refreshCollection } = useCollection();
 
   const loadSyncStatus = () => {
     fetchSyncStatus()
@@ -74,6 +76,15 @@ export function Settings() {
     const id = setInterval(loadSyncStatus, 1500);
     return () => clearInterval(id);
   }, [isSyncing]);
+
+  // A price sync changes what every collection is worth, and the box list lives in a context
+  // that outlives this page — so without this it keeps whatever it read at startup, and the
+  // totals stay stale until something else happens to refetch them.
+  const wasSyncing = useRef(false);
+  useEffect(() => {
+    if (wasSyncing.current && !isSyncing) refreshCollection();
+    wasSyncing.current = isSyncing;
+  }, [isSyncing, refreshCollection]);
 
   const handleTrigger = async (fn: () => Promise<{ started: boolean }>) => {
     setError(null);
