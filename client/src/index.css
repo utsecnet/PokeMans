@@ -129,6 +129,13 @@
   border: 0;
   background: none;
   perspective: 1200px;
+  /* Room for the card to lean into. A rotated element still contributes to its scroll
+     container's overflow even though it takes no extra layout space, so without this the
+     lean pushed a few pixels past the dialog, which has overflow-y:auto — that raised a
+     scrollbar, the scrollbar narrowed the column, the narrower column re-measured the card,
+     and the whole thing juddered. Most visible aiming at a top corner, where the tilt is at
+     its limit. The padding absorbs the overhang so the scroll height never changes. */
+  padding: 14px 12px;
   /* A drag on the card turns it, so the browser must not claim the gesture for scrolling. */
   touch-action: none;
   -webkit-tap-highlight-color: transparent;
