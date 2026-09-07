@@ -58,6 +58,64 @@ export function tcgdexIdFor(cardId) {
  * Live prices for one card, one entry per printing. Retries once: the upstream drops the
  * occasional request, and a single blip shouldn't surface as an error.
  */
+
+// TCGdex attaches prices to each entry in variants_detailed on some cards and only to the
+// card as a whole on others — about a third of the catalogue is the latter. Reading only the
+// per-variant copy silently produced no prices at all for those, which looked like "this card
+// has no price" rather than "we didn't look in the second place".
+//
+// The card-level object still distinguishes finishes, just by naming rather than nesting:
+// Cardmarket suffixes the holo figures ("avg" vs "avg-holo") and TCGplayer nests one object
+// per finish ("normal", "reverse-holofoil"). Both are unpicked here per variant.
+const TCGPLAYER_KEYS = {
+  normal: ['normal'],
+  holo: ['holofoil', 'holo'],
+  reverse: ['reverse-holofoil', 'reverseHolofoil', 'reverse'],
+};
+
+function cardLevelPricing(cardPricing, type, soleVariant) {
+  if (!cardPricing) return { tcgplayer: null, cardmarket: null };
+
+  const tp = cardPricing.tcgplayer ?? null;
+  let tcgplayer = null;
+  if (tp) {
+    const finishes = Object.keys(tp).filter((k) => tp[k] && typeof tp[k] === 'object');
+    // A card printed one way, priced one way, is that one printing — TCGdex labels some of
+    // them "normal" while pricing only the holofoil (Lucario-GX and other holo-only cards),
+    // and refusing the match there loses the only price the card has. Anything with more
+    // than one printing still has to match by name, so a 1st Edition can't inherit an
+    // Unlimited price.
+    const key =
+      (TCGPLAYER_KEYS[type] ?? []).find((k) => finishes.includes(k)) ??
+      (soleVariant && finishes.length === 1 ? finishes[0] : null);
+    if (key) tcgplayer = { unit: tp.unit, updated: tp.updated, [key]: tp[key] };
+  }
+
+  const cm = cardPricing.cardmarket ?? null;
+  let cardmarket = null;
+  if (cm) {
+    // A holo printing reads the "-holo" figures; every other finish reads the base ones,
+    // since Cardmarket publishes no reverse-specific series here.
+    let suffix = type === 'holo' ? '-holo' : '';
+    const has = (sfx) =>
+      typeof cm[`trend${sfx}`] === 'number' || typeof cm[`avg${sfx}`] === 'number';
+    // Same one-printing rule: fall to the holo series when the base one is absent.
+    if (!has(suffix) && soleVariant && has('-holo')) suffix = '-holo';
+    const pick = (field) => cm[`${field}${suffix}`];
+    if (typeof pick('trend') === 'number' || typeof pick('avg') === 'number') {
+      cardmarket = {
+        unit: cm.unit,
+        updated: cm.updated,
+        avg: pick('avg'),
+        low: pick('low'),
+        trend: pick('trend'),
+      };
+    }
+  }
+
+  return { tcgplayer, cardmarket };
+}
+
 export async function fetchCardPricing(tcgdexId, cardId) {
   let upstream;
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -98,13 +156,16 @@ export async function fetchCardPricing(tcgdexId, cardId) {
       cardmarketId: v.thirdParty?.cardmarket ?? null,
     })),
     variants: rows
-      .map((v, position) => ({
-        position,
-        type: v.type,
-        label: aligned ? printings[position].label : printingLabel({ type: v.type }),
-        tcgplayer: v.pricing?.tcgplayer ?? null,
-        cardmarket: v.pricing?.cardmarket ?? null,
-      }))
+      .map((v, position) => {
+        const fallback = v.pricing ? null : cardLevelPricing(card.pricing, v.type, rows.length === 1);
+        return {
+          position,
+          type: v.type,
+          label: aligned ? printings[position].label : printingLabel({ type: v.type }),
+          tcgplayer: v.pricing?.tcgplayer ?? fallback?.tcgplayer ?? null,
+          cardmarket: v.pricing?.cardmarket ?? fallback?.cardmarket ?? null,
+        };
+      })
       // Unpriced printings are still real printings, but there's nothing to show for them
       // in a price panel.
       .filter((v) => v.tcgplayer || v.cardmarket),

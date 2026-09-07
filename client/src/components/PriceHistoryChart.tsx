@@ -377,7 +377,11 @@ export function PriceHistoryChart({
         show(h);
         return captureCardPrices(cardId, controller.signal);
       })
-      .then((res) => (res.rows > 0 ? fetchCardPriceHistory(cardId, controller.signal).then(show) : undefined))
+      // Re-read unconditionally rather than only when the capture reported rows. React runs
+      // effects twice in development, and the first run's cleanup aborts its capture while the
+      // server completes it anyway — so the second run can see "already held, 0 rows" over a
+      // history it fetched before those rows landed, and would never look again.
+      .then(() => fetchCardPriceHistory(cardId, controller.signal).then(show))
       .catch((err) => {
         if (controller.signal.aborted) return;
         // A capture that fails still leaves whatever was already stored on screen.
@@ -395,7 +399,7 @@ export function PriceHistoryChart({
   if (history.charts.length === 0) {
     return (
       <p className="text-xs text-[var(--color-text-muted)]">
-        No history recorded yet. Prices are captured daily for cards in your collection.
+        No prices published for this card by TCGdex or PokemonPriceTracker.
       </p>
     );
   }
