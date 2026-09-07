@@ -23,6 +23,18 @@ function backlight(types: string[]): string {
   );
 }
 
+/**
+ * Dust caught in the light: three dot grids at co-prime sizes and different offsets, which
+ * never line up and so scatter irregularly instead of reading as the lattice each one is.
+ * Left unblurred, unlike the glow behind them — a speck that reads as a particle has to have
+ * an edge, and blurring these just dims the glow further.
+ */
+const SPECKLES =
+  'radial-gradient(circle at 30% 40%, var(--color-speck) 1.1px, transparent 1.7px), ' +
+  'radial-gradient(circle at 70% 15%, var(--color-speck) 0.9px, transparent 1.5px), ' +
+  'radial-gradient(circle at 15% 75%, var(--color-speck) 0.7px, transparent 1.3px)';
+const SPECKLE_SIZES = '19px 16px, 26px 23px, 14px 31px';
+
 export function PokemonCard({ pokemon }: { pokemon: PokemonSummary }) {
   const image = pokemon.artworkUrl ?? pokemon.spriteUrl;
 
@@ -42,6 +54,21 @@ export function PokemonCard({ pokemon }: { pokemon: PokemonSummary }) {
             aria-hidden="true"
             className="pointer-events-none absolute -inset-6 rounded-full opacity-0 blur-xl transition-opacity duration-300 group-hover:opacity-90 motion-reduce:transition-none"
             style={{ background: backlight(pokemon.types) }}
+          />
+        )}
+        {/* Above the glow, below the sprite. The mask reaches most of the way to the edge on
+            purpose: pulled in tight, every speck landed under the sprite and none survived
+            into the lit ring around it, which is the only place they are visible. */}
+        {pokemon.types.length > 0 && (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute -inset-6 rounded-full opacity-0 transition-opacity duration-500 group-hover:opacity-100 motion-reduce:transition-none"
+            style={{
+              backgroundImage: SPECKLES,
+              backgroundSize: SPECKLE_SIZES,
+              maskImage: 'radial-gradient(closest-side at 50% 52%, #000 25%, #000 62%, transparent 92%)',
+              WebkitMaskImage: 'radial-gradient(closest-side at 50% 52%, #000 25%, #000 62%, transparent 92%)',
+            }}
           />
         )}
         {image ? (

@@ -45,6 +45,20 @@
   --color-type-dark: #5a5147;
   --color-type-steel: #8f96a6;
   --color-type-fairy: #d98cb3;
+
+  /* Motes in the hover backlight. Bright on a dark ground; on the light theme the glow is
+     too pale for white to register, so they darken instead and read as dust either way. */
+  --color-speck: rgba(38, 38, 48, 0.42);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --color-speck: rgba(255, 255, 255, 0.92);
+  }
+}
+
+:root[data-theme='dark'] {
+  --color-speck: rgba(255, 255, 255, 0.92);
 }
 
 .dark {
