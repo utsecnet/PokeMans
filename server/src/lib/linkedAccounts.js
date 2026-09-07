@@ -13,10 +13,8 @@ export const PROVIDERS = [
     name: 'PokemonPriceTracker',
     site: 'https://www.pokemonpricetracker.com',
     signupUrl: 'https://www.pokemonpricetracker.com/api',
-    /** What this unlocks, shown under the field so the value is obvious before signing up. */
-    summary:
-      'Daily TCGplayer prices per printing and condition, plus price history. A free key gives ' +
-      '100 credits a day and about three days of history; paid plans go back further.',
+    /** Optional one-liner under the field; omitted when the service needs no explaining. */
+    summary: null,
     keyLabel: 'API key',
     keyPlaceholder: 'pokeprice_…',
     async verify(key) {

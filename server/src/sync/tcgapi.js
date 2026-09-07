@@ -129,6 +129,7 @@ export async function syncTcgCards({ onProgress } = {}) {
           image_small: card.images?.small ?? null,
           image_large: card.images?.large ?? null,
           supertype: card.supertype ?? null,
+          illustrator: card.artist ?? null,
         },
         ['id'],
       );

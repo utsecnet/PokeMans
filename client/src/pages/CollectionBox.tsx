@@ -13,6 +13,9 @@ import { CardLightbox } from '../components/CardLightbox';
 import { collectionColorHex } from '../lib/collectionColors';
 import type { CollectionBoxDetail } from '../types';
 import { formatName } from '../lib/format';
+import { ViewToggle, type ViewMode } from '../components/table/ViewToggle';
+import { CollectionTable } from '../components/CollectionTable';
+import { usePersistentState } from '../lib/persistentState';
 
 export function CollectionBoxPage() {
   const { boxId } = useParams();
@@ -24,6 +27,9 @@ export function CollectionBoxPage() {
   const [nameInput, setNameInput] = useState('');
   // Card id only — the card view loads the rest itself.
   const [lightbox, setLightbox] = useState<string | null>(null);
+  // Shared across every collection rather than per box: the choice is about how you like to
+  // read a list, not about this particular box.
+  const [viewMode, setViewMode] = usePersistentState<ViewMode>('pokemans.collection.viewMode', 'tile');
 
   const load = () => {
     if (!boxId) return;
@@ -159,10 +165,13 @@ export function CollectionBoxPage() {
           Delete collection
         </button>
       </div>
-      <p className="mt-1 text-sm text-[var(--color-text-muted)]">
-        {box.entries.length} card{box.entries.length === 1 ? '' : 's'}
-        {totalQuantity !== box.entries.length ? ` · ${totalQuantity} total copies` : ''}
-      </p>
+      <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-[var(--color-text-muted)]">
+          {box.entries.length} card{box.entries.length === 1 ? '' : 's'}
+          {totalQuantity !== box.entries.length ? ` · ${totalQuantity} total copies` : ''}
+        </p>
+        {box.entries.length > 0 && <ViewToggle mode={viewMode} onChange={setViewMode} />}
+      </div>
 
       {box.entries.length === 0 && (
         <div className="mt-8 rounded-xl border border-dashed border-[var(--color-border)] p-10 text-center text-[var(--color-text-muted)]">
@@ -170,6 +179,17 @@ export function CollectionBoxPage() {
         </div>
       )}
 
+      {viewMode === 'table' ? (
+        <div className="mt-6">
+          <CollectionTable
+            entries={box.entries}
+            onOpenCard={setLightbox}
+            onChangeQuantity={adjustQuantity}
+            onChangeVariant={changeVariant}
+            onRemove={removeEntry}
+          />
+        </div>
+      ) : (
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
         {box.entries.map((entry) => (
           <div
@@ -251,6 +271,7 @@ export function CollectionBoxPage() {
           </div>
         ))}
       </div>
+      )}
 
       {lightbox && <CardLightbox cardId={lightbox} onClose={() => setLightbox(null)} />}
     </div>

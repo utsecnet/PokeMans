@@ -76,7 +76,10 @@ CREATE TABLE IF NOT EXISTS tcg_cards (
   -- A far lighter copy of the same artwork (~19KB webp against ~180KB png), sourced from
   -- TCGdex by the enrichment pass. Null where no confident match was found, in which case
   -- the original image_small is served instead.
-  image_webp TEXT
+  image_webp TEXT,
+  -- The card's artist, as printed. Called `artist` upstream and `illustrator` by TCGdex; the
+  -- printed credit is the same person either way.
+  illustrator TEXT
 );
 
 -- One row per distinct printing of a card. `type` is the finish (normal, reverse, holo);

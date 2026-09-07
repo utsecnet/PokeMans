@@ -151,6 +151,7 @@ export interface CardListItem {
   imageLarge: string | null;
   /** "Pokémon", "Trainer" or "Energy" — the only thing identifying a non-Pokémon card. */
   supertype: string | null;
+  illustrator: string | null;
   /** Every distinct printing of this card, in upstream order. */
   variants: CardPrinting[];
   // Null for Trainer and Energy cards, which have no Pokémon of their own.
@@ -182,6 +183,9 @@ export interface CardFilters {
   rarities: string[];
   types: string[];
   generations: string[];
+  /** "Pokémon" | "Trainer" | "Energy" — what kind of card it is. */
+  supertypes: string[];
+  illustrators: string[];
   owned: boolean | null;
   sortChain: CardSortRule[];
 }
@@ -241,7 +245,7 @@ export interface LinkedAccount {
   name: string;
   site: string;
   signupUrl: string;
-  summary: string;
+  summary: string | null;
   keyLabel: string;
   keyPlaceholder: string;
   linked: boolean;

@@ -148,6 +148,7 @@ export const CARD_RARITIES = ['Common', 'Uncommon', 'Rare', 'Double Rare'];
 // have no Pokémon-type equivalent, and a dual-type Pokémon prints as a single energy.
 export const CARD_TYPES = ['Colorless', 'Fighting', 'Fire', 'Grass', 'Lightning', 'Metal', 'Water'];
 export const CARD_COLLECTIONS = ['Charizard Deck', 'Bulk Box'];
+export const CARD_ILLUSTRATORS = ['Mitsuhiro Arita', 'Ken Sugimori'];
 
 export const cardSchema: QuerySchema<CardListItem> = buildCardQuerySchema(
   CARD_EXPANSIONS,
@@ -155,6 +156,7 @@ export const cardSchema: QuerySchema<CardListItem> = buildCardQuerySchema(
   CARD_RARITIES,
   CARD_TYPES,
   CARD_COLLECTIONS,
+  CARD_ILLUSTRATORS,
 );
 
 function card(overrides: Partial<CardListItem>): CardListItem {
@@ -166,6 +168,7 @@ function card(overrides: Partial<CardListItem>): CardListItem {
     setName: 'Base',
     series: 'Base',
     rarity: 'Common',
+    illustrator: null,
     releaseDate: '1999/01/09',
     imageSmall: null,
     imageLarge: null,
@@ -280,6 +283,7 @@ export const CARD_FIXTURE: CardListItem[] = [
     setName: 'Base',
     series: 'Base',
     rarity: 'Common',
+    illustrator: null,
     releaseDate: '1999/01/09',
     pokemonId: 25,
     pokemonName: 'pikachu',

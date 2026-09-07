@@ -7,6 +7,7 @@ export function buildCardQuerySchema(
   rarities: string[],
   types: string[],
   collections: string[],
+  illustrators: string[] = [],
 ): QuerySchema<CardListItem> {
   return {
     defaultTextFields: ['name', 'pokemon'],
@@ -51,6 +52,14 @@ export function buildCardQuerySchema(
           c.variants.flatMap((v) => [v.type, v.subtype, ...String(v.stamp ?? '').split(',')])
             .filter((v): v is string => !!v),
         suggestions: ['normal', 'reverse', 'holo', 'shadowless', 'unlimited', '1st-edition'],
+      },
+      {
+        key: 'illustrator',
+        label: 'Illustrator',
+        aliases: ['artist'],
+        type: 'text',
+        get: (c) => c.illustrator,
+        suggestions: illustrators,
       },
       { key: 'number', label: 'Number', type: 'text', get: (c) => c.number },
       { key: 'owned', label: 'Owned', type: 'boolean', get: (c) => c.totalOwned > 0, suggestions: ['true', 'false'] },

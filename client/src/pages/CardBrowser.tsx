@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  fetchCardIllustrators,
+  fetchCardSupertypes,
   fetchCardTypes,
   fetchCards,
   fetchExpansions,
@@ -38,11 +40,19 @@ export function CardBrowser() {
     'pokemans.cards.filters',
     defaultCardFilters,
   );
-  const [searchInput, setSearchInput] = useState(filters.search);
+  // Persisted separately from filters.search: advanced syntax is evaluated client-side and
+  // must never reach the server's search param, so it is deliberately kept out of `filters`
+  // — which also meant it was lost on reload. This keeps the box exactly as it was left.
+  const [searchInput, setSearchInput] = usePersistentState<string>(
+    'pokemans.cards.query',
+    filters.search,
+  );
   const [expansions, setExpansions] = useState<Expansion[]>([]);
   const [series, setSeries] = useState<string[]>([]);
   const [rarities, setRarities] = useState<string[]>([]);
   const [types, setTypes] = useState<string[]>([]);
+  const [supertypes, setSupertypes] = useState<string[]>([]);
+  const [illustrators, setIllustrators] = useState<string[]>([]);
   const [generations, setGenerations] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   // Holds the whole card, not just its image URL: the lightbox doubles as the card's
@@ -71,8 +81,8 @@ export function CardBrowser() {
   // the instant the query becomes advanced syntax.
   const advanced = isAdvancedQuery(searchInput);
   const querySchema = useMemo(
-    () => buildCardQuerySchema(expansions, series, rarities, types, boxes.map((b) => b.name)),
-    [expansions, series, rarities, types, boxes],
+    () => buildCardQuerySchema(expansions, series, rarities, types, boxes.map((b) => b.name), illustrators),
+    [expansions, series, rarities, types, boxes, illustrators],
   );
   // Filtering the bulk set walks every fetched row, so re-parsing on each keystroke would
   // put that whole pass between the key press and the character appearing. The plain-text
@@ -87,6 +97,8 @@ export function CardBrowser() {
     fetchRarities().then(setRarities).catch(() => {});
     // Card energy types, not Pokémon types — the two vocabularies differ.
     fetchCardTypes().then(setTypes).catch(() => {});
+    fetchCardSupertypes().then(setSupertypes).catch(() => {});
+    fetchCardIllustrators().then(setIllustrators).catch(() => {});
     fetchGenerations().then(setGenerations).catch(() => {});
   }, []);
 
@@ -219,6 +231,8 @@ export function CardBrowser() {
             rarities={rarities}
             types={types}
             generations={generations}
+            supertypes={supertypes}
+            illustrators={illustrators}
           />
         </aside>
       )}

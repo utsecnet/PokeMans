@@ -136,6 +136,8 @@ export function fetchCards({
     if (filters.rarities?.length) query.set('rarities', filters.rarities.join(','));
     if (filters.types?.length) query.set('types', filters.types.join(','));
     if (filters.generations?.length) query.set('generations', filters.generations.join(','));
+    if (filters.supertypes?.length) query.set('supertypes', filters.supertypes.join(','));
+    if (filters.illustrators?.length) query.set('illustrators', filters.illustrators.join(','));
     if (filters.owned !== null && filters.owned !== undefined) {
       query.set('owned', String(filters.owned));
     }
@@ -152,6 +154,14 @@ export function fetchRarities(): Promise<string[]> {
 }
 
 /** The energy types printed on cards — a different vocabulary from fetchTypes()'s Pokémon types. */
+export function fetchCardSupertypes(): Promise<string[]> {
+  return fetch('/api/cards/meta/supertypes').then(json<string[]>);
+}
+
+export function fetchCardIllustrators(): Promise<string[]> {
+  return fetch('/api/cards/meta/illustrators').then(json<string[]>);
+}
+
 export function fetchCardTypes(): Promise<string[]> {
   return fetch('/api/cards/meta/types').then(json<string[]>);
 }

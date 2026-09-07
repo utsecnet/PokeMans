@@ -31,6 +31,8 @@ export function defaultCardFilters(): CardFilters {
     rarities: [],
     types: [],
     generations: [],
+    supertypes: [],
+    illustrators: [],
     owned: null,
     sortChain: [{ field: 'releaseDate', dir: 'asc' }],
   };
@@ -42,6 +44,8 @@ function countActive(filters: CardFilters): number {
   n += filters.rarities.length ? 1 : 0;
   n += filters.types.length ? 1 : 0;
   n += filters.generations.length ? 1 : 0;
+  n += filters.supertypes.length ? 1 : 0;
+  n += filters.illustrators.length ? 1 : 0;
   n += filters.owned !== null ? 1 : 0;
   return n;
 }
@@ -54,6 +58,8 @@ export function CardFilterPanel({
   rarities,
   types,
   generations,
+  supertypes,
+  illustrators,
 }: {
   filters: CardFilters;
   onChange: (next: CardFilters) => void;
@@ -62,6 +68,8 @@ export function CardFilterPanel({
   rarities: string[];
   types: string[];
   generations: string[];
+  supertypes: string[];
+  illustrators: string[];
 }) {
   const activeCount = useMemo(() => countActive(filters), [filters]);
   const orderedExpansions = useMemo(() => expansions.slice().reverse(), [expansions]);
@@ -71,6 +79,14 @@ export function CardFilterPanel({
     <FilterPanelShell activeCount={activeCount} onReset={() => onChange(defaultCardFilters())}>
       {/* Types, Generations and Expansions come first and in this order in both panels, so
           switching between Pokémon and cards doesn't move the controls around. */}
+      <CheckboxListSection
+        title="Card kind"
+        values={supertypes}
+        selected={filters.supertypes}
+        onToggle={(v) => onChange({ ...filters, supertypes: toggleInList(filters.supertypes, v) })}
+        emptyText="No card kinds synced yet."
+      />
+
       <TypeFilterSection
         types={types}
         selected={filters.types}
@@ -103,6 +119,14 @@ export function CardFilterPanel({
         selected={filters.rarities}
         onToggle={(r) => onChange({ ...filters, rarities: toggleInList(filters.rarities, r) })}
         emptyText="No rarities synced yet."
+      />
+
+      <CheckboxListSection
+        title="Illustrator"
+        values={illustrators}
+        selected={filters.illustrators}
+        onToggle={(v) => onChange({ ...filters, illustrators: toggleInList(filters.illustrators, v) })}
+        emptyText="No illustrators synced yet — run a card sync."
       />
 
       <FilterSection title="My Collection" badge={filters.owned !== null ? 1 : 0}>

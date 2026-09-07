@@ -4,6 +4,7 @@ import { deleteCollectionBox } from '../lib/api';
 import { useCollection } from '../lib/collectionContext';
 import { collectionColorHex } from '../lib/collectionColors';
 import type { CollectionBox } from '../types';
+import { PokeballIcon } from '../components/PokeballIcon';
 
 const UNDO_WINDOW_MS = 6000;
 
@@ -159,21 +160,11 @@ export function Collection() {
                 ×
               </button>
               <Link to={`/collection/${box.id}`} className="flex flex-col items-center gap-2">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={1.5}
+                <PokeballIcon
                   className={`h-10 w-10 ${hex ? '' : 'text-[var(--color-accent)]'}`}
+                  strokeWidth={1.5}
                   style={hex ? { color: hex } : undefined}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M3.75 9.75l8.25-4.5 8.25 4.5m-16.5 0v7.5a1.5 1.5 0 001.5 1.5h13.5a1.5 1.5 0 001.5-1.5v-7.5m-16.5 0L12 14.25l8.25-4.5"
-                  />
-                </svg>
+                />
                 <span className="font-semibold">{box.name}</span>
                 <span className="text-xs text-[var(--color-text-muted)]">
                   {box.cardCount} card{box.cardCount === 1 ? '' : 's'}

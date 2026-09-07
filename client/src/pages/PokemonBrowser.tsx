@@ -37,7 +37,13 @@ export function PokemonBrowser() {
     'pokemans.pokemon.filters.v2',
     defaultFilters,
   );
-  const [searchInput, setSearchInput] = useState(filters.search);
+  // Persisted separately from filters.search: advanced syntax is evaluated client-side and
+  // must never reach the server's search param, so it is deliberately kept out of `filters`
+  // — which also meant it was lost on reload. This keeps the box exactly as it was left.
+  const [searchInput, setSearchInput] = usePersistentState<string>(
+    'pokemans.pokemon.query',
+    filters.search,
+  );
   const [types, setTypes] = useState<string[]>([]);
   const [generations, setGenerations] = useState<string[]>([]);
   const [abilities, setAbilities] = useState<string[]>([]);

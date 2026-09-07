@@ -72,7 +72,7 @@ const CARD_COLUMNS = `c.id, c.name, c.number, c.set_id as setId, c.set_name as s
        -- Prefer the lighter TCGdex artwork, falling back to the original where the
        -- enrichment pass found no confident match.
        COALESCE(c.image_webp, c.image_small) as imageSmall, c.image_large as imageLarge,
-       c.supertype, pk.id as pokemonId, pk.name as pokemonName`;
+       c.supertype, c.illustrator, pk.id as pokemonId, pk.name as pokemonName`;
 
 const CARD_FROM = `FROM tcg_cards c
      LEFT JOIN pokemon pk ON pk.id = (SELECT MIN(tcp.pokemon_id) FROM tcg_card_pokemon tcp WHERE tcp.card_id = c.id)`;
@@ -120,6 +120,10 @@ cardsRouter.get('/', (req, res) => {
   const rarities = csvParam(req.query.rarities);
   const types = csvParam(req.query.types);
   const generations = csvParam(req.query.generations);
+  // "Pokémon", "Trainer", "Energy" — the only thing telling the latter two apart, since
+  // neither links to a Pokémon at all.
+  const supertypes = csvParam(req.query.supertypes);
+  const illustrators = csvParam(req.query.illustrators);
   const owned = req.query.owned === 'true' ? true : req.query.owned === 'false' ? false : null;
 
   const sortChain = parseSortChain(req.query.sort, SORT_COLUMNS, DEFAULT_SORT_CHAIN);
@@ -135,6 +139,8 @@ cardsRouter.get('/', (req, res) => {
   addInClause(where, params, 'c.set_id', expansions, 'expansion');
   addInClause(where, params, 'c.series', series, 'series');
   addInClause(where, params, 'c.rarity', rarities, 'rarity');
+  addInClause(where, params, 'c.supertype', supertypes, 'supertype');
+  addInClause(where, params, 'c.illustrator', illustrators, 'illustrator');
 
   if (types.length > 0) {
     const keys = types.map((_, i) => `type${i}`);
@@ -349,6 +355,21 @@ cardsRouter.get('/meta/rarities', (_req, res) => {
     'SELECT DISTINCT rarity FROM tcg_cards WHERE rarity IS NOT NULL ORDER BY rarity',
   );
   res.json(rows.map((r) => r.rarity));
+});
+
+cardsRouter.get('/meta/supertypes', (_req, res) => {
+  res.json(
+    all("SELECT DISTINCT supertype v FROM tcg_cards WHERE supertype IS NOT NULL AND supertype <> '' ORDER BY supertype")
+      .map((r) => r.v),
+  );
+});
+
+// Thousands of names, so this is the one option list worth searching rather than scrolling.
+cardsRouter.get('/meta/illustrators', (_req, res) => {
+  res.json(
+    all("SELECT DISTINCT illustrator v FROM tcg_cards WHERE illustrator IS NOT NULL AND illustrator <> '' ORDER BY illustrator")
+      .map((r) => r.v),
+  );
 });
 
 cardsRouter.get('/meta/series', (_req, res) => {

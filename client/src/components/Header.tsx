@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { BrowseViewToggle } from './BrowseViewToggle';
 import { ThemeToggle } from './ThemeToggle';
+import { PokeballIcon } from './PokeballIcon';
 
 export function Header() {
   return (
@@ -24,21 +25,7 @@ export function Header() {
             title="My Collection"
             className="rounded-full p-2 text-[var(--color-text-muted)] transition hover:bg-[var(--color-surface)] hover:text-[var(--color-text)]"
           >
-            {/* Poké Ball: outer shell, the band broken either side of the centre button,
-                and the button itself — the band segments stop at the button's edge (x=9
-                and x=15) so the stroke doesn't run through it. */}
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              className="h-5 w-5"
-            >
-              <circle cx="12" cy="12" r="9" />
-              <path strokeLinecap="round" d="M3 12h6m6 0h6" />
-              <circle cx="12" cy="12" r="3" />
-            </svg>
+            <PokeballIcon className="h-5 w-5" />
           </Link>
           <Link
             to="/settings"

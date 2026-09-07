@@ -73,7 +73,9 @@ function AccountRow({
         </a>
       </div>
 
-      <p className="mt-1 text-xs text-[var(--color-text-muted)]">{provider.summary}</p>
+      {provider.summary && (
+        <p className="mt-1 text-xs text-[var(--color-text-muted)]">{provider.summary}</p>
+      )}
 
       {provider.linked ? (
         <div className="mt-2 flex flex-wrap items-center gap-3">

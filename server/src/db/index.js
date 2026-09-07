@@ -104,6 +104,17 @@ function migrateTcgCardImageWebp() {
 
 migrateTcgCardImageWebp();
 
+// The printed artist credit, added after the cards table existed, so existing databases need
+// the column before the next card sync can fill it.
+function migrateTcgCardIllustrator() {
+  const columns = db.prepare('PRAGMA table_info(tcg_cards)').all();
+  if (columns.length === 0) return;
+  if (columns.some((c) => c.name === 'illustrator')) return;
+  db.exec('ALTER TABLE tcg_cards ADD COLUMN illustrator TEXT');
+}
+
+migrateTcgCardIllustrator();
+
 // Distinguishes a scheduled run from one the user started; older rows keep a null trigger.
 function migrateSyncLogTrigger() {
   const columns = db.prepare('PRAGMA table_info(sync_log)').all();
