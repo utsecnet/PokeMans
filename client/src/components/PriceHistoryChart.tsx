@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { fetchCardPriceHistory } from '../lib/api';
+import { captureCardPrices, fetchCardPriceHistory } from '../lib/api';
 import type { CardPriceHistory, PriceChart, PriceSeries } from '../types';
 
 // Plain SVG rather than a charting library: the project carries no chart dependency, and a
@@ -359,18 +359,35 @@ export function PriceHistoryChart({
     const controller = new AbortController();
     setHistory(null);
     setError(null);
+
+    const show = (h: CardPriceHistory) => {
+      if (controller.signal.aborted) return;
+      setHistory(h);
+      setActiveService((prev) =>
+        prev && h.charts.some((c) => c.service === prev) ? prev : (h.charts[0]?.service ?? null),
+      );
+    };
+
+    // Stored history paints first so the panel isn't blank while the network call runs, then a
+    // capture fills in today's prices for any card — including ones outside the collection,
+    // which would otherwise have nothing to show. The server skips the fetch when it already
+    // holds today's figures, so re-opening a card costs a database read.
     fetchCardPriceHistory(cardId, controller.signal)
       .then((h) => {
-        setHistory(h);
-        setActiveService((prev) =>
-          prev && h.charts.some((c) => c.service === prev) ? prev : (h.charts[0]?.service ?? null),
-        );
+        show(h);
+        return captureCardPrices(cardId, controller.signal);
       })
+      .then((res) => (res.rows > 0 ? fetchCardPriceHistory(cardId, controller.signal).then(show) : undefined))
       .catch((err) => {
         if (controller.signal.aborted) return;
+        // A capture that fails still leaves whatever was already stored on screen.
+        if (history) return;
         setError(err instanceof Error ? err.message : 'Could not load price history');
       });
     return () => controller.abort();
+    // history is deliberately not a dependency: it is read only to decide whether a late
+    // failure should replace a chart that is already drawn.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardId]);
 
   if (error) return <p className="text-xs text-[var(--color-text-muted)]">{error}</p>;

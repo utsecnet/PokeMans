@@ -204,6 +204,17 @@ export function removeLinkedAccount(service: string): Promise<{ providers: Linke
 }
 
 /** Live market prices per print variant. Fetched on demand, so it's never stale. */
+/** Asks the server to fetch today's prices for this card if it doesn't already hold them. */
+export function captureCardPrices(
+  cardId: string,
+  signal?: AbortSignal,
+): Promise<{ captured: boolean; rows: number; reason: string | null }> {
+  return fetch(`/api/cards/${encodeURIComponent(cardId)}/prices/capture`, {
+    method: 'POST',
+    signal,
+  }).then(json<{ captured: boolean; rows: number; reason: string | null }>);
+}
+
 export function fetchCardPricing(cardId: string, signal?: AbortSignal): Promise<CardPricing> {
   return fetch(`/api/cards/${encodeURIComponent(cardId)}/pricing`, { signal }).then(json<CardPricing>);
 }

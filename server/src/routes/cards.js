@@ -5,6 +5,7 @@ import { attachCollection } from '../lib/collectionInfo.js';
 import { fetchCardPricing, printingLabel, printingsFor, tcgdexIdFor } from '../lib/cardPricing.js';
 import { convert, displayCurrency, ensureRates, rateTable } from '../lib/fx.js';
 import { buildOrderByClause, parseSortChain } from '../lib/sortChain.js';
+import { capturePricesIfStale } from '../sync/prices.js';
 
 // Groups a per-card lookup table into {cardId -> [value]}. Reads only the rows for this
 // page's cards — a normal page touches ~60, so a per-card IN clause is far cheaper than
@@ -256,6 +257,22 @@ cardsRouter.get('/:id/pricing', async (req, res) => {
 // where the service reports one). Everything is converted to the user's display currency
 // using the rate for each point's own date, so a service that quotes in two currencies no
 // longer splits into two charts.
+// Opening a card captures its current prices if today's are not already stored, so the panel
+// has something to show for cards outside the collection too. Registered before '/:id' for the
+// same reason every other sub-path is.
+cardsRouter.post('/:id/prices/capture', async (req, res) => {
+  const cardId = String(req.params.id);
+  if (!get('SELECT id FROM tcg_cards WHERE id = @id', { id: cardId })) {
+    res.status(404).json({ error: 'Card not found' });
+    return;
+  }
+  try {
+    res.json(await capturePricesIfStale(cardId));
+  } catch (err) {
+    res.status(502).json({ error: `Could not reach the pricing source: ${err.message}` });
+  }
+});
+
 cardsRouter.get('/:id/price-history', async (req, res) => {
   const cardId = String(req.params.id);
   const rows = personalAll(

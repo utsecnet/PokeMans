@@ -132,6 +132,33 @@ function heldServicesByCard(capturedOn) {
   return held;
 }
 
+
+/**
+ * Captures prices for a single card on demand — used when a card is opened, so browsing a card
+ * nobody owns still shows current prices rather than an empty panel.
+ *
+ * Reuses the same-day rule the scheduled run uses: only services missing today's data are
+ * contacted, so opening the same card repeatedly costs one database read after the first look.
+ */
+export async function capturePricesIfStale(cardId, capturedOn = new Date().toISOString().slice(0, 10)) {
+  const held = heldServicesByCard(capturedOn).get(cardId) ?? new Set();
+  const missing = activeServices().filter((service) => !held.has(service));
+  if (missing.length === 0) {
+    return { cardId, capturedOn, captured: false, services: [], rows: 0, reason: 'already held' };
+  }
+
+  const result = await capturePricesForCard(cardId, capturedOn, { services: missing });
+  return {
+    cardId,
+    capturedOn,
+    captured: !result.unmatched,
+    services: missing,
+    rows: result.rows + result.pptRows,
+    reason: result.unmatched ? 'no pricing source matched this card' : null,
+    error: result.pptError ?? null,
+  };
+}
+
 /** Distinct cards across every collection — the same card in two boxes is fetched once. */
 function ownedCardIds() {
   return personalAll('SELECT DISTINCT card_id as cardId FROM collection_entries').map((r) => r.cardId);
