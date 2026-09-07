@@ -104,6 +104,11 @@ export async function runPriceSync({ trigger = 'manual' } = {}) {
     const result = await syncOwnedCardPrices({
       onProgress: (p) => progressLog(logId, p.done),
     });
+    console.log(
+      `[prices] ${result.capturedOn}: ${result.cards} owned — ${result.attempted} fetched, ` +
+        `${result.skipped} already held, ${result.deferred} deferred (provider limit), ` +
+        `${result.rowsWritten} rows written`,
+    );
     finishLog(logId, result.rowsWritten);
     return result;
   } catch (err) {

@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
 import {
   fetchDisplayCurrency,
+  fetchSyncSources,
   fetchSyncStatus,
   setDisplayCurrency,
   triggerPokeApiSync,
   triggerPriceSync,
   triggerTcgSync,
 } from '../lib/api';
-import type { SyncStatus } from '../types';
+import type { SourceState, SyncStatus } from '../types';
 import { LinkedAccounts } from '../components/LinkedAccounts';
+import { DataSources } from '../components/DataSources';
 
 function formatTime(iso: string | null) {
   if (!iso) return '—';
@@ -29,6 +31,7 @@ export function Settings() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
+  const [sources, setSources] = useState<SourceState[]>([]);
   const [currency, setCurrency] = useState('USD');
   const [supported, setSupported] = useState<string[]>(['USD']);
   const isSyncing = !!syncStatus?.active;
@@ -36,6 +39,9 @@ export function Settings() {
   const loadSyncStatus = () => {
     fetchSyncStatus()
       .then(setSyncStatus)
+      .catch(() => {});
+    fetchSyncSources()
+      .then((res) => setSources(res.sources))
       .catch(() => {});
   };
 
@@ -87,46 +93,25 @@ export function Settings() {
       <section className="mt-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
         <h2 className="text-lg font-semibold">Data Sync</h2>
         <p className="mt-1 text-sm text-[var(--color-text-muted)]">
-          Pull the latest species data from PokeAPI, or card images from the pokemon-tcg-data
-          dataset. Prices for the cards you own sync automatically on launch, once a day —
-          use Refresh prices to update them yourself at any point.
+          Where each part of your data comes from, and how current it is.
         </p>
 
-        <div className="mt-3 flex flex-wrap gap-2">
-          <button
-            type="button"
-            disabled={isSyncing}
-            onClick={() => handleTrigger(triggerPokeApiSync)}
-            className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm disabled:opacity-50"
-          >
-            Sync Pokédex data
-          </button>
-          <button
-            type="button"
-            disabled={isSyncing}
-            onClick={() => handleTrigger(triggerTcgSync)}
-            className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm disabled:opacity-50"
-          >
-            Sync TCG cards
-          </button>
-          <button
-            type="button"
-            disabled={isSyncing}
-            onClick={() => handleTrigger(triggerPriceSync)}
-            className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm disabled:opacity-50"
-          >
-            Refresh prices
-          </button>
+        <div className="mt-3">
+          <DataSources
+            sources={sources}
+            syncStatus={syncStatus}
+            busy={isSyncing}
+            onRun={(id) =>
+              handleTrigger(
+                id === 'pokeapi' ? triggerPokeApiSync : id === 'tcg' ? triggerTcgSync : triggerPriceSync,
+              )
+            }
+          />
         </div>
 
         {message && <p className="mt-3 text-sm text-emerald-600 dark:text-emerald-400">{message}</p>}
         {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
-        {isSyncing && (
-          <p className="mt-3 text-sm text-[var(--color-text-muted)]">
-            Syncing {syncStatus?.active?.source}… this page updates automatically.
-          </p>
-        )}
 
         <table className="mt-4 w-full text-left text-sm">
           <thead>

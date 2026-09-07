@@ -386,6 +386,22 @@ export interface SyncLogEntry {
   trigger: 'manual' | 'auto' | null;
 }
 
+export interface SourceCount {
+  label: string;
+  value: number;
+}
+
+export interface SourceState {
+  id: 'pokeapi' | 'tcg' | 'prices';
+  counts: SourceCount[];
+  lastRun: {
+    startedAt: string;
+    status: string;
+    recordsSynced: number;
+    trigger: string | null;
+  } | null;
+}
+
 export interface SyncStatus {
   active: { source: string; logId: number } | null;
   history: SyncLogEntry[];

@@ -14,6 +14,7 @@ import type {
   PokemonFilters,
   PokemonListResponse,
   StatKey,
+  SourceState,
   SyncStatus,
 } from '../types';
 import { cap } from './format';
@@ -209,6 +210,10 @@ export function fetchCardPricing(cardId: string, signal?: AbortSignal): Promise<
 
 export function fetchSeries(): Promise<string[]> {
   return fetch('/api/cards/meta/series').then(json<string[]>);
+}
+
+export function fetchSyncSources(): Promise<{ sources: SourceState[] }> {
+  return fetch('/api/sync/sources').then(json<{ sources: SourceState[] }>);
 }
 
 export function fetchSyncStatus(): Promise<SyncStatus> {

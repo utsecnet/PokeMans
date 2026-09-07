@@ -30,12 +30,25 @@ function insertPriceRow(row) {
  * the moment a card is added to a collection — a card filed today shouldn't have to wait
  * for tomorrow's run before it has any price data.
  */
-export async function capturePricesForCard(cardId, capturedOn = new Date().toISOString().slice(0, 10)) {
+/**
+ * Captures prices for one card. `services` limits which providers are contacted, so a card
+ * that already holds today's TCGdex prices but is missing PokemonPriceTracker fetches only the
+ * missing one instead of re-reading both.
+ */
+export async function capturePricesForCard(
+  cardId,
+  capturedOn = new Date().toISOString().slice(0, 10),
+  { services = ['tcgdex', 'pokemonpricetracker'] } = {},
+) {
   const tcgdexId = tcgdexIdFor(cardId);
   if (!tcgdexId) return { rows: 0, unmatched: true, pptRows: 0, creditsRemaining: null };
 
+  // TCGdex is fetched either way: it also carries the product ids the PokemonPriceTracker
+  // lookup keys on, so skipping it would leave nothing to join against.
   const pricing = await fetchCardPricing(tcgdexId, cardId);
-  const rows = priceRowsFor(cardId, pricing, capturedOn).map((r) => ({ ...r, service: 'tcgdex' }));
+  const rows = services.includes('tcgdex')
+    ? priceRowsFor(cardId, pricing, capturedOn).map((r) => ({ ...r, service: 'tcgdex' }))
+    : [];
   for (const row of rows) insertPriceRow(row);
 
   let pptRows = 0;
@@ -44,7 +57,7 @@ export async function capturePricesForCard(cardId, capturedOn = new Date().toISO
   // A linked PokemonPriceTracker account adds a second, richer series: per condition, and
   // dated rather than only today. Contained so a credit limit or rejected key can't undo
   // the TCGdex capture that just succeeded.
-  if (isLinked()) {
+  if (services.includes('pokemonpricetracker') && isLinked()) {
     const labels = new Map(printingsFor(cardId).map((p) => [p.position, p.type]));
     for (const printing of pricing.productIds ?? []) {
       if (!printing.tcgPlayerId) continue;
@@ -89,15 +102,63 @@ function recordRun(at) {
   );
 }
 
+
+/** The services a run will actually contact — PokemonPriceTracker only when a key is linked. */
+function activeServices() {
+  return isLinked() ? ['tcgdex', 'pokemonpricetracker'] : ['tcgdex'];
+}
+
+/**
+ * Which services already hold prices for each card on `capturedOn`, as a Map of card id to a
+ * Set of service names.
+ *
+ * Tracked per service rather than per card because the two providers fail independently. A card
+ * that got TCGdex prices this morning while PokemonPriceTracker was out of credits still has a
+ * gap; skipping on the card alone would close that gap permanently, and re-fetching the whole
+ * card would spend a TCGdex request re-reading what is already stored.
+ */
+function heldServicesByCard(capturedOn) {
+  const held = new Map();
+  for (const row of personalAll(
+    `SELECT card_id AS cardId, service
+       FROM card_price_history
+      WHERE captured_on = @capturedOn
+      GROUP BY card_id, service`,
+    { capturedOn },
+  )) {
+    if (!held.has(row.cardId)) held.set(row.cardId, new Set());
+    held.get(row.cardId).add(row.service);
+  }
+  return held;
+}
+
 /** Distinct cards across every collection — the same card in two boxes is fetched once. */
 function ownedCardIds() {
   return personalAll('SELECT DISTINCT card_id as cardId FROM collection_entries').map((r) => r.cardId);
 }
 
-export async function syncOwnedCardPrices({ onProgress } = {}) {
+export async function syncOwnedCardPrices({ onProgress, force = false } = {}) {
   const startedAt = new Date().toISOString();
   const capturedOn = startedAt.slice(0, 10);
-  const cardIds = ownedCardIds();
+  const owned = ownedCardIds();
+
+  // A price is a value for a day, so re-fetching one already held for today spends quota to
+  // learn nothing. `force` exists for the case where a same-day re-read is actually wanted.
+  const wanted = activeServices();
+  const held = force ? new Map() : heldServicesByCard(capturedOn);
+  const work = owned
+    .map((cardId) => ({
+      cardId,
+      services: wanted.filter((s) => !(held.get(cardId)?.has(s) ?? false)),
+    }))
+    .filter((item) => item.services.length > 0);
+  const skipped = owned.length - work.length;
+
+  // A provider that reports its daily allowance is spent will say the same thing for every
+  // remaining card, so it is dropped for the rest of this run rather than asked 200 more times.
+  const exhausted = new Set();
+  let fetched = 0;
+  let deferred = 0;
 
   let priced = 0;
   let unmatched = 0;
@@ -113,10 +174,19 @@ export async function syncOwnedCardPrices({ onProgress } = {}) {
   let next = 0;
   await Promise.all(
     Array.from({ length: CONCURRENCY }, async () => {
-      while (next < cardIds.length) {
-        const cardId = cardIds[next++];
+      while (next < work.length) {
+        const item = work[next++];
+        const cardId = item.cardId;
+        const services = item.services.filter((s) => !exhausted.has(s));
+        if (services.length === 0) {
+          deferred++;
+          done++;
+          onProgress?.({ done, total: work.length });
+          continue;
+        }
+        fetched++;
         try {
-          const result = await capturePricesForCard(cardId, capturedOn);
+          const result = await capturePricesForCard(cardId, capturedOn, { services });
           if (result.unmatched) {
             unmatched++;
           } else {
@@ -127,6 +197,9 @@ export async function syncOwnedCardPrices({ onProgress } = {}) {
             if (result.pptError) {
               pptFailed++;
               if (!pptError) pptError = result.pptError;
+              if (/credit|allowance|quota|rate limit/i.test(result.pptError)) {
+                exhausted.add('pokemonpricetracker');
+              }
             }
             await sleep(REQUEST_DELAY_MS);
           }
@@ -135,7 +208,7 @@ export async function syncOwnedCardPrices({ onProgress } = {}) {
           console.error(`Price sync: ${cardId} failed — ${err.message}`);
         }
         done++;
-        onProgress?.({ done, total: cardIds.length });
+        onProgress?.({ done, total: work.length });
       }
     }),
   );
@@ -145,7 +218,10 @@ export async function syncOwnedCardPrices({ onProgress } = {}) {
   recordRun(startedAt);
 
   return {
-    cards: cardIds.length,
+    cards: owned.length,
+    attempted: fetched,
+    deferred,
+    skipped,
     priced,
     unmatched,
     failed,
