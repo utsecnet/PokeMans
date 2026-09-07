@@ -30,13 +30,23 @@ function backlight(types: string[]): string {
  *
  * Sizes are sub-pixel on purpose — a mote should be a hint that something is there, not a
  * dot you can point at.
+ *
+ * Density is set by tile area — doubling the tiles halves the number of specks while keeping
+ * all five layers, and so all five independent fade rhythms. Cutting layers instead would have
+ * thinned them by making neighbouring specks share a rhythm, which is the thing that makes
+ * them look individual.
+ *
+ * The rise is tuned by rate, not by duration: each layer covers one tile height per cycle, so
+ * a fixed duration would make the wider-spaced grids climb faster. At around 3–5px/s a mote
+ * crosses the artwork in half a minute, which reads as drifting. An earlier pass ran six
+ * times slower and took four minutes — moving, but not visibly so.
  */
 const SPECK_LAYERS = [
-  { at: '30% 40%', r: 0.8, tile: '19px 16px', drift: '-16px', dur: '26s', tw: '3.1s', delay: '0s' },
-  { at: '70% 15%', r: 0.7, tile: '26px 23px', drift: '-23px', dur: '34s', tw: '4.3s', delay: '1.1s' },
-  { at: '15% 75%', r: 0.6, tile: '14px 31px', drift: '-31px', dur: '22s', tw: '2.7s', delay: '2s' },
-  { at: '55% 62%', r: 0.75, tile: '31px 19px', drift: '-19px', dur: '30s', tw: '3.7s', delay: '0.6s' },
-  { at: '85% 48%', r: 0.65, tile: '23px 27px', drift: '-27px', dur: '38s', tw: '5.1s', delay: '1.7s' },
+  { at: '30% 40%', r: 0.8, tile: '27px 23px', drift: '-23px', dur: '6.4s', tw: '3.1s', delay: '0s' },
+  { at: '70% 15%', r: 0.7, tile: '37px 31px', drift: '-31px', dur: '7.4s', tw: '4.3s', delay: '1.1s' },
+  { at: '15% 75%', r: 0.6, tile: '19px 43px', drift: '-43px', dur: '9s', tw: '2.7s', delay: '2s' },
+  { at: '55% 62%', r: 0.75, tile: '43px 29px', drift: '-29px', dur: '9.1s', tw: '3.7s', delay: '0.6s' },
+  { at: '85% 48%', r: 0.65, tile: '33px 37px', drift: '-37px', dur: '6.9s', tw: '5.1s', delay: '1.7s' },
 ] as const;
 
 const SPECK_MASK = 'radial-gradient(closest-side at 50% 52%, #000 25%, #000 62%, transparent 92%)';
