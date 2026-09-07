@@ -332,14 +332,35 @@ collectionRouter.post('/entries', (req, res) => {
 // exactly what they were before anyone said so.
 collectionRouter.patch('/entries/:id', (req, res) => {
   const id = Number(req.params.id);
-  if (!('variantPosition' in (req.body ?? {}))) {
-    res.status(400).json({ error: 'variantPosition is required' });
+  const body = req.body ?? {};
+
+  // Moving a copy between collections. Cheap now that each copy is its own row: the row
+  // keeps its identity, so the printing that was identified for it and when it was filed
+  // travel with it, and there is nothing to merge or re-count at the destination.
+  if ('boxId' in body) {
+    const boxId = Number(body.boxId);
+    if (!personalGet('SELECT id FROM collection_entries WHERE id = @id', { id })) {
+      res.status(404).json({ error: 'Entry not found' });
+      return;
+    }
+    if (!personalGet('SELECT id FROM collection_boxes WHERE id = @boxId', { boxId })) {
+      res.status(404).json({ error: 'Collection not found' });
+      return;
+    }
+    const from = personalGet('SELECT box_id AS boxId FROM collection_entries WHERE id = @id', { id });
+    personalRun('UPDATE collection_entries SET box_id = @boxId WHERE id = @id', { boxId, id });
+    res.json({ ok: true, boxId, movedFrom: from?.boxId ?? null });
+    return;
+  }
+
+  if (!('variantPosition' in body)) {
+    res.status(400).json({ error: 'variantPosition or boxId is required' });
     return;
   }
   const variantPosition =
-    req.body.variantPosition === null || req.body.variantPosition === undefined
+    body.variantPosition === null || body.variantPosition === undefined
       ? null
-      : Number(req.body.variantPosition);
+      : Number(body.variantPosition);
 
   if (!personalGet('SELECT id FROM collection_entries WHERE id = @id', { id })) {
     res.status(404).json({ error: 'Entry not found' });

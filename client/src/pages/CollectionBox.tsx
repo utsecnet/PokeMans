@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
+  moveCollectionEntry,
   deleteCollectionBox,
   fetchCollectionBox,
   removeCollectionEntry,
@@ -15,6 +16,7 @@ import { formatName } from '../lib/format';
 import { ViewToggle, type ViewMode } from '../components/table/ViewToggle';
 import { CollectionTable } from '../components/CollectionTable';
 import { usePersistentState } from '../lib/persistentState';
+import { AddToBoxRail } from '../components/AddToBoxRail';
 
 export function CollectionBoxPage() {
   const { boxId } = useParams();
@@ -29,6 +31,33 @@ export function CollectionBoxPage() {
   // Shared across every collection rather than per box: the choice is about how you like to
   // read a list, not about this particular box.
   const [viewMode, setViewMode] = usePersistentState<ViewMode>('pokemans.collection.viewMode', 'tile');
+  // Armed destination for the move rail. Null means tapping a card opens it, as usual.
+  const [moveTargetId, setMoveTargetId] = useState<number | null>(null);
+  const [moved, setMoved] = useState(0);
+  const [undoMove, setUndoMove] = useState<{ entryId: number; fromBoxId: number; name: string } | null>(null);
+
+  // Tapping a card moves it while a destination is armed, and opens it otherwise — the same
+  // bargain the browse pages make when a collection is selected for filing.
+  const handleCardTap = async (entryId: number, cardId: string, name: string) => {
+    if (moveTargetId == null) {
+      setLightbox(cardId);
+      return;
+    }
+    const res = await moveCollectionEntry(entryId, moveTargetId);
+    setMoved((n) => n + 1);
+    setUndoMove({ entryId, fromBoxId: res.movedFrom ?? Number(boxId), name });
+    load();
+    refresh();
+  };
+
+  const undoLastMove = async () => {
+    if (!undoMove) return;
+    await moveCollectionEntry(undoMove.entryId, undoMove.fromBoxId);
+    setUndoMove(null);
+    setMoved((n) => Math.max(0, n - 1));
+    load();
+    refresh();
+  };
 
   const load = () => {
     if (!boxId) return;
@@ -107,7 +136,7 @@ export function CollectionBoxPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6">
+    <div className="mx-auto max-w-7xl px-4 py-6">
       <Link
         to="/collection"
         className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
@@ -167,95 +196,132 @@ export function CollectionBoxPage() {
         </div>
       )}
 
-      {viewMode === 'table' ? (
-        <div className="mt-6">
-          <CollectionTable
-            entries={box.entries}
-            onOpenCard={setLightbox}
-            onChangeVariant={changeVariant}
-            onRemove={removeEntry}
+      <div className="mt-6 flex flex-col gap-4 md:flex-row-reverse md:items-start">
+        {box.entries.length > 0 && (
+          <AddToBoxRail
+            variant="move"
+            excludeBoxId={box.id}
+            activeBoxId={moveTargetId}
+            onSelect={setMoveTargetId}
+            mode="add"
+            onModeChange={() => {}}
+            actionCount={moved}
           />
-        </div>
-      ) : (
-      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-        {box.entries.map((entry) => (
-          <div
-            key={entry.id}
-            className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-2"
-          >
-            {/* The card face opens the card view, as it does everywhere else; the Pokémon
-                name below is still the way through to the Pokémon itself. */}
-            {entry.imageSmall && (
+        )}
+        <div className="min-w-0 flex-1">
+        {viewMode === 'table' ? (
+          <div className="">
+            <CollectionTable
+              entries={box.entries}
+              onOpenCard={(cardId) => {
+                const e = box.entries.find((x) => x.cardId === cardId);
+                if (e) handleCardTap(e.id, e.cardId, e.name);
+              }}
+              onChangeVariant={changeVariant}
+              onRemove={removeEntry}
+            />
+          </div>
+        ) : (
+        <div className=" grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+          {box.entries.map((entry) => (
+            <div
+              key={entry.id}
+              className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-2"
+            >
+              {/* The card face opens the card view, as it does everywhere else; the Pokémon
+                  name below is still the way through to the Pokémon itself. */}
+              {entry.imageSmall && (
+                <button
+                  type="button"
+                  onClick={() => handleCardTap(entry.id, entry.cardId, entry.name)}
+                  title={`View ${entry.name}`}
+                  className="block w-full"
+                >
+                  <img src={entry.imageSmall} alt={entry.name} className="w-full rounded" />
+                </button>
+              )}
+              <p className="mt-1 truncate text-xs font-medium">{entry.name}</p>
+              <p className="truncate text-xs text-[var(--color-text-muted)]">
+                {entry.setName}
+                {entry.number ? ` #${entry.number}` : ''}
+              </p>
+              {entry.pokemonName && (
+                <Link
+                  to={`/pokemon/${entry.pokemonId}`}
+                  className="truncate text-xs capitalize text-[var(--color-accent)]"
+                >
+                  {formatName(entry.pokemonName)}
+                </Link>
+              )}
+
+              {/* Which printing this copy is. Left unset by the quick-add flow, so it's
+                  offered here rather than in the way of filing a card. */}
+              {/* The card's own printings, so a card that was never printed in reverse holo
+                  doesn't offer one. Vintage cards list each distinct print here — Unlimited,
+                  Shadowless, Shadowless 1st Edition — which can differ hugely in value. */}
+              {entry.printings.length > 0 && (
+                <select
+                  value={entry.variantPosition ?? ''}
+                  onChange={(e) =>
+                    changeVariant(entry.id, e.target.value === '' ? null : Number(e.target.value))
+                  }
+                  aria-label={`Printing of ${entry.name}`}
+                  className="mt-1 w-full rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-1 py-0.5 text-xs text-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
+                >
+                  <option value="">Printing not set</option>
+                  {entry.printings.map((p) => (
+                    <option key={p.position} value={p.position}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <div className="mt-2 text-sm font-semibold tabular-nums">
+                {entry.price != null ? (
+                  new Intl.NumberFormat(undefined, {
+                    style: 'currency',
+                    currency: entry.priceCurrency ?? 'USD',
+                  }).format(entry.price)
+                ) : (
+                  <span
+                    className="text-xs font-normal text-[var(--color-text-muted)]"
+                    title="Set this copy's printing to price it"
+                  >
+                    Printing not set
+                  </span>
+                )}
+              </div>
               <button
                 type="button"
-                onClick={() => setLightbox(entry.cardId)}
-                title={`View ${entry.name}`}
-                className="block w-full"
+                onClick={() => removeEntry(entry.id)}
+                className="mt-1 w-full rounded border border-[var(--color-border)] py-1 text-xs text-red-600 hover:border-red-400 dark:text-red-400"
               >
-                <img src={entry.imageSmall} alt={entry.name} className="w-full rounded" />
+                Remove
               </button>
-            )}
-            <p className="mt-1 truncate text-xs font-medium">{entry.name}</p>
-            <p className="truncate text-xs text-[var(--color-text-muted)]">
-              {entry.setName}
-              {entry.number ? ` #${entry.number}` : ''}
-            </p>
-            {entry.pokemonName && (
-              <Link
-                to={`/pokemon/${entry.pokemonId}`}
-                className="truncate text-xs capitalize text-[var(--color-accent)]"
-              >
-                {formatName(entry.pokemonName)}
-              </Link>
-            )}
-
-            {/* Which printing this copy is. Left unset by the quick-add flow, so it's
-                offered here rather than in the way of filing a card. */}
-            {/* The card's own printings, so a card that was never printed in reverse holo
-                doesn't offer one. Vintage cards list each distinct print here — Unlimited,
-                Shadowless, Shadowless 1st Edition — which can differ hugely in value. */}
-            {entry.printings.length > 0 && (
-              <select
-                value={entry.variantPosition ?? ''}
-                onChange={(e) =>
-                  changeVariant(entry.id, e.target.value === '' ? null : Number(e.target.value))
-                }
-                aria-label={`Printing of ${entry.name}`}
-                className="mt-1 w-full rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-1 py-0.5 text-xs text-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
-              >
-                <option value="">Printing not set</option>
-                {entry.printings.map((p) => (
-                  <option key={p.position} value={p.position}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
-            )}
-            <div className="mt-2 text-sm font-semibold tabular-nums">
-              {entry.price != null ? (
-                new Intl.NumberFormat(undefined, {
-                  style: 'currency',
-                  currency: entry.priceCurrency ?? 'USD',
-                }).format(entry.price)
-              ) : (
-                <span
-                  className="text-xs font-normal text-[var(--color-text-muted)]"
-                  title="Set this copy's printing to price it"
-                >
-                  Printing not set
-                </span>
-              )}
             </div>
+          ))}
+        </div>
+        )}
+        </div>
+      </div>
+
+      {undoMove && (
+        <div className="fixed inset-x-0 bottom-6 z-50 flex justify-center px-4">
+          <div className="flex items-center gap-3 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2 text-sm shadow-lg">
+            <span>Moved {undoMove.name}</span>
+            <button type="button" onClick={undoLastMove} className="font-semibold text-[var(--color-accent)]">
+              Undo
+            </button>
             <button
               type="button"
-              onClick={() => removeEntry(entry.id)}
-              className="mt-1 w-full rounded border border-[var(--color-border)] py-1 text-xs text-red-600 hover:border-red-400 dark:text-red-400"
+              onClick={() => setUndoMove(null)}
+              aria-label="Dismiss"
+              className="text-[var(--color-text-muted)]"
             >
-              Remove
+              ×
             </button>
           </div>
-        ))}
-      </div>
+        </div>
       )}
 
       {lightbox && <CardLightbox cardId={lightbox} onClose={() => setLightbox(null)} />}

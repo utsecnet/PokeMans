@@ -315,6 +315,18 @@ export function addToCollection(
  * already holds that card in that printing the two rows are merged, and the response says
  * which entry absorbed this one.
  */
+/** Moves one copy to another collection, keeping its printing and filing date. */
+export function moveCollectionEntry(
+  entryId: number,
+  boxId: number,
+): Promise<{ ok: true; boxId: number; movedFrom: number | null }> {
+  return fetch(`/api/collection/entries/${entryId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ boxId }),
+  }).then(json<{ ok: true; boxId: number; movedFrom: number | null }>);
+}
+
 export function setCollectionEntryVariant(
   entryId: number,
   variantPosition: number | null,

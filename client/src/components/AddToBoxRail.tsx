@@ -123,6 +123,12 @@ export function AddToBoxRail({
   onModeChange,
   actionCount,
   className = '',
+  /**
+   * 'move' is the box view's version: the source is already known, so there is no Add/Remove
+   * choice to make and the collection this card is already in is not offered as a target.
+   */
+  variant = 'file',
+  excludeBoxId = null,
 }: {
   activeBoxId: number | null;
   onSelect: (boxId: number | null) => void;
@@ -130,13 +136,17 @@ export function AddToBoxRail({
   onModeChange: (mode: RailMode) => void;
   actionCount: number;
   className?: string;
+  variant?: 'file' | 'move';
+  excludeBoxId?: number | null;
 }) {
-  const { boxes, createBox, setBoxColor } = useCollection();
+  const { boxes: allBoxes, createBox, setBoxColor } = useCollection();
+  const isMove = variant === 'move';
+  const boxes = excludeBoxId == null ? allBoxes : allBoxes.filter((b) => b.id !== excludeBoxId);
   const [newBoxName, setNewBoxName] = useState('');
   const [newBoxColor, setNewBoxColor] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
-  const activeBox = boxes.find((b) => b.id === activeBoxId) ?? null;
+  const activeBox = allBoxes.find((b) => b.id === activeBoxId) ?? null;
   const activeHex = collectionColorHex(activeBox?.color);
   const isRemove = mode === 'remove';
 
@@ -159,9 +169,11 @@ export function AddToBoxRail({
     <aside
       className={`sticky top-20 z-10 w-full shrink-0 self-start rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-sm md:w-48 ${className}`}
     >
-      <h3 className="font-semibold">Collections</h3>
+      <h3 className="font-semibold">{isMove ? 'Move to' : 'Collections'}</h3>
 
-      <div className="mt-2 flex overflow-hidden rounded-full border border-[var(--color-border)] text-xs">
+      <div
+        className={`mt-2 flex overflow-hidden rounded-full border border-[var(--color-border)] text-xs${isMove ? ' hidden' : ''}`}
+      >
         <button
           type="button"
           onClick={() => onModeChange('add')}
@@ -184,7 +196,7 @@ export function AddToBoxRail({
           style={!isRemove && activeHex ? { backgroundColor: `${activeHex}1a` } : undefined}
         >
           <p className="text-[var(--color-text-muted)]">
-            Tap any card to {isRemove ? 'remove it from' : 'add it to'}
+            {isMove ? 'Tap any card to move it to' : isRemove ? 'Tap any card to remove it from' : 'Tap any card to add it to'}
           </p>
           <p
             className={`truncate font-semibold ${isRemove ? 'text-red-600 dark:text-red-400' : activeHex ? '' : 'text-[var(--color-accent)]'}`}
@@ -194,7 +206,7 @@ export function AddToBoxRail({
           </p>
           {actionCount > 0 && (
             <p className="mt-1 text-[var(--color-text-muted)]">
-              {actionCount} {isRemove ? 'removed' : 'added'} this visit
+              {actionCount} {isMove ? 'moved' : isRemove ? 'removed' : 'added'} this visit
             </p>
           )}
           <button
