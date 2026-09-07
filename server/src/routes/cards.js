@@ -72,10 +72,12 @@ const CARD_COLUMNS = `c.id, c.name, c.number, c.set_id as setId, c.set_name as s
        -- Prefer the lighter TCGdex artwork, falling back to the original where the
        -- enrichment pass found no confident match.
        COALESCE(c.image_webp, c.image_small) as imageSmall, c.image_large as imageLarge,
-       c.supertype, c.illustrator, pk.id as pokemonId, pk.name as pokemonName`;
+       c.supertype, c.illustrator, sr.logo_url as seriesLogoUrl,
+       pk.id as pokemonId, pk.name as pokemonName`;
 
 const CARD_FROM = `FROM tcg_cards c
-     LEFT JOIN pokemon pk ON pk.id = (SELECT MIN(tcp.pokemon_id) FROM tcg_card_pokemon tcp WHERE tcp.card_id = c.id)`;
+     LEFT JOIN pokemon pk ON pk.id = (SELECT MIN(tcp.pokemon_id) FROM tcg_card_pokemon tcp WHERE tcp.card_id = c.id)
+     LEFT JOIN tcg_series sr ON sr.name = c.series`;
 
 const SORT_COLUMNS = {
   releaseDate: 'c.release_date',

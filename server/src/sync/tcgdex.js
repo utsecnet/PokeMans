@@ -44,7 +44,44 @@ async function fetchAllVariants() {
   return map;
 }
 
+/**
+ * Series wordmarks, matched to our series names. TCGdex serves an extension-less path; .webp
+ * is the smallest of the formats it offers. Two of our series ("Other", "NP") are catch-all
+ * buckets with no counterpart there and simply get none.
+ */
+async function syncSeriesLogos() {
+  const ours = new Set(
+    all("SELECT DISTINCT series FROM tcg_cards WHERE series IS NOT NULL AND series <> ''").map(
+      (r) => r.series,
+    ),
+  );
+  const res = await fetch(`${API}/series`);
+  if (!res.ok) throw new Error(`TCGdex series returned ${res.status}`);
+
+  let matched = 0;
+  const byName = new Map((await res.json()).map((s) => [String(s.name).toLowerCase(), s]));
+  for (const name of ours) {
+    const hit = byName.get(name.toLowerCase());
+    if (!hit?.logo) continue;
+    run(
+      `INSERT INTO tcg_series (name, logo_url) VALUES (@name, @logo)
+       ON CONFLICT(name) DO UPDATE SET logo_url = excluded.logo_url`,
+      { name, logo: `${hit.logo}.webp` },
+    );
+    matched++;
+  }
+  return matched;
+}
+
 export async function syncTcgdexEnrichment({ onProgress } = {}) {
+  try {
+    const matched = await syncSeriesLogos();
+    console.log(`[tcgdex] series logos matched: ${matched}`);
+  } catch (err) {
+    // A missing wordmark is cosmetic; it must not fail the variant enrichment that follows.
+    console.error(`[tcgdex] series logos unavailable: ${err.message}`);
+  }
+
   const ourSets = all(
     'SELECT set_id as id, set_name as name, MIN(release_date) as releaseDate FROM tcg_cards GROUP BY set_id',
   );

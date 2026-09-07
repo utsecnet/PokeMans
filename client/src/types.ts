@@ -152,6 +152,8 @@ export interface CardListItem {
   /** "Pokémon", "Trainer" or "Energy" — the only thing identifying a non-Pokémon card. */
   supertype: string | null;
   illustrator: string | null;
+  /** Wordmark for the card's series; null where TCGdex publishes none. */
+  seriesLogoUrl: string | null;
   /** Every distinct printing of this card, in upstream order. */
   variants: CardPrinting[];
   // Null for Trainer and Energy cards, which have no Pokémon of their own.

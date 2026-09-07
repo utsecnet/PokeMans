@@ -163,3 +163,10 @@ CREATE TABLE IF NOT EXISTS tcg_sets (
   symbol_url TEXT,
   logo_url TEXT
 );
+
+-- Series wordmarks, keyed by the series name the cards already carry. TCGdex publishes one
+-- per series (in practice the first set's logo), which pokemontcg.io does not.
+CREATE TABLE IF NOT EXISTS tcg_series (
+  name TEXT PRIMARY KEY,
+  logo_url TEXT
+);

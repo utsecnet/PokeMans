@@ -125,11 +125,26 @@ export function CardLightbox({
 
         <div className="min-w-0 flex-1 space-y-3">
           <div>
-            <h2 className="text-lg font-bold">{card.name}</h2>
+            <div className="flex items-start justify-between gap-3">
+              <h2 className="text-lg font-bold">{card.name}</h2>
+              {/* The series wordmark, sized by height so the varying widths (2:1 through
+                  5:1) all sit on one baseline instead of each setting its own. Right-aligned
+                  and out of the text column, since it is era at a glance, not a label. */}
+              {card.seriesLogoUrl && (
+                <img
+                  src={card.seriesLogoUrl}
+                  alt={card.series ? `${card.series} series` : ''}
+                  title={card.series ?? undefined}
+                  loading="lazy"
+                  className="h-6 w-auto max-w-[9rem] shrink-0 object-contain"
+                />
+              )}
+            </div>
             <p className="text-sm text-[var(--color-text-muted)]">
               {card.setName}
               {card.number ? ` · #${card.number}` : ''}
               {card.rarity ? ` · ${card.rarity}` : ''}
+              {card.illustrator ? ` · ${card.illustrator}` : ''}
             </p>
           </div>
 
