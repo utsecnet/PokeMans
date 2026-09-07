@@ -48,17 +48,17 @@
 
   /* Motes in the hover backlight. Bright on a dark ground; on the light theme the glow is
      too pale for white to register, so they darken instead and read as dust either way. */
-  --color-speck: rgba(38, 38, 48, 0.26);
+  --color-speck: rgba(38, 38, 48, 0.5);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --color-speck: rgba(255, 255, 255, 0.55);
+    --color-speck: rgba(255, 255, 255, 0.8);
   }
 }
 
 :root[data-theme='dark'] {
-  --color-speck: rgba(255, 255, 255, 0.55);
+  --color-speck: rgba(255, 255, 255, 0.8);
 }
 
 .dark {
@@ -233,36 +233,43 @@
 }
 
 /*
- * Motes drifting up through the hover backlight. Each layer moves by exactly one of its own
- * tile heights, so the pattern lands back on itself and the loop is seamless; because the
- * tiles differ (16 / 23 / 31px) they travel at three speeds over the same duration, which is
- * what stops it reading as one sheet sliding.
+ * Motes drifting up through the hover backlight, and fading in and out as they go.
  *
- * Slow enough to be noticed only once you've settled on a card, which is the point — it is
- * ambience behind the artwork, not an effect competing with it.
+ * A single background-image can't twinkle per dot — every dot in one gradient shares an
+ * opacity. So the motes are split across several layers, each one grid of dots with its own
+ * drift speed, fade rhythm and offset. Because the grids are co-prime and differently placed,
+ * neighbouring specks belong to different layers and so fade at unrelated times, which is
+ * what makes it read as individual sparkles rather than a sheet pulsing.
+ *
+ * Each layer travels exactly one of its own tile heights, so the pattern lands back on itself
+ * and the loop is seamless.
  */
 @keyframes speck-drift {
-  from {
-    background-position:
-      0 0,
-      0 0,
-      0 0;
-  }
   to {
-    background-position:
-      0 -16px,
-      0 -23px,
-      0 -31px;
+    background-position: 0 var(--speck-drift);
   }
 }
 
-.speck-drift {
-  animation: speck-drift 24s linear infinite;
+@keyframes speck-twinkle {
+  0%,
+  100% {
+    opacity: 0.12;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.speck-layer {
+  animation:
+    speck-drift var(--speck-drift-dur) linear infinite,
+    speck-twinkle var(--speck-twinkle-dur) ease-in-out infinite var(--speck-twinkle-delay);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .speck-drift {
+  .speck-layer {
     animation: none;
+    opacity: 0.4;
   }
 }
 
