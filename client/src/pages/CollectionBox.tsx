@@ -43,10 +43,13 @@ export function CollectionBoxPage() {
       setLightbox(cardId);
       return;
     }
+    // The row leaves the list straight away, so the card goes where it was sent without
+    // waiting on a round trip; the re-read that follows only confirms it.
+    setBox((b) => (b ? { ...b, entries: b.entries.filter((e) => e.id !== entryId) } : b));
     const res = await moveCollectionEntry(entryId, moveTargetId);
     setMoved((n) => n + 1);
     setUndoMove({ entryId, fromBoxId: res.movedFrom ?? Number(boxId), name });
-    load();
+    load(true);
     refresh();
   };
 
@@ -55,20 +58,28 @@ export function CollectionBoxPage() {
     await moveCollectionEntry(undoMove.entryId, undoMove.fromBoxId);
     setUndoMove(null);
     setMoved((n) => Math.max(0, n - 1));
-    load();
+    load(true);
     refresh();
   };
 
-  const load = () => {
+  /**
+   * `silent` re-reads without raising the loading flag. The flag swaps the whole page for a
+   * "Loading…" placeholder, which is right when arriving with nothing to show and wrong after
+   * a move or a printing change: the page already holds a perfectly good render, and blanking
+   * it to rebuild the identical thing a moment later reads as the interface flickering.
+   */
+  const load = (silent = false) => {
     if (!boxId) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     fetchCollectionBox(Number(boxId))
       .then((data) => {
         setBox(data);
         setNameInput(data.name);
       })
       .catch((err) => console.error('Failed to load collection:', err))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!silent) setLoading(false);
+      });
   };
 
   useEffect(load, [boxId]);
@@ -83,7 +94,7 @@ export function CollectionBoxPage() {
   // here that used to update this page and leave that one showing the old total.
   const changeVariant = async (entryId: number, variantPosition: number | null) => {
     await setCollectionEntryVariant(entryId, variantPosition);
-    load();
+    load(true);
     refresh();
   };
 
