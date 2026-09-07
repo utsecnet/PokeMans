@@ -300,8 +300,10 @@ export interface CollectionBox {
   createdAt: string;
   cardCount: number;
   totalQuantity: number;
-  /** Value in USD from the latest daily snapshot; 0 for cards with no price captured yet. */
+  /** Value in USD from the latest capture, summing one price per copy. */
   valueUsd: number;
+  /** Copies that can't be valued yet, almost always because no printing is recorded. */
+  unpriced: number;
 }
 
 export interface CollectionBoxesResponse {

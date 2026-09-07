@@ -93,6 +93,7 @@ export function Collection() {
   const pendingIds = new Set(pending.map((entry) => entry.box.id));
   const visibleBoxes = boxes.filter((b) => !pendingIds.has(b.id));
 
+  const totalUnpriced = boxes.reduce((sum, b) => sum + (b.unpriced ?? 0), 0);
   const totalValue = visibleBoxes.reduce((sum, b) => sum + (b.valueUsd ?? 0), 0);
 
   return (
@@ -108,6 +109,13 @@ export function Collection() {
             {pricesUpdatedAt && (
               <span className="ml-1 text-xs">
                 · priced {new Date(pricesUpdatedAt).toLocaleDateString()}
+              </span>
+            )}
+            {/* Stated rather than folded in silently: the total covers only copies whose
+                printing is known, and the gap is the owner's to close. */}
+            {totalUnpriced > 0 && (
+              <span className="ml-1 text-xs">
+                · {totalUnpriced} without a printing set
               </span>
             )}
           </p>

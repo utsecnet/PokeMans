@@ -31,14 +31,19 @@ function setLastUsedBoxId(boxId) {
 
 
 /**
- * The latest TCGplayer market price for each (card, printing) pair in one query, keyed
- * `cardId:position`.
+ * One price per (card, printing), keyed `cardId:position`, from the most recent capture.
  *
- * Only priced when a printing is set. An entry whose printing is unknown genuinely has no
- * price: the printings of a vintage card can differ several-fold, so picking one on the
- * owner's behalf would invent a number rather than report one.
+ * Choosing a single row matters: PokemonPriceTracker records a separate row per condition —
+ * Near Mint, Damaged, Heavily Played and so on — all under source 'tcgplayer'. Summing them
+ * is how the collection list came to report several times a card's actual worth. Preference
+ * is a row with no condition (a single market figure, which is what TCGdex writes), then
+ * Near Mint, which is the condition a collection is normally quoted in.
+ *
+ * Priced only where a printing is recorded. A copy whose printing is unknown genuinely has
+ * no price: a vintage card's prints differ several-fold, so choosing one on the owner's
+ * behalf would invent a number rather than report one.
  */
-function latestPricesFor(entries) {
+export function latestPricesFor(entries) {
   const wanted = entries.filter((e) => e.variantPosition != null);
   if (wanted.length === 0) return new Map();
 
@@ -50,7 +55,8 @@ function latestPricesFor(entries) {
   });
 
   const rows = personalAll(
-    `SELECT p.card_id AS cardId, p.variant_position AS variantPosition, p.currency, p.market
+    `SELECT p.card_id AS cardId, p.variant_position AS variantPosition, p.condition,
+            p.currency, p.market
        FROM card_price_history p
       WHERE p.source = 'tcgplayer' AND p.market IS NOT NULL AND (${pairs.join(' OR ')})
         AND p.captured_on = (
@@ -60,41 +66,49 @@ function latestPricesFor(entries) {
         )`,
     params,
   );
-  return new Map(rows.map((r) => [`${r.cardId}:${r.variantPosition}`, r]));
+
+  const rank = (condition) => (condition == null ? 0 : condition === 'Near Mint' ? 1 : 2);
+  const best = new Map();
+  for (const row of rows) {
+    const key = `${row.cardId}:${row.variantPosition}`;
+    const held = best.get(key);
+    if (!held || rank(row.condition) < rank(held.condition)) best.set(key, row);
+  }
+  return best;
 }
 
 collectionRouter.get('/boxes', (_req, res) => {
   const boxes = personalAll(
     `SELECT b.id, b.name, b.type, b.color, b.created_at as createdAt,
             COUNT(DISTINCT e.card_id) as cardCount,
-            COUNT(e.id) as totalQuantity,
-            -- Value from the most recent daily snapshot, in USD (TCGplayer is the only
-            -- source quoted per finish, so mixing in Cardmarket's EUR would need a rate).
-            -- A card with no snapshot yet simply contributes nothing rather than blocking
-            -- the total, so this reads as "value of what we have prices for".
-            COALESCE((
-              SELECT SUM(p.market)
-              FROM collection_entries e2
-              JOIN card_price_history p ON p.card_id = e2.card_id
-              WHERE e2.box_id = b.id
-                AND p.source = 'tcgplayer'
-                AND p.market IS NOT NULL
-                -- Only copies whose printing is known. Falling back to another printing
-                -- would report a number the owner never claimed; a vintage card's prints
-                -- can differ several-fold.
-                AND e2.variant_position IS NOT NULL
-                AND p.variant_position = e2.variant_position
-                AND p.captured_on = (
-                  SELECT MAX(p2.captured_on) FROM card_price_history p2
-                  WHERE p2.card_id = p.card_id AND p2.variant_position = p.variant_position
-                    AND p2.source = p.source
-                )
-            ), 0) as valueUsd
+            COUNT(e.id) as totalQuantity
      FROM collection_boxes b
      LEFT JOIN collection_entries e ON e.box_id = b.id
      GROUP BY b.id
      ORDER BY b.created_at`,
   );
+
+  // Valued in JS from the same helper the box view uses, rather than a second copy of the
+  // rule in SQL. The two had drifted: this list was summing one row per condition and
+  // reporting several times what a box was worth.
+  const entries = personalAll(
+    `SELECT box_id AS boxId, card_id AS cardId, variant_position AS variantPosition
+       FROM collection_entries`,
+  );
+  const prices = latestPricesFor(entries);
+  const valueByBox = new Map();
+  for (const entry of entries) {
+    const price = prices.get(`${entry.cardId}:${entry.variantPosition}`)?.market;
+    if (price == null) continue;
+    valueByBox.set(entry.boxId, (valueByBox.get(entry.boxId) ?? 0) + price);
+  }
+  for (const box of boxes) {
+    box.valueUsd = Math.round((valueByBox.get(box.id) ?? 0) * 100) / 100;
+    // How many copies still need a printing chosen before they can be valued.
+    box.unpriced = entries.filter(
+      (e) => e.boxId === box.id && prices.get(`${e.cardId}:${e.variantPosition}`) == null,
+    ).length;
+  }
   res.json({
     boxes,
     lastUsedBoxId: getLastUsedBoxId(),
