@@ -49,10 +49,13 @@ export function CollectionBoxPage() {
   const unpriced = box?.entries.filter((e) => e.price == null).length ?? 0;
 
   // Reloaded rather than patched in place: naming a printing changes what this copy is
-  // worth, and the price comes from the server.
+  // worth, and the price comes from the server. `refresh` as well as `load`, because that
+  // new price also changes what the box is worth on the collection list — the one mutation
+  // here that used to update this page and leave that one showing the old total.
   const changeVariant = async (entryId: number, variantPosition: number | null) => {
     await setCollectionEntryVariant(entryId, variantPosition);
     load();
+    refresh();
   };
 
   const removeEntry = async (entryId: number) => {

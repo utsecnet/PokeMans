@@ -21,6 +21,15 @@ export function Collection() {
   const [pending, setPending] = useState<PendingDelete[]>([]);
   const mountedRef = useRef(true);
 
+  // Re-read on arrival rather than trusting what the context last saw. Values move for
+  // reasons this page never hears about — a printing named in a box, a price captured by
+  // opening a card, the daily sync — and the totals here are the first place that shows.
+  useEffect(() => {
+    refresh();
+    // Deliberately mount-only: refresh replaces `boxes`, so depending on it would loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(
     () => () => {
       mountedRef.current = false;
