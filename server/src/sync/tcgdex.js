@@ -153,9 +153,15 @@ export async function syncTcgdexEnrichment({ onProgress } = {}) {
       // Guard against a number collision landing on a different card entirely.
       if (normName(theirCard.name) !== normName(ours.name)) continue;
 
-      const base = `https://assets.tcgdex.net/en/${match.serie?.id}/${match.id}/${theirCard.localId}`;
-      run('UPDATE tcg_cards SET image_webp = @webp WHERE id = @id', { webp: `${base}/low.webp`, id: ours.id });
-      imagesSet++;
+      // TCGdex reports the image base itself, and reports null when it holds no artwork —
+      // whole sets are like that, the Trainer Gallery subsets among them. Building the URL
+      // from the set and number regardless stored a link that 404s, and because the card
+      // query prefers image_webp over image_small, that dead link then hid a perfectly good
+      // pokemontcg.io thumbnail. Cleared rather than left behind, so a card that loses its
+      // artwork upstream falls back instead of staying broken.
+      const webp = theirCard.image ? `${theirCard.image}/low.webp` : null;
+      run('UPDATE tcg_cards SET image_webp = @webp WHERE id = @id', { webp, id: ours.id });
+      if (webp) imagesSet++;
 
       const printings = variantsById.get(theirCard.id);
       if (!printings) continue;
