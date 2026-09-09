@@ -32,9 +32,7 @@ export function BrowseViewToggle() {
           onClick={() => select(opt.value)}
           className={`rounded-full px-2.5 py-1 text-xs font-medium transition sm:px-3.5 sm:text-sm ${
             view === opt.value
-              ? // Always white on the accent, in both themes — the dark theme's
-                // accent-contrast is near-black, which isn't the look wanted here.
-                'bg-[var(--color-accent)] text-white'
+              ? 'bg-[var(--color-accent)] text-[var(--color-accent-contrast)]'
               : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
           }`}
         >

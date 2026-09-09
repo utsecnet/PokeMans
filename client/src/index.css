@@ -70,7 +70,10 @@
   --color-text: #f0eee9;
   --color-text-muted: #a19c92;
   --color-accent: #ef5a6a;
-  --color-accent-contrast: #16151a;
+  /* White, not the page background. The accent is red in both themes, and pairing it with
+     the near-black surface colour put dark text on every red button and active chip in the
+     dark theme — legible, but not what a red button is supposed to look like. */
+  --color-accent-contrast: #ffffff;
 }
 
 * {
@@ -111,18 +114,57 @@
 }
 
 /*
- * Card tilt. TiltCard sets --tilt-*, --glare-* and --shadow-* from the pointer; everything
- * below is what those properties drive. Keeping the visuals in CSS means a pointer move
- * costs a few property writes on one element instead of a React render per frame.
+ * Registered so the reflection can be transitioned. A custom property is otherwise a string
+ * substituted at use time, and one buried inside a gradient can't animate at all — it would
+ * snap to each new value the instant JS wrote it, while .tilt-inner's transform eased into
+ * place over 120ms. The reflection would then arrive before the card had finished turning,
+ * which is precisely the illusion this is meant to sell. Typed, they interpolate, and the
+ * light can be given the same timing as the surface carrying it.
+ */
+@property --light-x {
+  syntax: '<percentage>';
+  inherits: true;
+  initial-value: 50%;
+}
+@property --light-y {
+  syntax: '<percentage>';
+  inherits: true;
+  initial-value: 34%;
+}
+@property --light-w {
+  syntax: '<percentage>';
+  inherits: true;
+  initial-value: 52%;
+}
+@property --light-h {
+  syntax: '<percentage>';
+  inherits: true;
+  initial-value: 52%;
+}
+
+/*
+ * Card tilt. TiltCard sets --tilt-* from the pointer, then derives --light-* and --shadow-*
+ * from that angle alone — the light is fixed in the room and only the card moves under it.
+ * Everything below is what those properties drive. Keeping the visuals in CSS means a
+ * pointer move costs a few property writes on one element instead of a React render.
  */
 .tilt {
   --tilt-x: 0deg;
   --tilt-y: 0deg;
-  --glare-x: 50%;
-  --glare-y: 50%;
-  --glare: 0;
+  /* Where the fixed light's reflection falls, and how far it has smeared getting there. */
+  --light-x: 50%;
+  --light-y: 34%;
+  --light-w: 52%;
+  --light-h: 52%;
+  --lit: 0;
   --shadow-x: 0px;
   --shadow-y: 12px;
+  /* Matched to .tilt-inner's transform, so the light and the surface move as one thing. */
+  transition:
+    --light-x 120ms ease-out,
+    --light-y 120ms ease-out,
+    --light-w 120ms ease-out,
+    --light-h 120ms ease-out;
   display: flex;
   justify-content: center;
   padding: 0;
@@ -166,6 +208,14 @@
 .tilt[data-settling='true'] .tilt-inner {
   transition: transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
 }
+/* Settling back is a slower move, and the reflection has to ride it the whole way. */
+.tilt[data-settling='true'] {
+  transition:
+    --light-x 600ms cubic-bezier(0.22, 1, 0.36, 1),
+    --light-y 600ms cubic-bezier(0.22, 1, 0.36, 1),
+    --light-w 600ms cubic-bezier(0.22, 1, 0.36, 1),
+    --light-h 600ms cubic-bezier(0.22, 1, 0.36, 1);
+}
 
 .tilt-image {
   grid-area: 1 / 1;
@@ -175,8 +225,10 @@
   user-select: none;
 }
 
+.tilt-clearcoat,
 .tilt-glare,
-.tilt-sheen {
+.tilt-sheen,
+.tilt-stars {
   grid-area: 1 / 1;
   pointer-events: none;
   opacity: 0;
@@ -184,28 +236,70 @@
 }
 
 /*
- * The specular highlight: a bright spot sitting where the light is. Kept deliberately
- * tight — screen blending over a white-bordered card spreads fast, and a wider falloff
- * washes the art out instead of reading as a reflection.
+ * The clear coat: the lacquer over the art, not a light in its own right.
+ *
+ * What makes polished car paint look polished is not the highlight, it is that the panel
+ * returns a dim picture of the whole room — sky along the top, ground along the bottom, and
+ * a horizon where they meet. That is all this is: a vertical ramp from a little light to a
+ * little dark, through soft-light so it bends what is already on the card rather than
+ * painting over it. Kept far below the point where it reads as a gradient of its own; the
+ * intent is that removing it looks flat rather than that adding it looks shiny.
+ *
+ * It drifts a fraction of the light's travel, because a real horizon line slides across a
+ * panel as the panel turns.
+ */
+.tilt-clearcoat {
+  opacity: calc(var(--lit) * 0.55);
+  background: linear-gradient(
+    to bottom,
+    rgb(255 255 255 / 0.17) 0%,
+    rgb(255 255 255 / 0.06) 20%,
+    rgb(255 255 255 / 0) 44%,
+    rgb(0 0 0 / 0.04) 72%,
+    rgb(0 0 0 / 0.11) 100%
+  );
+  mix-blend-mode: soft-light;
+  transform: translateY(calc((var(--light-y) - 34%) * 0.12));
+}
+
+/*
+ * The reflection. The fixture in the room is a strip light, so what a flat glossy surface
+ * returns is a bar drawn across it, not a spot — the same thing you see travelling down a
+ * car's flank as you walk past it.
+ *
+ * Soft-edged on purpose, and that is the whole division of labour here: this is the diffuse
+ * half of the surface's response, .tilt-stars is the specular half. A polished surface shows
+ * both at once — a broad wash of the light's shape, and a hard little image of it.
+ *
+ * --light-w/--light-h widen the bar as the card turns away, since the same fixture seen at a
+ * glancing angle covers more of the surface. Scaling background-size does it: the stops are
+ * fractions of that size, so a bigger sheet is a thicker, softer bar.
  */
 .tilt-glare {
-  opacity: calc(var(--glare) * 0.6);
-  background: radial-gradient(
-    circle at var(--glare-x) var(--glare-y),
-    rgb(255 255 255 / 0.4),
-    rgb(255 255 255 / 0.09) 18%,
-    rgb(255 255 255 / 0) 42%
+  opacity: calc(var(--lit) * 0.6);
+  background: linear-gradient(
+    116deg,
+    rgb(255 255 255 / 0) 41%,
+    rgb(255 255 255 / 0.05) 46%,
+    rgb(255 255 255 / 0.32) 50%,
+    rgb(255 255 255 / 0.05) 54%,
+    rgb(255 255 255 / 0) 59%
   );
+  background-size: calc(var(--light-w) * 3.2) calc(var(--light-h) * 3.2);
+  background-position: var(--light-x) var(--light-y);
+  /* One fixture, one bar — without this the sheet tiles and a second one walks in. */
+  background-repeat: no-repeat;
   mix-blend-mode: screen;
 }
 
 /*
  * The holo sheen: a rainbow band that slides across the foil as the angle changes, faded
- * out away from the highlight so it reads as light catching the surface rather than a
- * pattern printed on the card.
+ * out away from the reflection so it reads as light catching the surface rather than a
+ * pattern printed on the card. Foil splits light by angle, so driving this from the card's
+ * angle rather than the pointer is what it wanted all along.
  */
 .tilt-sheen {
-  opacity: calc(var(--glare) * 0.3);
+  opacity: calc(var(--lit) * 0.3);
   background: repeating-linear-gradient(
     112deg,
     rgb(255 92 130 / 0.42) 0%,
@@ -215,10 +309,97 @@
     rgb(255 92 130 / 0.42) 28%
   );
   background-size: 300% 300%;
-  background-position: var(--glare-x) var(--glare-y);
+  background-position: var(--light-x) var(--light-y);
   mix-blend-mode: overlay;
-  -webkit-mask-image: radial-gradient(circle at var(--glare-x) var(--glare-y), #000 5%, transparent 55%);
-  mask-image: radial-gradient(circle at var(--glare-x) var(--glare-y), #000 5%, transparent 55%);
+  /* Wider than the reflection itself, so the rainbow surrounds the bright spot instead of
+     being hidden underneath it. */
+  -webkit-mask-image: radial-gradient(88% 78% at var(--light-x) var(--light-y), #000 8%, transparent 72%);
+  mask-image: radial-gradient(88% 78% at var(--light-x) var(--light-y), #000 8%, transparent 72%);
+}
+
+/*
+ * Foil stars, for the rarities the catalogue draws with a star.
+ *
+ * These are printed on the card, not reflections of anything: six stars stamped at fixed
+ * points, which is why nothing here moves them. What moves is the bar of light, and a star
+ * is only visible where the bar is currently crossing it — exactly how foil stamping behaves
+ * in the hand, invisible until you tilt the card into a light and then suddenly there.
+ *
+ * Two masks do it. The first is the stamping, fixed to the card; the second is the bar,
+ * sharing .tilt-glare's 116deg axis and its --light-* geometry so the reveal lands precisely
+ * where the visible bar is. Intersected, so what survives is the part of a star the light is
+ * on. The reveal band is deliberately wider than the visible bar, so a star catches a glint
+ * just before the bright core reaches it rather than snapping on with it.
+ *
+ * Laid out in a 100×140 box — the card's own 2.5:3.5 ratio, so the sheet stretches to any
+ * card without distorting the stars.
+ */
+.tilt {
+  /* Where the bar of light is, as an alpha ramp, for masking rather than painting. Wider
+     than the bar .tilt-glare draws with the same 116deg axis — a star should start to catch
+     before the bright core arrives and let go after it has passed. */
+  --light-bar: linear-gradient(
+    116deg,
+    rgb(0 0 0 / 0) 34%,
+    rgb(0 0 0 / 0.28) 43%,
+    rgb(0 0 0 / 1) 50%,
+    rgb(0 0 0 / 0.28) 57%,
+    rgb(0 0 0 / 0) 66%
+  );
+  --star-sheet: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 140' preserveAspectRatio='none'%3E%3Cdefs%3E%3Cpath id='s' d='M12 3.5 14.6 9.4 21 10.2 16.3 14.5 17.6 21 12 17.8 6.4 21 7.7 14.5 3 10.2 9.4 9.4z'/%3E%3C/defs%3E%3Cg fill='%23fff'%3E%3Cuse href='%23s' transform='translate(24,33) rotate(9) scale(0.34) translate(-12,-12)'/%3E%3Cuse href='%23s' transform='translate(71,19) rotate(-16) scale(0.22) translate(-12,-12)'/%3E%3Cuse href='%23s' transform='translate(48,63) rotate(4) scale(0.46) translate(-12,-12)'/%3E%3Cuse href='%23s' transform='translate(84,79) rotate(22) scale(0.27) translate(-12,-12)'/%3E%3Cuse href='%23s' transform='translate(17,99) rotate(-9) scale(0.25) translate(-12,-12)'/%3E%3Cuse href='%23s' transform='translate(62,117) rotate(13) scale(0.36) translate(-12,-12)'/%3E%3Cuse href='%23s' transform='translate(38,12) rotate(6) scale(0.19) translate(-12,-12)'/%3E%3Cuse href='%23s' transform='translate(89,42) rotate(-11) scale(0.2) translate(-12,-12)'/%3E%3Cuse href='%23s' transform='translate(11,58) rotate(17) scale(0.29) translate(-12,-12)'/%3E%3Cuse href='%23s' transform='translate(58,89) rotate(-6) scale(0.23) translate(-12,-12)'/%3E%3Cuse href='%23s' transform='translate(33,128) rotate(10) scale(0.21) translate(-12,-12)'/%3E%3Cuse href='%23s' transform='translate(79,104) rotate(-19) scale(0.31) translate(-12,-12)'/%3E%3Cuse href='%23s' transform='translate(94,127) rotate(5) scale(0.18) translate(-12,-12)'/%3E%3Cuse href='%23s' transform='translate(6,19) rotate(-5) scale(0.17) translate(-12,-12)'/%3E%3Cuse href='%23s' transform='translate(52,40) rotate(14) scale(0.16) translate(-12,-12)'/%3E%3Cuse href='%23s' transform='translate(27,77) rotate(-13) scale(0.175) translate(-12,-12)'/%3E%3C/g%3E%3C/svg%3E");
+}
+/*
+ * The outer element is the bar of light — a moving slot, and nothing more. The blend lives
+ * here rather than on the child: the child paints inside this element's stacking context, so
+ * a blend down there would screen against transparency instead of against the card.
+ */
+.tilt-stars {
+  /* Far stronger than a reflection would be, because only the sliver of a star under the bar
+     is ever on screen at once. Foil catching light is bright; there is just very little of
+     it at any moment. */
+  opacity: calc(var(--lit) * 0.95);
+  /* The containing block for the foil inside it. */
+  position: relative;
+  -webkit-mask-image: var(--light-bar);
+  mask-image: var(--light-bar);
+  -webkit-mask-size: calc(var(--light-w) * 3.2) calc(var(--light-h) * 3.2);
+  mask-size: calc(var(--light-w) * 3.2) calc(var(--light-h) * 3.2);
+  -webkit-mask-position: var(--light-x) var(--light-y);
+  mask-position: var(--light-x) var(--light-y);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  mix-blend-mode: screen;
+}
+
+/*
+ * The inner element is the stamping, fixed to the card — nothing here reads --light-x for
+ * position, which is the whole point: the foil does not move, the slot moves over it.
+ */
+.tilt-stars-foil {
+  position: absolute;
+  inset: 0;
+  /* The prism. Foil splits white light into its colours by angle, so the sheet behind the
+     stamping is a spectrum that slides as the card turns — each star showing whichever part
+     of it currently lines up, and a big star showing several at once across its points.
+     Tighter bands and fuller colours than a wash would use: this is only ever seen through a
+     narrow moving slot, so it can afford to be vivid without touching the art around it. */
+  background: repeating-linear-gradient(
+    74deg,
+    #ff2d6f 0%,
+    #ffb02e 5%,
+    #2ee88a 10%,
+    #24c8ff 15%,
+    #9b5cff 20%,
+    #ff2d6f 25%
+  );
+  background-size: 200% 200%;
+  background-position: calc(var(--light-x) * -1.3) calc(var(--light-y) * -1.3);
+  -webkit-mask-image: var(--star-sheet);
+  mask-image: var(--star-sheet);
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
 }
 
 /* Leaning and glaring is exactly the decorative motion this setting asks us to drop. */
@@ -228,8 +409,10 @@
     transition: none;
   }
 
+  .tilt-clearcoat,
   .tilt-glare,
-  .tilt-sheen {
+  .tilt-sheen,
+  .tilt-stars {
     display: none;
   }
 
