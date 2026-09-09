@@ -318,3 +318,128 @@ const fig4 = () => {
 
 writeFileSync(join(OUT, 'system-map.svg'), fig4(), 'utf8');
 console.log('system-map.svg'.padEnd(28) + (fig4().length / 1024).toFixed(1) + ' KB');
+
+
+/* ── Figure 5 — hosted price schema ───────────────────────────────────────── */
+
+const fig5 = () => {
+  let b = '';
+
+  b += heading(40, 44, 'Figure 5 · Hosted price schema — what lives in Postgres and what stays on the device');
+
+  /* Hosted */
+  b += zone({ x: 40, y: 70, w: 700, h: 470, label: 'Supabase · Postgres', cost: 'shared + live' });
+
+  b += box({
+    x: 64, y: 116, w: 320, h: 176, stripe: 'shared',
+    title: 'price_current',
+    lines: [
+      '`PK card_id, variant_position, source',
+      '`currency, market, low',
+      '`captured_on, updated_at',
+      'One row per priced thing. Rewritten',
+      'every run, changed or not, so a lookup',
+      'is a PK hit. ~39k rows, fixed size.',
+    ],
+  });
+
+  b += box({
+    x: 400, y: 116, w: 320, h: 176, stripe: 'shared',
+    title: 'price_history',
+    lines: [
+      '`PK id · UQ card, variant, source, day',
+      '`currency, market, low, captured_on',
+      'Append-only, changes only. 87.3% of',
+      'days are unchanged, so this holds ~13%',
+      'of a full snapshot. A step series, not',
+      'a line. ~5k rows/day · ~1.8M/year',
+    ],
+  });
+
+  b += box({
+    x: 64, y: 316, w: 320, h: 128,
+    title: 'sync_run',
+    lines: [
+      '`started_at, finished_at, status',
+      '`cards_seen, changed, failed',
+      'The job fails silently otherwise, and',
+      'a missed day cannot be recovered —',
+      'upstreams only ever serve today.',
+    ],
+  });
+
+  b += box({
+    x: 400, y: 316, w: 320, h: 128,
+    title: 'record_prices(jsonb)',
+    lines: [
+      'Upserts the batch into current and',
+      'appends only genuine changes to',
+      'history. The diff happens in the',
+      'database, so the job never fetches',
+      'previous values to compare.',
+    ],
+  });
+
+  b += `<text class="zc" x="64" y="472">RLS on, no read policy — the anon key ships in any client bundle that uses it,</text>`;
+  b += `<text class="zc" x="64" y="492">and that would be public redistribution of free-tier price data.</text>`;
+
+  /* On the device */
+  b += zone({ x: 780, y: 70, w: 580, h: 470, label: 'On the device · SQLite', cost: 'static + personal' });
+
+  b += box({
+    x: 804, y: 116, w: 252, h: 176,
+    title: 'catalog.sqlite',
+    lines: [
+      '`tcg_cards · tcg_card_variants',
+      '`tcg_sets · pokemon · abilities',
+      'Shared, but static — changes a',
+      'few times a year. Synced down,',
+      'queried locally. 11 MB.',
+    ],
+    alt: true,
+  });
+
+  b += box({
+    x: 1072, y: 116, w: 264, h: 176, stripe: 'user',
+    title: 'personal.sqlite',
+    lines: [
+      '`collection_boxes · collection_entries',
+      '`want_lists · want_list_entries',
+      '`settings · linked_accounts · fx_rates',
+      'User data. Never leaves the device',
+      'until there are users to scope it to.',
+    ],
+    alt: true,
+  });
+
+  b += box({
+    x: 804, y: 316, w: 532, h: 150,
+    title: 'Why the catalogue is not hosted',
+    lines: [
+      'The advanced search falls back to filtering the whole catalogue in the',
+      'client when a query uses operators SQL cannot push down. Measured at',
+      '12.4 MB and 8.7 s over loopback. Remote, that is not a slow feature —',
+      'it is a broken one, and the app stops working offline.',
+    ],
+  });
+
+  /* Runtime */
+  b += zone({ x: 40, y: 566, w: 1320, h: 150, label: 'Daily refresh' });
+
+  b += box({ x: 64, y: 606, w: 250, h: 88, title: 'GitHub Action', lines: ['20,444 cards, concurrency 8', 'Measured: 4.8 min · 43 MB'] });
+  b += box({ x: 350, y: 606, w: 230, h: 88, title: 'TCGdex', lines: ['One request per card', 'Both marketplaces, daily'], alt: true });
+  b += box({ x: 1090, y: 606, w: 246, h: 88, title: 'App server', lines: ['convert() · ensureRates()', 'latestPricesFor() unchanged'] });
+
+  b += arrow({ pts: [[314, 650], [344, 650]], label: 'fetch', lx: 329, ly: 641, both: true });
+  // The write path runs up the left margin, outside both zones, so it crosses nothing.
+  b += arrow({ pts: [[189, 604], [189, 552], [26, 552], [26, 200], [58, 200]], label: 'record_prices()', lx: 112, ly: 544 });
+  // The read path uses the 40px gap between the two zones for its vertical leg.
+  b += arrow({ pts: [[1086, 660], [760, 660], [760, 300], [744, 300]], label: 'reads current + history', lx: 925, ly: 652 });
+
+  b += `<text class="zc" x="596" y="706">Do not trust GitHub’s schedule: trigger · late by 10–60 min, self-disables after 60 days idle</text>`;
+
+  return svg(1400, 740, b, 'Hosted price schema: price_current, price_history and sync_run in Supabase, with catalogue and personal data on the device');
+};
+
+writeFileSync(join(OUT, 'price-schema.svg'), fig5(), 'utf8');
+console.log('price-schema.svg'.padEnd(28) + (fig5().length / 1024).toFixed(1) + ' KB');
