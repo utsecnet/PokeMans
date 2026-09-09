@@ -182,12 +182,13 @@
       <li><a href="#decision">00 The decision</a></li>
       <li><a href="#system">01 What runs where</a></li>
       <li><a href="#storage">02 Storage</a></li>
-      <li><a href="#port">03 The async port</a></li>
-      <li><a href="#touch">04 Touch</a></li>
-      <li><a href="#build">05 Building and testing</a></li>
-      <li><a href="#play">06 Getting onto Play</a></li>
-      <li><a href="#risks">07 Risks</a></li>
-      <li><a href="#phases">08 Order of work</a></li>
+      <li><a href="#artwork">03 Artwork</a></li>
+      <li><a href="#port">04 The async port</a></li>
+      <li><a href="#touch">05 Touch</a></li>
+      <li><a href="#build">06 Building and testing</a></li>
+      <li><a href="#play">07 Getting onto Play</a></li>
+      <li><a href="#risks">08 Risks</a></li>
+      <li><a href="#phases">09 Order of work</a></li>
     </ol>
   </nav>
 
@@ -214,7 +215,7 @@
 
     <p><b>Capacitor keeps it.</b> A real WebView runs the CSS as written, native plugins provide on-device SQLite
     and the Keystore, and the result is a standard WebView app &mdash; the shape that passes 4.3. The cost is that
-    the Express server has to move into the app, which is section 03 and the only genuinely hard part.</p>
+    the Express server has to move into the app, which is section 04 and the only genuinely hard part.</p>
 
     <p>Underneath all of it is one question: <b>does this work offline?</b> For a collection tracker the answer is
     yes and it is not close &mdash; the moment you most want it is standing at a table in a convention hall, where
@@ -291,7 +292,7 @@
     </figure>
     <p>Two things are worth drawing out. Card art is fetched by the WebView <em>directly</em> from the image CDNs
     and never passes through anything of ours, which keeps egress at zero and is also the arrangement most likely
-    to attract attention at scale (section 07). And Supabase is read <em>through the app&rsquo;s query layer</em>,
+    to attract attention at scale (section 08). And Supabase is read <em>through the app&rsquo;s query layer</em>,
     not from the browser: a direct read needs the anon key, the anon key ships inside the bundle, and a bundled key
     makes the price tables readable by anyone who unpacks the APK.</p>
   </section>
@@ -376,8 +377,67 @@
     process.</p>
   </section>
 
+  <section id="artwork">
+    <h2><span class="n">03</span>Artwork</h2>
+    <p class="lede">Four image hosts, four different positions on caching, and one set of numbers that decides
+    what is possible regardless of what any of them permit.</p>
+
+    <table>
+      <thead><tr><th>Source</th><th>What its terms say</th><th>Position</th></tr></thead>
+      <tbody>
+        <tr><td class="id">PokéAPI sprites</td><td>No LICENSE file. README: &ldquo;you can just download the entire contents directly.&rdquo; Fair use: &ldquo;Locally cache resources whenever you request them.&rdquo;</td><td>Encourages it</td></tr>
+        <tr><td class="id">TCGdex</td><td><code>cards-database</code> is MIT. No terms page, no stated limits.</td><td>Silent</td></tr>
+        <tr><td class="id">pokemontcg.io</td><td><b>No terms-of-service page exists.</b> Docs cover authentication, errors, migration and rate limits only.</td><td>Silent</td></tr>
+        <tr><td class="id">Scrydex</td><td>Full ToS: prohibits &ldquo;redistribute, mirror, or commercially exploit&rdquo; and use as a &ldquo;wholesale data source&rdquo;.</td><td><b>Forbids it</b></td></tr>
+      </tbody>
+    </table>
+
+    <p>None of the four can grant rights to the artwork, because none of them hold any. Two say so themselves —
+    pokemontcg.io&rsquo;s footer reads &ldquo;not produced, endorsed, supported, or affiliated with Nintendo or The
+    Pokémon Company&rdquo;, and Scrydex&rsquo;s says the same at greater length. TCGdex&rsquo;s MIT licence covers
+    the database and code they assembled; it cannot cover card scans they do not own.</p>
+
+    <p>So the question splits. <em>Will the aggregators mind?</em> Three would not; one would. <em>Does the rights
+    holder permit it?</em> Nobody has that permission, including today. Caching does not create that exposure —
+    the art is already displayed. What changes it is distribution: shipping artwork inside an APK makes the
+    publisher a redistributor rather than a viewer. That is section 08.</p>
+
+    <p class="lede" style="margin-top:1.1rem">Measured, not estimated — averages over several real fetches per
+    source.</p>
+
+    <table>
+      <thead><tr><th>Asset</th><th class="num">Average</th><th class="num">Count</th><th class="num">Total</th></tr></thead>
+      <tbody>
+        <tr><td class="id">Pokédex sprite, 96px</td><td class="num">1 KB</td><td class="num">1,079</td><td class="num"><b>1 MB</b></td></tr>
+        <tr><td class="id">Pokédex official artwork</td><td class="num">143 KB</td><td class="num">1,079</td><td class="num">151 MB</td></tr>
+        <tr><td class="id">Card art — TCGdex low webp</td><td class="num">23 KB</td><td class="num">20,444</td><td class="num">458 MB</td></tr>
+        <tr><td class="id">Card art — TCGdex high webp</td><td class="num">92 KB</td><td class="num">20,444</td><td class="num">1.80 GB</td></tr>
+        <tr><td class="id">Card art — pokemontcg small</td><td class="num">157 KB</td><td class="num">20,444</td><td class="num">3.07 GB</td></tr>
+      </tbody>
+    </table>
+
+    <p>Play caps the base module at 200 MB, and Asset Delivery raises the total to roughly 2 GB. That settles it
+    twice over: <b>the sprites ship and the card art cannot.</b> 1 MB for every Pokémon is free, and the source
+    explicitly invites the download. 458 MB is the smallest usable card set, before the ~1,500 cards a year that
+    arrive after it.</p>
+
+    <p>So card art is <b>cached on view</b>: fetched as now, written into app-private storage, and served from
+    there afterwards. A realistic user touches a few hundred cards, which is 10&ndash;25 MB. Everything looked at
+    once works offline, each card is fetched once ever rather than once per view, and the app never becomes a
+    redistributor. Collections and want lists can be warmed on first sync so the cards actually owned are offline
+    immediately.</p>
+
+    <p>Self-hosting the full 458 MB was considered and rejected. It would end the hotlinking — an installed base
+    pointing at someone else&rsquo;s CDN is a genuine concern — but it replaces that with a worse one: serving card
+    art at scale, in our own name, from our own infrastructure.</p>
+
+    <p><b>Scrydex is removed.</b> 661 cards and 4 set symbols resolved to the one host whose terms forbid
+    mirroring. All 661 already carry a TCGdex image, so they are re-pointed there rather than excluded — no card
+    loses its artwork, and the only source with binding terms against caching is no longer in the picture.</p>
+  </section>
+
   <section id="port">
-    <h2><span class="n">03</span>The async port</h2>
+    <h2><span class="n">04</span>The async port</h2>
     <p class="lede">The expensive part, and the reason this is a phased migration rather than a rewrite.</p>
 
     <figure>
@@ -463,7 +523,7 @@
   </section>
 
   <section id="touch">
-    <h2><span class="n">04</span>Touch</h2>
+    <h2><span class="n">05</span>Touch</h2>
     <p class="lede">Some of the interface is already touch-ready. One part of it is dead on arrival.</p>
 
     <ul class="legend" style="display:block">
@@ -486,7 +546,7 @@
   </section>
 
   <section id="build">
-    <h2><span class="n">05</span>Building and testing</h2>
+    <h2><span class="n">06</span>Building and testing</h2>
     <p class="lede">Better than it looks, precisely because it is a WebView.</p>
     <table>
       <thead><tr><th>Task</th><th>How</th></tr></thead>
@@ -506,7 +566,7 @@
   </section>
 
   <section id="play">
-    <h2><span class="n">06</span>Getting onto Play</h2>
+    <h2><span class="n">07</span>Getting onto Play</h2>
     <ul class="legend" style="display:block">
       <li style="display:block;margin-bottom:.55rem"><b>Policy 4.3, minimum functionality.</b> Cleared by being a
       real app with offline capability rather than a site mirror.</li>
@@ -521,7 +581,7 @@
   </section>
 
   <section id="risks">
-    <h2><span class="n">07</span>Risks</h2>
+    <h2><span class="n">08</span>Risks</h2>
     <p class="lede">Two worth settling before phase 1, because both are cheaper to act on now than after the port.</p>
 
     <p><b>Intellectual property.</b> The app shows Pokémon card artwork, uses Pokémon names, and is branded
@@ -537,7 +597,7 @@
   </section>
 
   <section id="phases">
-    <h2><span class="n">08</span>Order of work</h2>
+    <h2><span class="n">09</span>Order of work</h2>
 
     <figure>
       <div class="plate"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 400" width="1400" height="400" role="img" aria-label="Five phases: async port, hosted prices, Capacitor shell, touch redesign, Play Store">

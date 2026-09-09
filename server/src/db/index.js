@@ -128,6 +128,37 @@ function migrateTcgCardTcgdexId() {
 
 migrateTcgCardTcgdexId();
 
+// Scrydex artwork already stored before the sync learned to refuse it.
+//
+// Their terms forbid mirroring, and the app is about to start caching art onto devices for
+// offline use, so those URLs have to go. Nothing is lost: every card carrying one is also
+// covered by TCGdex, whose high-resolution file is the same path as the thumbnail with the
+// size swapped. The small image is simply cleared — the card query already prefers
+// image_webp and falls back to image_small, so it resolves to TCGdex on its own.
+function migrateAwayFromScrydex() {
+  const columns = db.prepare('PRAGMA table_info(tcg_cards)').all();
+  if (columns.length === 0) return;
+  if (!columns.some((c) => c.name === 'image_webp')) return;
+
+  const large = db.prepare(
+    `UPDATE tcg_cards SET image_large = REPLACE(image_webp, '/low.webp', '/high.webp')
+     WHERE image_large LIKE '%scrydex.com%' AND image_webp IS NOT NULL`,
+  ).run();
+  const small = db.prepare(
+    "UPDATE tcg_cards SET image_small = NULL WHERE image_small LIKE '%scrydex.com%'",
+  ).run();
+  const symbols = db.prepare(
+    "UPDATE tcg_sets SET symbol_url = NULL WHERE symbol_url LIKE '%scrydex.com%'",
+  ).run();
+
+  const moved = Number(large.changes) + Number(small.changes) + Number(symbols.changes);
+  if (moved > 0) {
+    console.log(`[db] Re-pointed ${large.changes} card images to TCGdex and cleared ${small.changes} thumbnails and ${symbols.changes} set symbols hosted by Scrydex.`);
+  }
+}
+
+migrateAwayFromScrydex();
+
 // Distinguishes a scheduled run from one the user started; older rows keep a null trigger.
 function migrateSyncLogTrigger() {
   const columns = db.prepare('PRAGMA table_info(sync_log)').all();

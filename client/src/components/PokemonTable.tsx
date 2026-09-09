@@ -1,4 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
+import { CardImage } from './CardImage';
 import type { MetaRanges, PokemonFilters, PokemonSummary, SortField, StatKey } from '../types';
 import { cap, formatGeneration } from '../lib/format';
 import { TypeBadge } from './TypeBadge';
@@ -243,7 +244,11 @@ export function PokemonTable({
         </thead>
         <tbody>
           {items.map((p) => {
-            const image = p.artworkUrl ?? p.spriteUrl;
+            // The sprite, not the artwork. This cell is 40x40, and the official artwork is a
+            // 475px, 143 KB render — downloading that to paint a thumbnail is wasteful on any
+            // platform and absurd on a phone. The 96px sprite is a tenth of a percent of the
+            // size, ships with the app, and is the right resolution for the box it goes in.
+            const image = p.spriteUrl ?? p.artworkUrl;
             return (
               <tr
                 key={p.id}
@@ -252,7 +257,7 @@ export function PokemonTable({
               >
                 {show('sprite') && (
                   <td className="px-3 py-1.5">
-                    {image && <img src={image} alt={p.name} loading="lazy" className="h-10 w-10 object-contain" />}
+                    {image && <CardImage src={image} alt={p.name} loading="lazy" className="h-10 w-10 object-contain" />}
                   </td>
                 )}
                 {show('dex') && (

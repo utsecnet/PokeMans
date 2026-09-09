@@ -62,6 +62,24 @@ function normalizeCardName(name) {
     .trim();
 }
 
+/**
+ * Drops artwork hosted by Scrydex.
+ *
+ * Scrydex is the one image source in this pipeline with binding terms, and they prohibit
+ * "redistribute, mirror, or commercially exploit" as well as use as a "wholesale data
+ * source" — which is exactly what caching art onto a device for offline use amounts to. The
+ * other three hosts are silent or, in PokéAPI's case, actively encourage caching.
+ *
+ * Nothing is lost by refusing them: every card that arrives with a Scrydex URL is also
+ * covered by TCGdex, whose image the enrichment pass fills in afterwards. Returning null
+ * here simply leaves the field for that pass rather than storing a URL we have agreed not
+ * to copy.
+ */
+function usableImage(url) {
+  if (!url) return null;
+  return /(^https?:)?\/\/([a-z0-9-]+\.)*scrydex\.com\//i.test(url) ? null : url;
+}
+
 export async function syncTcgCards({ onProgress } = {}) {
   const dexMap = buildDexMap();
   const regionalDexMap = buildRegionalDexMap();
@@ -86,7 +104,7 @@ export async function syncTcgCards({ onProgress } = {}) {
         name: set.name ?? null,
         series: set.series ?? null,
         release_date: set.releaseDate ?? null,
-        symbol_url: set.images?.symbol ?? null,
+        symbol_url: usableImage(set.images?.symbol),
         logo_url: set.images?.logo ?? null,
       },
       ['id'],
@@ -141,8 +159,8 @@ export async function syncTcgCards({ onProgress } = {}) {
           series: card.set?.series ?? set.series,
           rarity: card.rarity ?? null,
           release_date: card.set?.releaseDate ?? set.releaseDate,
-          image_small: card.images?.small ?? null,
-          image_large: card.images?.large ?? null,
+          image_small: usableImage(card.images?.small),
+          image_large: usableImage(card.images?.large),
           supertype: card.supertype ?? null,
           illustrator: card.artist ?? null,
         },

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
+import { CardImage } from './CardImage';
 import type { RefObject } from 'react';
 
 const TAP_SLOP = 8; // px of travel that turns a tap into a drag
@@ -201,8 +202,8 @@ export function TiltCard({
       }}
     >
       <span className="tilt-inner">
-        <img
-          ref={imageRef}
+        <CardImage
+          imgRef={imageRef}
           src={src}
           alt={alt}
           draggable={false}

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { localSprite, localiseSprites } from '../lib/artwork.js';
 import { all, get } from '../db/index.js';
 import { attachCollection } from '../lib/collectionInfo.js';
 import { typesByPokemon } from '../lib/pokemonTypes.js';
@@ -46,7 +47,7 @@ function buildEvolutionNode(pokemonId, transition = {}, seen = new Set()) {
   return {
     id: p.id,
     name: p.name,
-    spriteUrl: p.spriteUrl,
+    spriteUrl: localSprite(p.spriteUrl),
     artworkUrl: p.artworkUrl,
     types,
     trigger: transition.trigger ?? null,
@@ -275,7 +276,7 @@ pokemonRouter.get('/', (req, res) => {
     countParams,
   );
 
-  res.json({ items: attachCardCounts(attachTypes(items)), total, page, pageSize });
+  res.json({ items: localiseSprites(attachCardCounts(attachTypes(items))), total, page, pageSize });
 });
 
 function cap(key) {
@@ -347,7 +348,7 @@ function buildVariantSummary(variantId) {
      WHERE pt.pokemon_id = @id ORDER BY pt.slot`,
     { id: variantId },
   ).map((r) => r.name);
-  return { ...p, types, evolutionChain: buildEvolutionChain(variantId) };
+  return { ...p, spriteUrl: localSprite(p.spriteUrl), types, evolutionChain: buildEvolutionChain(variantId) };
 }
 
 pokemonRouter.get('/:id', (req, res) => {
@@ -365,6 +366,8 @@ pokemonRouter.get('/:id', (req, res) => {
     res.status(404).json({ error: 'Pokemon not found' });
     return;
   }
+
+  pokemon.spriteUrl = localSprite(pokemon.spriteUrl);
 
   const types = all(
     `SELECT t.name FROM pokemon_types pt JOIN types t ON t.id = pt.type_id

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { CardImage } from '../components/CardImage';
 import { Link, useParams } from 'react-router-dom';
 import { fetchPokemonDetail } from '../lib/api';
 import type { CollectionBoxRef, PokemonDetail as PokemonDetailType, TcgCard } from '../types';
@@ -212,7 +213,7 @@ export function PokemonDetail() {
 
       <div className="mt-4 flex flex-col items-center gap-6 sm:flex-row sm:items-start">
         <div className="flex h-48 w-48 shrink-0 items-center justify-center rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)]">
-          {image && <img src={image} alt={pokemon.name} className="h-40 w-40 object-contain" />}
+          {image && <CardImage src={image} alt={pokemon.name} className="h-40 w-40 object-contain" />}
         </div>
 
         <div className="flex-1">

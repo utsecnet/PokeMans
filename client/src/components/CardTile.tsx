@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { CardImage } from './CardImage';
 import type { CardListItem } from '../types';
 import { formatName } from '../lib/format';
 import { CardLocationBadge } from './CardLocationBadge';
@@ -31,7 +32,7 @@ export function CardTile({
         className="cursor-pointer"
       >
         {card.imageSmall && (
-          <img
+          <CardImage
             src={card.imageSmall}
             alt={card.name}
             className={`w-full rounded ${

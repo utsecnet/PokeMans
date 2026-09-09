@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { CardImage } from '../components/CardImage';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   moveCollectionEntry,
@@ -248,7 +249,7 @@ export function CollectionBoxPage() {
                   title={`View ${entry.name}`}
                   className="block w-full"
                 >
-                  <img src={entry.imageSmall} alt={entry.name} className="w-full rounded" />
+                  <CardImage src={entry.imageSmall} alt={entry.name} className="w-full rounded" />
                 </button>
               )}
               <p className="mt-1 truncate text-xs font-medium">{entry.name}</p>

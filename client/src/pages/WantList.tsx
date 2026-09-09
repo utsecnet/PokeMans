@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { CardImage } from '../components/CardImage';
 import { Link, useParams } from 'react-router-dom';
 import { fetchWantList, refreshWantList, removeFromWantList, updateWantList } from '../lib/api';
 import { useWants } from '../lib/wantContext';
@@ -181,7 +182,7 @@ export function WantListPage() {
                       reads as a row of gaps with the found ones standing out. Saturation and
                       opacity together rather than either alone — opacity by itself still
                       leaves a recognisable colour cast on a busy holo card. */}
-                  <img
+                  <CardImage
                     src={card.imageSmall}
                     alt={card.name}
                     loading="lazy"

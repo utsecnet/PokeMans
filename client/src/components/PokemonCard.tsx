@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { CardImage } from './CardImage';
 import type { PokemonSummary } from '../types';
 import { TypeBadge } from './TypeBadge';
 import { typeKey } from './TypeIcon';
@@ -103,7 +104,7 @@ export function PokemonCard({ pokemon }: { pokemon: PokemonSummary }) {
           </span>
         )}
         {image ? (
-          <img
+          <CardImage
             src={image}
             alt={pokemon.name}
             loading="lazy"
