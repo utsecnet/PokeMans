@@ -14,11 +14,18 @@
     "test:all": "npm run test && npm run test:perf"
   },
   "dependencies": {
+    "@capacitor-community/sqlite": "8.1.1",
+    "@capacitor/app": "8.1.1",
+    "@capacitor/core": "8.5.1",
+    "@capacitor/haptics": "8.0.2",
+    "@capacitor/status-bar": "8.0.3",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.3"
   },
   "devDependencies": {
+    "@capacitor/android": "8.5.1",
+    "@capacitor/cli": "8.5.1",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
