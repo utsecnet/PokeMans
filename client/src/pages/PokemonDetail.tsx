@@ -124,6 +124,9 @@ export function PokemonDetail() {
     actionCount,
     handleTap,
     ringModeFor,
+    target,
+    setTarget,
+    activeWantListId,
     reset: resetBoxTapMode,
     activeBoxName,
   } = useBoxTapMode();
@@ -273,6 +276,9 @@ export function PokemonDetail() {
           <div className="flex flex-col gap-4 md:flex-row md:items-start">
             <AddToBoxRail
               activeBoxId={activeBoxId}
+              activeWantListId={activeWantListId}
+              target={target}
+              onTargetChange={setTarget}
               onSelect={setActiveBoxId}
               mode={railMode}
               onModeChange={setRailMode}
