@@ -14,6 +14,7 @@ import { CardTile } from '../components/CardTile';
 import { CardTable } from '../components/CardTable';
 import { CardFilterPanel, defaultCardFilters } from '../components/CardFilterPanel';
 import { AddToBoxRail } from '../components/AddToBoxRail';
+import { MakeWantListButton } from '../components/MakeWantListButton';
 import { Pagination } from '../components/Pagination';
 import { ViewToggle, type ViewMode } from '../components/table/ViewToggle';
 import { ColumnPicker } from '../components/table/ColumnPicker';
@@ -72,6 +73,9 @@ export function CardBrowser() {
     actionCount,
     handleTap,
     ringModeFor,
+    target,
+    setTarget,
+    activeWantListId,
     activeBoxName,
   } = useBoxTapMode();
 
@@ -240,6 +244,9 @@ export function CardBrowser() {
       <div className="flex min-w-0 flex-1 flex-col gap-4 md:flex-row md:items-start">
         <AddToBoxRail
           activeBoxId={activeBoxId}
+          activeWantListId={activeWantListId}
+          target={target}
+          onTargetChange={setTarget}
           onSelect={setActiveBoxId}
           mode={railMode}
           onModeChange={setRailMode}
@@ -286,11 +293,26 @@ export function CardBrowser() {
           )}
 
           {displayTotal > 0 && (
-            <p className="mb-3 text-sm text-[var(--color-text-muted)]">
-              {displayTotal} card{displayTotal === 1 ? '' : 's'}
-              {isFiltered ? ' match' : ''}
-            </p>
+            <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-[var(--color-text-muted)]">
+              <p>
+                {displayTotal} card{displayTotal === 1 ? '' : 's'}
+                {isFiltered ? ' match' : ''}
+              </p>
+              {/* Offered only against a real filter: "make a want list of all 20,444 cards"
+                  is never the intent, and the button would just be noise on an unfiltered
+                  browse. Advanced queries the server can't push down are filtered in the
+                  client, so the stored filter wouldn't reproduce them — those are excluded
+                  rather than saved as something that means something different later. */}
+              {isFiltered && !advanced && (
+                <MakeWantListButton filters={filters} matchCount={displayTotal} />
+              )}
+            </div>
           )}
+
+          {/* Repeated above the results as well as below them: with hundreds of pages, a
+              page change from the bottom bar scrolls you to the top, and having to scroll
+              back down to change it again is the whole complaint. */}
+          <Pagination page={page} totalPages={totalPages} onChange={goToPage} compact position="top" />
 
           {/* Dim rather than blank while a page loads: the outgoing rows stay in place, so
               the grid doesn't collapse and reflow between pages. */}

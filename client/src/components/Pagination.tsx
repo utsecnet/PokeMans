@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 
 function PageButton({
   label,
@@ -60,6 +60,10 @@ function JumpToPage({
   onChange: (page: number) => void;
 }) {
   const [value, setValue] = useState('');
+  // Generated, not a literal: the bar now renders twice on a page, and two inputs sharing
+  // one id would point both labels at the first — clicking the bottom "Go to" would focus
+  // the field at the top of the page.
+  const inputId = useId();
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,11 +75,11 @@ function JumpToPage({
 
   return (
     <form onSubmit={submit} className="flex items-center gap-1.5">
-      <label htmlFor="pagination-jump" className="text-sm text-[var(--color-text-muted)]">
+      <label htmlFor={inputId} className="text-sm text-[var(--color-text-muted)]">
         Go to
       </label>
       <input
-        id="pagination-jump"
+        id={inputId}
         type="number"
         min={1}
         max={totalPages}
@@ -100,6 +104,7 @@ export function Pagination({
   totalPages,
   onChange,
   compact = false,
+  position = 'bottom',
 }: {
   page: number;
   totalPages: number;
@@ -109,13 +114,23 @@ export function Pagination({
   // browser) that listing every number would be unusable. Plain Pokémon-dex-sized
   // pagination keeps showing every page, unchanged.
   compact?: boolean;
+  /**
+   * Which end of the results this copy sits at. Only spacing differs — the bar above the
+   * grid needs room beneath it rather than above, and the margin used to be baked in, which
+   * left a gap between the filter bar and the page numbers when it moved to the top.
+   */
+  position?: 'top' | 'bottom';
 }) {
   if (totalPages <= 1) return null;
 
   const pages = compact ? buildPageList(page, totalPages) : Array.from({ length: totalPages }, (_, i) => i + 1);
 
   return (
-    <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+    <div
+      className={`flex flex-wrap items-center justify-center gap-3 ${
+        position === 'top' ? 'mb-4' : 'mt-8'
+      }`}
+    >
       <div className="flex flex-wrap items-center justify-center gap-1.5">
         <PageButton label="Prev" onClick={() => onChange(page - 1)} disabled={page === 1} />
         {pages.map((p, i) =>

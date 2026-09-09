@@ -249,6 +249,10 @@ export function PokemonBrowser() {
           </p>
         )}
 
+        {/* Repeated above the results as well as below them, so changing page never means
+            scrolling back down to reach the control you just used. */}
+        <Pagination page={page} totalPages={totalPages} onChange={goToPage} position="top" />
+
         {/* Dim rather than blank while a page loads: the outgoing rows stay in place, so
             the grid doesn't collapse and reflow between pages. */}
         <div
