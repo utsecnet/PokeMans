@@ -9,6 +9,7 @@ import { collectionRouter } from './routes/collection.js';
 import { pokemonRouter } from './routes/pokemon.js';
 import { syncRouter } from './routes/sync.js';
 import { settingsRouter } from './routes/settings.js';
+import { wantsRouter } from './routes/wants.js';
 import { isPriceSyncDue } from './sync/prices.js';
 import { runPriceSync } from './sync/runner.js';
 
@@ -23,6 +24,7 @@ app.use('/api/cards', cardsRouter);
 app.use('/api/sync', syncRouter);
 app.use('/api/collection', collectionRouter);
 app.use('/api/settings', settingsRouter);
+app.use('/api/wants', wantsRouter);
 
 const clientDist = path.join(__dirname, '..', '..', 'client', 'dist');
 if (fs.existsSync(clientDist)) {

@@ -1,14 +1,22 @@
 import { useRef, useState } from 'react';
-import { addToCollection, removeCollectionEntry } from './api';
+import { addToCollection, addToWantList, removeCollectionEntry, removeFromWantList } from './api';
 import { useCollection } from './collectionContext';
+import { useWants } from './wantContext';
 import type { CollectionBoxRef } from '../types';
-import type { RailMode } from '../components/AddToBoxRail';
+import type { RailMode, RailTarget } from '../components/AddToBoxRail';
 
-// Shared "tap a card to add/remove from an active box" behavior, used by both the
+// Shared "tap a card to add/remove from an active target" behavior, used by both the
 // standalone Cards browser and a Pokémon's card gallery so the two stay in sync.
+//
+// The target is either a collection or a want list. They keep separate active ids rather
+// than one: switching tabs to glance at your want lists shouldn't silently disarm the
+// collection you were filing into, and switching back should resume it.
 export function useBoxTapMode() {
   const { boxes, refresh } = useCollection();
+  const { lists, refresh: refreshWants } = useWants();
+  const [target, setTargetState] = useState<RailTarget>('collection');
   const [activeBoxId, setActiveBoxIdState] = useState<number | null>(null);
+  const [activeWantListId, setActiveWantListIdState] = useState<number | null>(null);
   const [railMode, setRailModeState] = useState<RailMode>('add');
   const [actionCount, setActionCount] = useState(0);
   // Tapping the same card again before its first request resolves would race: both calls
@@ -18,8 +26,17 @@ export function useBoxTapMode() {
   // until the next reload. Serialize taps per card instead of letting them race.
   const inFlightRef = useRef<Set<string>>(new Set());
 
-  const setActiveBoxId = (id: number | null) => {
-    setActiveBoxIdState(id);
+  const isWant = target === 'want';
+  const activeId = isWant ? activeWantListId : activeBoxId;
+
+  const setActiveId = (id: number | null) => {
+    if (isWant) setActiveWantListIdState(id);
+    else setActiveBoxIdState(id);
+    setActionCount(0);
+  };
+
+  const setTarget = (next: RailTarget) => {
+    setTargetState(next);
     setActionCount(0);
   };
 
@@ -30,18 +47,20 @@ export function useBoxTapMode() {
 
   const reset = () => {
     setActiveBoxIdState(null);
+    setActiveWantListIdState(null);
+    setTargetState('collection');
     setRailModeState('add');
     setActionCount(0);
   };
 
-  // With a box active, tapping a card face adds (or, in remove mode, removes) a copy
-  // straight away instead of the caller's normal click behavior (e.g. opening a lightbox).
+  // With a target active, tapping a card face files it straight away instead of the
+  // caller's normal click behavior (e.g. opening a lightbox).
   const handleTap = async (
     card: { id: string; inBoxes: CollectionBoxRef[] },
     onUpdate: (inBoxes: CollectionBoxRef[]) => void,
     onFallback: () => void,
   ) => {
-    if (!activeBoxId) {
+    if (!activeId) {
       onFallback();
       return;
     }
@@ -49,8 +68,18 @@ export function useBoxTapMode() {
     inFlightRef.current.add(card.id);
 
     try {
+      if (isWant) {
+        // A want list holds cards, not copies, so nothing here touches inBoxes — what the
+        // card grid shows about ownership is unchanged by wanting it.
+        if (railMode === 'remove') await removeFromWantList(activeId, card.id);
+        else await addToWantList(activeId, card.id);
+        setActionCount((n) => n + 1);
+        refreshWants();
+        return;
+      }
+
       if (railMode === 'remove') {
-        const existing = card.inBoxes.find((b) => b.boxId === activeBoxId);
+        const existing = card.inBoxes.find((b) => b.boxId === activeId);
         if (!existing) return; // nothing to remove from this box
         // Each copy is its own row, so removing one is a delete. entryId is the newest copy
         // in this box, which is the one to drop — an older copy is likelier to have had its
@@ -59,22 +88,20 @@ export function useBoxTapMode() {
         const remaining = existing.quantity - 1;
         onUpdate(
           remaining <= 0
-            ? card.inBoxes.filter((b) => b.boxId !== activeBoxId)
-            : card.inBoxes.map((b) =>
-                b.boxId === activeBoxId ? { ...b, quantity: remaining } : b,
-              ),
+            ? card.inBoxes.filter((b) => b.boxId !== activeId)
+            : card.inBoxes.map((b) => (b.boxId === activeId ? { ...b, quantity: remaining } : b)),
         );
         setActionCount((n) => n + 1);
         refresh();
         return;
       }
 
-      const box = boxes.find((b) => b.id === activeBoxId);
-      const result = await addToCollection(activeBoxId, card.id, 1);
-      const existing = card.inBoxes.filter((b) => b.boxId !== activeBoxId);
+      const box = boxes.find((b) => b.id === activeId);
+      const result = await addToCollection(activeId, card.id, 1);
+      const existing = card.inBoxes.filter((b) => b.boxId !== activeId);
       onUpdate([
         ...existing,
-        { entryId: result.id, boxId: activeBoxId, boxName: box?.name ?? '', quantity: result.quantity },
+        { entryId: result.id, boxId: activeId, boxName: box?.name ?? '', quantity: result.quantity },
       ]);
       setActionCount((n) => n + 1);
       refresh();
@@ -83,23 +110,32 @@ export function useBoxTapMode() {
     }
   };
 
+  // The ring drawn on a card that is already in the active target. Want lists have no
+  // per-card state on the card object to read, so they get no ring — the want list page is
+  // where membership is visible, and a ring here would need every list's contents loaded.
   const ringModeFor = (card: { inBoxes: CollectionBoxRef[] }): 'add' | 'remove' | null => {
-    if (!activeBoxId) return null;
+    if (isWant || !activeBoxId) return null;
     if (!card.inBoxes.some((b) => b.boxId === activeBoxId)) return null;
     return railMode === 'remove' ? 'remove' : 'add';
   };
 
-  const activeBoxName = boxes.find((b) => b.id === activeBoxId)?.name ?? 'box';
+  const activeTargetName = isWant
+    ? (lists.find((l) => l.id === activeWantListId)?.name ?? 'want list')
+    : (boxes.find((b) => b.id === activeBoxId)?.name ?? 'box');
 
   return {
+    target,
+    setTarget,
     activeBoxId,
-    setActiveBoxId,
+    activeWantListId,
+    activeId,
+    setActiveBoxId: setActiveId,
     railMode,
     setRailMode,
     actionCount,
     handleTap,
     ringModeFor,
     reset,
-    activeBoxName,
+    activeBoxName: activeTargetName,
   };
 }

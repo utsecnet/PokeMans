@@ -5,9 +5,11 @@ import { PokemonList } from './pages/PokemonList';
 import { PokemonDetail } from './pages/PokemonDetail';
 import { Settings } from './pages/Settings';
 import { Collection } from './pages/Collection';
+import { WantListPage } from './pages/WantList';
 import { CollectionBoxPage } from './pages/CollectionBox';
 import { SearchHelp } from './pages/SearchHelp';
 import { ThemeProvider } from './lib/theme';
+import { WantProvider } from './lib/wantContext';
 import { CollectionProvider } from './lib/collectionContext';
 import { BrowseViewProvider } from './lib/browseView';
 
@@ -33,6 +35,7 @@ function App() {
   return (
     <ThemeProvider>
       <CollectionProvider>
+        <WantProvider>
         <BrowseViewProvider>
           <BrowserRouter>
             <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)]">
@@ -44,11 +47,13 @@ function App() {
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/collection" element={<Collection />} />
                 <Route path="/collection/:boxId" element={<CollectionBoxPage />} />
+                <Route path="/wants/:listId" element={<WantListPage />} />
                 <Route path="/search-help" element={<SearchHelp />} />
               </Routes>
             </div>
           </BrowserRouter>
         </BrowseViewProvider>
+        </WantProvider>
       </CollectionProvider>
     </ThemeProvider>
   );
