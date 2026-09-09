@@ -1,5 +1,6 @@
 import { personalAll, personalGet, personalRun } from '../db/personalDb.js';
 import { decryptSecret, encryptSecret, maskSecret } from './secrets.js';
+import { readQuota, recordQuota } from './pptQuota.js';
 
 // Every external service the user can link their own account to. This is a plain list so
 // that adding another provider is a data change here plus a `verify` function — the storage,
@@ -21,6 +22,8 @@ export const PROVIDERS = [
       const res = await fetch('https://www.pokemonpricetracker.com/api/v2/sets?limit=1', {
         headers: { Authorization: `Bearer ${key}` },
       });
+      // Verifying is itself a call, so bank the allowance it reports.
+      recordQuota(res.headers);
       if (res.status === 401 || res.status === 403) {
         return { ok: false, message: 'That key was rejected by PokemonPriceTracker.' };
       }
@@ -62,6 +65,9 @@ export function listLinkedAccounts() {
       keyHint: row?.hint ?? null,
       linkedAt: row?.linkedAt ?? null,
       lastVerifiedAt: row?.lastVerifiedAt ?? null,
+      // Last known allowance, for providers that report one. Never fetched here: this
+      // function runs on every Settings load, and asking would cost a credit each time.
+      quota: row && p.id === 'pokemonpricetracker' ? readQuota() : null,
     };
   });
 }

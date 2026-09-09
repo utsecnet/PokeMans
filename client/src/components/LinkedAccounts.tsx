@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { fetchLinkedAccounts, removeLinkedAccount, saveLinkedAccount } from '../lib/api';
 import type { LinkedAccount } from '../types';
+import { ApiQuotaMeter } from './ApiQuotaMeter';
 
 // One block per external service. The list is driven entirely by what the server returns,
 // so adding a provider server-side makes it appear here with no change to this file.
@@ -78,6 +79,7 @@ function AccountRow({
       )}
 
       {provider.linked ? (
+        <>
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <span className="font-mono text-xs">{provider.keyHint}</span>
           {provider.lastVerifiedAt && (
@@ -94,6 +96,9 @@ function AccountRow({
             Remove key
           </button>
         </div>
+        {/* Only providers that report an allowance have one to show. */}
+        {provider.quota && <ApiQuotaMeter service={provider.id} quota={provider.quota} />}
+        </>
       ) : (
         <div className="mt-2 flex flex-wrap gap-2">
           <input

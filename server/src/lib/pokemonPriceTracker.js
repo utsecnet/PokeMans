@@ -1,4 +1,5 @@
 import { secretFor } from './linkedAccounts.js';
+import { recordQuota } from './pptQuota.js';
 
 // PokemonPriceTracker quotes TCGplayer prices per printing AND per card condition, and
 // returns a dated series rather than only today's figure — the one source we've found that
@@ -24,6 +25,9 @@ export async function fetchHistory(tcgPlayerId) {
   const res = await fetch(`${BASE}/cards?tcgPlayerId=${encodeURIComponent(tcgPlayerId)}&includeHistory=true`, {
     headers: { Authorization: `Bearer ${key}` },
   });
+  // Before any status check: a refusal carries the same allowance headers as a success, and
+  // it is the reading that cost nothing to take.
+  recordQuota(res.headers);
   if (res.status === 401 || res.status === 403) throw new Error('API key rejected');
   if (res.status === 429) throw new Error('Daily credit allowance reached');
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
