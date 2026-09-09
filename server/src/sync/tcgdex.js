@@ -160,7 +160,14 @@ export async function syncTcgdexEnrichment({ onProgress } = {}) {
       // pokemontcg.io thumbnail. Cleared rather than left behind, so a card that loses its
       // artwork upstream falls back instead of staying broken.
       const webp = theirCard.image ? `${theirCard.image}/low.webp` : null;
-      run('UPDATE tcg_cards SET image_webp = @webp WHERE id = @id', { webp, id: ours.id });
+      // Their id is recorded alongside, and separately from, the artwork. The two used to be
+      // the same fact — the id was read back out of the URL — so clearing a dead image link
+      // also silently withdrew the card from price capture.
+      run('UPDATE tcg_cards SET image_webp = @webp, tcgdex_id = @tcgdexId WHERE id = @id', {
+        webp,
+        tcgdexId: theirCard.id,
+        id: ours.id,
+      });
       if (webp) imagesSet++;
 
       const printings = variantsById.get(theirCard.id);

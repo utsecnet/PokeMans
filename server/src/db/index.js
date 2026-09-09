@@ -115,6 +115,19 @@ function migrateTcgCardIllustrator() {
 
 migrateTcgCardIllustrator();
 
+// Which TCGdex card each of ours matched to. Previously inferred from the image_webp URL,
+// which only works for cards TCGdex holds artwork for; the column records the match itself
+// so a card can be priced whether or not it has a picture. Existing rows stay null until the
+// next card sync refills them, and the inference remains as a fallback until then.
+function migrateTcgCardTcgdexId() {
+  const columns = db.prepare('PRAGMA table_info(tcg_cards)').all();
+  if (columns.length === 0) return;
+  if (columns.some((c) => c.name === 'tcgdex_id')) return;
+  db.exec('ALTER TABLE tcg_cards ADD COLUMN tcgdex_id TEXT');
+}
+
+migrateTcgCardTcgdexId();
+
 // Distinguishes a scheduled run from one the user started; older rows keep a null trigger.
 function migrateSyncLogTrigger() {
   const columns = db.prepare('PRAGMA table_info(sync_log)').all();

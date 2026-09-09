@@ -77,6 +77,12 @@ CREATE TABLE IF NOT EXISTS tcg_cards (
   -- TCGdex by the enrichment pass. Null where no confident match was found, in which case
   -- the original image_small is served instead.
   image_webp TEXT,
+  -- This card's id in TCGdex's own catalogue, recorded when the enrichment pass matches it.
+  -- Their ids don't derive from ours (their Shining Fates Shiny Vault is swsh4.5sv where
+  -- ours is swsh45sv), so a match that isn't written down here can't be recovered later.
+  -- It was read back out of image_webp for a while, which quietly tied price lookups to
+  -- whether TCGdex happened to hold artwork — 816 matched cards have none.
+  tcgdex_id TEXT,
   -- The card's artist, as printed. Called `artist` upstream and `illustrator` by TCGdex; the
   -- printed credit is the same person either way.
   illustrator TEXT

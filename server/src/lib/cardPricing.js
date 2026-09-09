@@ -41,11 +41,19 @@ const API = 'https://api.tcgdex.net/v2/en/cards';
 
 /**
  * The TCGdex id for one of our cards, or null when the enrichment pass found no match.
- * It's recovered from the stored image URL (.../en/<serie>/<set>/<localId>/low.webp) rather
- * than kept in a column of its own, since that URL already encodes it.
+ *
+ * The enrichment pass records it directly. Older rows predate that column and fall back to
+ * recovering it from the stored image URL (.../en/<serie>/<set>/<localId>/low.webp), which
+ * encodes the same thing — but only for cards TCGdex holds artwork for. Relying on that
+ * alone meant 816 matched cards, whole subsets among them (Shining Fates Shiny Vault, the
+ * Trainer Galleries, Dragon Majesty), were never priced despite having prices upstream,
+ * because a card with no picture looked identical to a card with no match.
  */
 export function tcgdexIdFor(cardId) {
-  const row = get('SELECT image_webp as webp FROM tcg_cards WHERE id = @id', { id: cardId });
+  const row = get('SELECT tcgdex_id as tcgdexId, image_webp as webp FROM tcg_cards WHERE id = @id', {
+    id: cardId,
+  });
+  if (row?.tcgdexId) return row.tcgdexId;
   if (!row?.webp) return null;
   const parts = row.webp.split('/');
   const localId = parts[parts.length - 2];
