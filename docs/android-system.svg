@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 570" width="1400" height="570" role="img" aria-label="What runs where: the Android app holds the query layer and both databases; Supabase holds prices; GitHub Actions refreshes them daily">
+<title>What runs where: the Android app holds the query layer and both databases; Supabase holds prices; GitHub Actions refreshes them daily</title>
+<style>
+  svg {
+    --f-ink:#0d1418; --f-muted:#5b6a77; --f-surface:#ffffff; --f-surface2:#f4f7f9;
+    --f-line:#c9d3db; --f-zone:#e7edf2; --f-zoneline:#a9b8c4; --f-accent:#17607d;
+    --f-shared:#1f6feb; --f-user:#7b4bb7; --f-secret:#a92e26;
+    font-family:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    svg {
+      --f-ink:#e6edf3; --f-muted:#93a4b3; --f-surface:#1a2027; --f-surface2:#151b21;
+      --f-line:#39444f; --f-zone:#161c22; --f-zoneline:#3d4954; --f-accent:#5cc2e8;
+      --f-shared:#6ea8fe; --f-user:#c08cf5; --f-secret:#f0837a;
+    }
+  }
+  .zn   { fill:var(--dg-zone,var(--f-zone)); stroke:var(--dg-zoneline,var(--f-zoneline)); stroke-width:1.25; stroke-dasharray:5 4; }
+  .zt   { fill:var(--dg-muted,var(--f-muted)); font-size:12px; font-weight:600; letter-spacing:.09em; text-transform:uppercase;
+          font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .zc   { fill:var(--dg-muted,var(--f-muted)); font-size:11.5px; font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .bx   { fill:var(--dg-surface,var(--f-surface)); stroke:var(--dg-line,var(--f-line)); stroke-width:1.25; }
+  .bx2  { fill:var(--dg-surface2,var(--f-surface2)); stroke:var(--dg-line,var(--f-line)); stroke-width:1.25; }
+  .bt   { fill:var(--dg-ink,var(--f-ink)); font-size:14px; font-weight:600; }
+  .bs   { fill:var(--dg-muted,var(--f-muted)); font-size:12px; }
+  .bm   { fill:var(--dg-muted,var(--f-muted)); font-size:11.5px; font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .ar   { fill:none; stroke:var(--dg-accent,var(--f-accent)); stroke-width:1.6; }
+  .ard  { fill:none; stroke:var(--dg-muted,var(--f-muted)); stroke-width:1.4; stroke-dasharray:5 4; }
+  .al   { fill:var(--dg-accent,var(--f-accent)); font-size:11.5px; font-weight:500;
+          font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .alm  { fill:var(--dg-muted,var(--f-muted)); font-size:11.5px; font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .tb   { fill:none; stroke:var(--dg-secret,var(--f-secret)); stroke-width:1.4; stroke-dasharray:7 5; opacity:.75; }
+  .tbt  { fill:var(--dg-secret,var(--f-secret)); font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase;
+          font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .ttl  { fill:var(--dg-ink,var(--f-ink)); font-size:15px; font-weight:700; letter-spacing:.02em;
+          font-family:"IBM Plex Sans Condensed","IBM Plex Sans",system-ui,sans-serif; }
+  .num  { fill:var(--dg-surface,var(--f-surface)); font-size:11px; font-weight:700;
+          font-family:"IBM Plex Mono",ui-monospace,monospace; }
+</style>
+<defs>
+  <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="var(--dg-accent,var(--f-accent))"/>
+  </marker>
+  <marker id="ahm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="var(--dg-muted,var(--f-muted))"/>
+  </marker>
+</defs>
+<text class="ttl" x="40" y="44">Figure A1 · What runs where — the app is the whole application, not a client</text>
+<rect class="zn" x="40" y="70" width="640" height="470" rx="8"/>
+<text class="zt" x="54" y="91">Android device</text>
+<text class="zc" x="666" y="91" text-anchor="end">app-private</text><rect class="bx" x="64" y="116" width="592" height="118" rx="5"/><text class="bt" x="78" y="139">WebView</text><text class="bs" x="78" y="158">The React app, unchanged. 10,451 lines including 1,507 of CSS 3D transforms,</text><text class="bs" x="78" y="174">@property animations, mask compositing and drawn SVG — the tilt card, the foil</text><text class="bs" x="78" y="190">reveal, the 57 line icons. None of it survives a React Native rewrite, which is</text><text class="bs" x="78" y="206">the single reason this is a WebView shell and not RN.</text><rect class="bx" x="64" y="254" width="288" height="128" rx="5"/><text class="bt" x="78" y="277">Query layer (was Express)</text><text class="bm" x="78" y="296">buildCardFilter · latestPricesFor</text><text class="bm" x="78" y="312">convert · ensureRates</text><text class="bs" x="78" y="328">Ported to async and moved into the</text><text class="bs" x="78" y="344">app. There is no localhost server on</text><text class="bs" x="78" y="360">a phone.</text><rect class="bx" x="368" y="254" width="288" height="128" rx="5"/><path d="M368.5,259 a5,5 0 0 1 5,-5 h0 v118 h0 a5,5 0 0 1 -5,-5 z" fill="var(--dg-user,var(--f-user))"/>
+<rect x="369" y="255" width="4" height="126" fill="var(--dg-user,var(--f-user))"/><text class="bt" x="386" y="277">SQLite (native)</text><text class="bm" x="386" y="296">catalog.db  ~11 MB, re-downloadable</text><text class="bm" x="386" y="312">personal.db ~240 KB, irreplaceable</text><text class="bs" x="386" y="328">/data/data/&lt;pkg&gt;/databases/</text><text class="bs" x="386" y="344">Unreadable by other apps, removed on</text><text class="bs" x="386" y="360">uninstall.</text><rect class="bx" x="64" y="402" width="288" height="112" rx="5"/><path d="M64.5,407 a5,5 0 0 1 5,-5 h0 v102 h0 a5,5 0 0 1 -5,-5 z" fill="var(--dg-secret,var(--f-secret))"/>
+<rect x="65" y="403" width="4" height="110" fill="var(--dg-secret,var(--f-secret))"/><text class="bt" x="82" y="425">Android Keystore</text><text class="bs" x="82" y="444">API keys via EncryptedShared-</text><text class="bs" x="82" y="460">Preferences. Key material is</text><text class="bs" x="82" y="476">hardware-backed and never enters</text><text class="bs" x="82" y="492">the process — unlike ciphertext in a</text><text class="bs" x="82" y="508">table with the key beside it.</text><rect class="bx" x="368" y="402" width="288" height="112" rx="5"/><text class="bt" x="382" y="425">Auto Backup</text><text class="bs" x="382" y="444">personal.db included (240 KB, well</text><text class="bs" x="382" y="460">under the 25 MB ceiling).</text><text class="bs" x="382" y="476">catalog.db excluded — it can be</text><text class="bs" x="382" y="492">fetched again. This is the OS-level</text><text class="bs" x="382" y="508">protection against an accidental wipe.</text>
+<rect class="zn" x="720" y="70" width="640" height="210" rx="8"/>
+<text class="zt" x="734" y="91">Hosted</text>
+<text class="zc" x="1346" y="91" text-anchor="end">shared + live</text><rect class="bx" x="744" y="116" width="288" height="140" rx="5"/><path d="M744.5,121 a5,5 0 0 1 5,-5 h0 v130 h0 a5,5 0 0 1 -5,-5 z" fill="var(--dg-shared,var(--f-shared))"/>
+<rect x="745" y="117" width="4" height="138" fill="var(--dg-shared,var(--f-shared))"/><text class="bt" x="762" y="139">Supabase · Postgres</text><text class="bm" x="762" y="158">price_current  ~39k rows, fixed</text><text class="bm" x="762" y="174">price_history  delta only, ~1.8M/yr</text><text class="bs" x="762" y="190">Read through the app, not by the</text><text class="bs" x="762" y="206">browser: the anon key would ship in</text><text class="bs" x="762" y="222">the bundle.</text><rect class="bx" x="1048" y="116" width="288" height="140" rx="5"/><text class="bt" x="1062" y="139">GitHub Actions</text><text class="bs" x="1062" y="158">Daily price pass. 20,444 cards at</text><text class="bs" x="1062" y="174">concurrency 8 — measured 4.8 min,</text><text class="bs" x="1062" y="190">43 MB, zero failures.</text><text class="bs" x="1062" y="206">Triggered by pg_cron, not by</text><text class="bs" x="1062" y="222">schedule:, which self-disables.</text>
+<rect class="zn" x="720" y="300" width="640" height="240" rx="8"/>
+<text class="zt" x="734" y="321">Third parties · untrusted</text>
+<rect class="bx2" x="744" y="346" width="288" height="92" rx="5"/><text class="bt" x="758" y="369">TCGdex</text><text class="bs" x="758" y="388">Catalogue + prices</text><text class="bs" x="758" y="404">Both marketplaces, daily</text><rect class="bx2" x="1048" y="346" width="288" height="92" rx="5"/><text class="bt" x="1062" y="369">PokeAPI</text><text class="bs" x="1062" y="388">Species, stats, evolutions</text><rect class="bx2" x="744" y="458" width="592" height="62" rx="5"/><text class="bt" x="758" y="481">Card art CDNs — fetched by the WebView directly, never proxied</text><polyline class="ar" points="656,175 740,175 740,178" marker-end="url(#ah)"/><text class="al" x="698" y="166" text-anchor="middle">prices</text><polyline class="ar" points="1192,260 1192,342" marker-end="url(#ah)"/><text class="al" x="1200" y="302" text-anchor="start">fetch</text><polyline class="ar" points="888,260 888,342" marker-end="url(#ah)" marker-start="url(#ah)"/><polyline class="ard" points="360,175 700,175 700,470 740,470" marker-end="url(#ahm)"/><text class="alm" x="620" y="462" text-anchor="middle">images</text>
+</svg>

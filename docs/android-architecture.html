@@ -1,0 +1,611 @@
+<meta charset="utf-8">
+<title>PokéMans on Android</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --ground:#eef2f5; --surface:#ffffff; --surface2:#f4f7f9; --sunken:#e3e9ee;
+    --ink:#0d1418; --ink2:#243039; --muted:#5b6a77; --line:#c9d3db; --line2:#dae2e8;
+    --accent:#17607d; --accent-soft:#e0eef4;
+    --shared:#1f6feb; --user:#7b4bb7; --secret:#a92e26;
+    --crit:#a92e26; --high:#a35a09; --med:#6b6a1c; --low:#3d6b52;
+    --crit-bg:#f7e4e2; --high-bg:#f8ecdc; --med-bg:#f1f0dd; --low-bg:#e2efe8;
+
+    --dg-ink:var(--ink); --dg-muted:var(--muted); --dg-surface:var(--surface);
+    --dg-surface2:var(--surface2); --dg-line:var(--line); --dg-zone:var(--sunken);
+    --dg-zoneline:#a9b8c4; --dg-accent:var(--accent);
+    --dg-shared:var(--shared); --dg-user:var(--user); --dg-secret:var(--secret);
+
+    --sans:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+    --cond:"IBM Plex Sans Condensed","IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+    --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+  }
+  :root:not([data-theme="light"]) { color-scheme: light; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --ground:#0e1317; --surface:#1a2027; --surface2:#151b21; --sunken:#141a20;
+      --ink:#e6edf3; --ink2:#c3cfd9; --muted:#93a4b3; --line:#39444f; --line2:#2b343d;
+      --accent:#5cc2e8; --accent-soft:#123039;
+      --shared:#6ea8fe; --user:#c08cf5; --secret:#f0837a;
+      --crit:#f0837a; --high:#e0a458; --med:#c9c46b; --low:#7fc39b;
+      --crit-bg:#2c1917; --high-bg:#2b2114; --med-bg:#26251a; --low-bg:#17261e;
+      --dg-zoneline:#3d4954;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --ground:#0e1317; --surface:#1a2027; --surface2:#151b21; --sunken:#141a20;
+    --ink:#e6edf3; --ink2:#c3cfd9; --muted:#93a4b3; --line:#39444f; --line2:#2b343d;
+    --accent:#5cc2e8; --accent-soft:#123039;
+    --shared:#6ea8fe; --user:#c08cf5; --secret:#f0837a;
+    --crit:#f0837a; --high:#e0a458; --med:#c9c46b; --low:#7fc39b;
+    --crit-bg:#2c1917; --high-bg:#2b2114; --med-bg:#26251a; --low-bg:#17261e;
+    --dg-zoneline:#3d4954;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin:0; background:var(--ground); color:var(--ink);
+    font-family:var(--sans); font-size:16px; line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:1240px; margin:0 auto; padding:0 28px 96px; }
+
+  /* ── masthead ── */
+  header.mast { border-bottom:2px solid var(--ink); padding:44px 0 18px; margin-bottom:8px; }
+  .eyebrow { font-family:var(--mono); font-size:12px; letter-spacing:.14em; text-transform:uppercase;
+             color:var(--accent); margin:0 0 14px; }
+  h1 { font-family:var(--cond); font-weight:700; font-size:clamp(34px,5vw,52px); line-height:1.04;
+       letter-spacing:-.01em; margin:0 0 14px; text-wrap:balance; }
+  .standfirst { font-size:18px; color:var(--ink2); max-width:64ch; margin:0 0 22px; }
+  .meta { display:flex; flex-wrap:wrap; gap:0 32px; font-family:var(--mono); font-size:12.5px;
+          color:var(--muted); padding-bottom:6px; }
+  .meta b { color:var(--ink); font-weight:500; }
+
+  /* ── layout ── */
+  .cols { display:grid; grid-template-columns:1fr; gap:48px; margin-top:44px; }
+  @media (min-width:1080px) { .cols { grid-template-columns:186px 1fr; } }
+  nav.toc { display:none; }
+  @media (min-width:1080px) {
+    nav.toc { display:block; position:sticky; top:28px; align-self:start; }
+    nav.toc ol { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:2px; }
+    nav.toc a { display:block; padding:5px 0 5px 12px; border-left:2px solid var(--line);
+                font-family:var(--mono); font-size:12px; color:var(--muted); text-decoration:none; }
+    nav.toc a:hover { color:var(--accent); border-left-color:var(--accent); }
+    nav.toc a:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  }
+  main { min-width:0; }
+  section { margin-bottom:60px; scroll-margin-top:24px; }
+  h2 { font-family:var(--cond); font-weight:700; font-size:30px; line-height:1.15; margin:0 0 6px;
+       letter-spacing:-.005em; text-wrap:balance; }
+  h2 .n { font-family:var(--mono); font-size:14px; font-weight:500; color:var(--accent);
+          display:block; letter-spacing:.1em; margin-bottom:6px; }
+  h3 { font-family:var(--cond); font-weight:600; font-size:20px; margin:34px 0 8px; }
+  p { margin:0 0 16px; max-width:70ch; }
+  .lede { font-size:17px; color:var(--ink2); max-width:68ch; }
+  code { font-family:var(--mono); font-size:.875em; background:var(--surface2);
+         border:1px solid var(--line2); border-radius:3px; padding:1px 5px; }
+  a { color:var(--accent); }
+
+  /* ── figure plates ── */
+  figure { margin:26px 0 30px; }
+  .plate { background:var(--surface); border:1px solid var(--line); border-radius:9px;
+           padding:18px; overflow-x:auto; }
+  .plate svg { display:block; min-width:760px; width:100%; height:auto; }
+  figcaption { font-family:var(--mono); font-size:12.5px; color:var(--muted); margin-top:11px;
+               display:flex; gap:9px; align-items:baseline; }
+  figcaption b { color:var(--accent); font-weight:600; white-space:nowrap; }
+
+  /* ── key/value strips ── */
+  .strip { display:grid; gap:1px; background:var(--line); border:1px solid var(--line);
+           border-radius:8px; overflow:hidden; margin:22px 0;
+           grid-template-columns:repeat(auto-fit,minmax(168px,1fr)); }
+  .strip > div { background:var(--surface); padding:14px 16px; }
+  .strip dt { font-family:var(--mono); font-size:11px; letter-spacing:.09em; text-transform:uppercase;
+              color:var(--muted); margin:0 0 5px; }
+  .strip dd { margin:0; font-family:var(--cond); font-size:23px; font-weight:600;
+              font-variant-numeric:tabular-nums; }
+  .strip dd small { display:block; font-family:var(--sans); font-size:12.5px; font-weight:400;
+                    color:var(--muted); margin-top:3px; }
+
+  /* ── tables ── */
+  .tw { overflow-x:auto; margin:22px 0; border:1px solid var(--line); border-radius:8px;
+        background:var(--surface); }
+  table { border-collapse:collapse; width:100%; min-width:660px; font-size:14.5px; }
+  th, td { text-align:left; padding:11px 14px; border-bottom:1px solid var(--line2);
+           vertical-align:top; }
+  thead th { font-family:var(--mono); font-size:11px; letter-spacing:.09em; text-transform:uppercase;
+             color:var(--muted); font-weight:500; background:var(--surface2);
+             border-bottom:1px solid var(--line); }
+  tbody tr:last-child td { border-bottom:0; }
+  td.id { font-family:var(--mono); font-weight:500; white-space:nowrap; }
+  td.num { font-variant-numeric:tabular-nums; white-space:nowrap; }
+
+  /* ── threat rows ── */
+  .threat td:first-child { border-left:3px solid transparent; }
+  .threat.crit td:first-child { border-left-color:var(--crit); }
+  .threat.high td:first-child { border-left-color:var(--high); }
+  .threat.med  td:first-child { border-left-color:var(--med); }
+  .threat.low  td:first-child { border-left-color:var(--low); }
+  .sev { font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:.07em;
+         text-transform:uppercase; padding:2px 7px; border-radius:3px; white-space:nowrap; }
+  .sev.crit { color:var(--crit); background:var(--crit-bg); }
+  .sev.high { color:var(--high); background:var(--high-bg); }
+  .sev.med  { color:var(--med);  background:var(--med-bg); }
+  .sev.low  { color:var(--low);  background:var(--low-bg); }
+  .stride { font-family:var(--mono); font-size:11px; color:var(--muted); white-space:nowrap; }
+
+  /* ── classification legend ── */
+  .legend { display:flex; flex-wrap:wrap; gap:20px; margin:20px 0 8px; padding:0; list-style:none; }
+  .legend li { display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:12.5px;
+               color:var(--muted); }
+  .legend i { width:13px; height:13px; border-radius:3px; flex:none; }
+
+  /* ── callout ── */
+  .note { border:1px solid var(--line); border-left:3px solid var(--accent);
+          background:var(--surface); border-radius:0 8px 8px 0; padding:16px 20px; margin:24px 0; }
+  .note.warn { border-left-color:var(--secret); }
+  .note p:last-child { margin-bottom:0; }
+  .note .lbl { font-family:var(--mono); font-size:11px; letter-spacing:.09em; text-transform:uppercase;
+               color:var(--accent); margin:0 0 6px; }
+  .note.warn .lbl { color:var(--secret); }
+
+  ul.tight { margin:0 0 16px; padding-left:20px; max-width:70ch; }
+  ul.tight li { margin-bottom:7px; }
+
+  footer { border-top:1px solid var(--line); margin-top:56px; padding-top:20px;
+           font-family:var(--mono); font-size:12px; color:var(--muted); }
+  @media (prefers-reduced-motion: reduce) { * { transition:none !important; animation:none !important; } }
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <p class="eyebrow">Android architecture &middot; plan for review</p>
+  <h1>PokéMans on Android</h1>
+  <p class="standfirst">Taking a desktop application whose data lives in <code>%appdata%</code> and whose queries
+  run against synchronous SQLite in an Express server, and making it a Play Store app &mdash; without discarding
+  the part that took the longest to build.</p>
+  <div class="meta">
+    <span>Shell <b>Capacitor WebView</b></span>
+    <span>Store <b>on-device SQLite</b></span>
+    <span>Critical path <b>260 call sites</b></span>
+    <span>Rebuild <b>not required</b></span>
+  </div>
+</header>
+
+<div class="cols">
+  <nav class="toc" aria-label="Contents">
+    <ol>
+      <li><a href="#decision">00 The decision</a></li>
+      <li><a href="#system">01 What runs where</a></li>
+      <li><a href="#storage">02 Storage</a></li>
+      <li><a href="#port">03 The async port</a></li>
+      <li><a href="#touch">04 Touch</a></li>
+      <li><a href="#build">05 Building and testing</a></li>
+      <li><a href="#play">06 Getting onto Play</a></li>
+      <li><a href="#risks">07 Risks</a></li>
+      <li><a href="#phases">08 Order of work</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <section id="decision">
+    <h2><span class="n">00</span>The decision</h2>
+    <p class="lede">Three routes were open: wrap the website, rebuild in React Native, or wrap the existing app
+    in a native shell. The first is disqualified by policy, the second by 1,507 lines of CSS.</p>
+
+    <p><b>Wrapping the website is out.</b> Play&rsquo;s Policy 4.3 rejects apps that mirror a site without
+    app-specific value, and it is enforced strictly. A Trusted Web Activity fails for a second, separate reason:
+    production requires twelve testers active for fourteen days, but a TWA&rsquo;s activity happens inside Chrome
+    rather than inside the app, so review sees no in-app usage and fails the test regardless of how active the
+    testers were. The documented remedy is to ship a standard WebView app instead.</p>
+
+    <p><b>React Native is out</b> on arithmetic. Of roughly 15,000 lines, 1,507 are CSS 3D transforms,
+    <code>@property</code> interpolation, mask compositing and hand-drawn SVG &mdash; <code>index.css</code> at 478,
+    <code>TiltCard.tsx</code> at 231, <code>collectionIcons.tsx</code> at 669, <code>TypeIcon.tsx</code> at 129.
+    That is the tilt card&rsquo;s fixed-light reflection, the prismatic foil revealed through a moving mask, the
+    clear coat, and all 57 line icons. React Native runs none of it. There is no <code>mask-composite</code>, no
+    registered-property interpolation, no CSS 3D, and the foil-through-mask effect has no equivalent at all. It
+    would all be rebuilt in Skia and Reanimated for no user-visible gain.</p>
+
+    <p><b>Capacitor keeps it.</b> A real WebView runs the CSS as written, native plugins provide on-device SQLite
+    and the Keystore, and the result is a standard WebView app &mdash; the shape that passes 4.3. The cost is that
+    the Express server has to move into the app, which is section 03 and the only genuinely hard part.</p>
+
+    <p>Underneath all of it is one question: <b>does this work offline?</b> For a collection tracker the answer is
+    yes and it is not close &mdash; the moment you most want it is standing at a table in a convention hall, where
+    the signal is worst. Offline means an on-device database, and an on-device database means a real app.</p>
+  </section>
+
+  <section id="system">
+    <h2><span class="n">01</span>What runs where</h2>
+    <p class="lede">The app stops being a client. It holds the UI, the query layer and both databases; the network
+    is for prices and refreshes only.</p>
+
+    <figure>
+      <div class="plate"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 570" width="1400" height="570" role="img" aria-label="What runs where: the Android app holds the query layer and both databases; Supabase holds prices; GitHub Actions refreshes them daily">
+<title>What runs where: the Android app holds the query layer and both databases; Supabase holds prices; GitHub Actions refreshes them daily</title>
+<style>
+  svg {
+    --f-ink:#0d1418; --f-muted:#5b6a77; --f-surface:#ffffff; --f-surface2:#f4f7f9;
+    --f-line:#c9d3db; --f-zone:#e7edf2; --f-zoneline:#a9b8c4; --f-accent:#17607d;
+    --f-shared:#1f6feb; --f-user:#7b4bb7; --f-secret:#a92e26;
+    font-family:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    svg {
+      --f-ink:#e6edf3; --f-muted:#93a4b3; --f-surface:#1a2027; --f-surface2:#151b21;
+      --f-line:#39444f; --f-zone:#161c22; --f-zoneline:#3d4954; --f-accent:#5cc2e8;
+      --f-shared:#6ea8fe; --f-user:#c08cf5; --f-secret:#f0837a;
+    }
+  }
+  .zn   { fill:var(--dg-zone,var(--f-zone)); stroke:var(--dg-zoneline,var(--f-zoneline)); stroke-width:1.25; stroke-dasharray:5 4; }
+  .zt   { fill:var(--dg-muted,var(--f-muted)); font-size:12px; font-weight:600; letter-spacing:.09em; text-transform:uppercase;
+          font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .zc   { fill:var(--dg-muted,var(--f-muted)); font-size:11.5px; font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .bx   { fill:var(--dg-surface,var(--f-surface)); stroke:var(--dg-line,var(--f-line)); stroke-width:1.25; }
+  .bx2  { fill:var(--dg-surface2,var(--f-surface2)); stroke:var(--dg-line,var(--f-line)); stroke-width:1.25; }
+  .bt   { fill:var(--dg-ink,var(--f-ink)); font-size:14px; font-weight:600; }
+  .bs   { fill:var(--dg-muted,var(--f-muted)); font-size:12px; }
+  .bm   { fill:var(--dg-muted,var(--f-muted)); font-size:11.5px; font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .ar   { fill:none; stroke:var(--dg-accent,var(--f-accent)); stroke-width:1.6; }
+  .ard  { fill:none; stroke:var(--dg-muted,var(--f-muted)); stroke-width:1.4; stroke-dasharray:5 4; }
+  .al   { fill:var(--dg-accent,var(--f-accent)); font-size:11.5px; font-weight:500;
+          font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .alm  { fill:var(--dg-muted,var(--f-muted)); font-size:11.5px; font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .tb   { fill:none; stroke:var(--dg-secret,var(--f-secret)); stroke-width:1.4; stroke-dasharray:7 5; opacity:.75; }
+  .tbt  { fill:var(--dg-secret,var(--f-secret)); font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase;
+          font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .ttl  { fill:var(--dg-ink,var(--f-ink)); font-size:15px; font-weight:700; letter-spacing:.02em;
+          font-family:"IBM Plex Sans Condensed","IBM Plex Sans",system-ui,sans-serif; }
+  .num  { fill:var(--dg-surface,var(--f-surface)); font-size:11px; font-weight:700;
+          font-family:"IBM Plex Mono",ui-monospace,monospace; }
+</style>
+<defs>
+  <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="var(--dg-accent,var(--f-accent))"/>
+  </marker>
+  <marker id="ahm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="var(--dg-muted,var(--f-muted))"/>
+  </marker>
+</defs>
+<text class="ttl" x="40" y="44">Figure A1 · What runs where — the app is the whole application, not a client</text>
+<rect class="zn" x="40" y="70" width="640" height="470" rx="8"/>
+<text class="zt" x="54" y="91">Android device</text>
+<text class="zc" x="666" y="91" text-anchor="end">app-private</text><rect class="bx" x="64" y="116" width="592" height="118" rx="5"/><text class="bt" x="78" y="139">WebView</text><text class="bs" x="78" y="158">The React app, unchanged. 10,451 lines including 1,507 of CSS 3D transforms,</text><text class="bs" x="78" y="174">@property animations, mask compositing and drawn SVG — the tilt card, the foil</text><text class="bs" x="78" y="190">reveal, the 57 line icons. None of it survives a React Native rewrite, which is</text><text class="bs" x="78" y="206">the single reason this is a WebView shell and not RN.</text><rect class="bx" x="64" y="254" width="288" height="128" rx="5"/><text class="bt" x="78" y="277">Query layer (was Express)</text><text class="bm" x="78" y="296">buildCardFilter · latestPricesFor</text><text class="bm" x="78" y="312">convert · ensureRates</text><text class="bs" x="78" y="328">Ported to async and moved into the</text><text class="bs" x="78" y="344">app. There is no localhost server on</text><text class="bs" x="78" y="360">a phone.</text><rect class="bx" x="368" y="254" width="288" height="128" rx="5"/><path d="M368.5,259 a5,5 0 0 1 5,-5 h0 v118 h0 a5,5 0 0 1 -5,-5 z" fill="var(--dg-user,var(--f-user))"/>
+<rect x="369" y="255" width="4" height="126" fill="var(--dg-user,var(--f-user))"/><text class="bt" x="386" y="277">SQLite (native)</text><text class="bm" x="386" y="296">catalog.db  ~11 MB, re-downloadable</text><text class="bm" x="386" y="312">personal.db ~240 KB, irreplaceable</text><text class="bs" x="386" y="328">/data/data/&lt;pkg&gt;/databases/</text><text class="bs" x="386" y="344">Unreadable by other apps, removed on</text><text class="bs" x="386" y="360">uninstall.</text><rect class="bx" x="64" y="402" width="288" height="112" rx="5"/><path d="M64.5,407 a5,5 0 0 1 5,-5 h0 v102 h0 a5,5 0 0 1 -5,-5 z" fill="var(--dg-secret,var(--f-secret))"/>
+<rect x="65" y="403" width="4" height="110" fill="var(--dg-secret,var(--f-secret))"/><text class="bt" x="82" y="425">Android Keystore</text><text class="bs" x="82" y="444">API keys via EncryptedShared-</text><text class="bs" x="82" y="460">Preferences. Key material is</text><text class="bs" x="82" y="476">hardware-backed and never enters</text><text class="bs" x="82" y="492">the process — unlike ciphertext in a</text><text class="bs" x="82" y="508">table with the key beside it.</text><rect class="bx" x="368" y="402" width="288" height="112" rx="5"/><text class="bt" x="382" y="425">Auto Backup</text><text class="bs" x="382" y="444">personal.db included (240 KB, well</text><text class="bs" x="382" y="460">under the 25 MB ceiling).</text><text class="bs" x="382" y="476">catalog.db excluded — it can be</text><text class="bs" x="382" y="492">fetched again. This is the OS-level</text><text class="bs" x="382" y="508">protection against an accidental wipe.</text>
+<rect class="zn" x="720" y="70" width="640" height="210" rx="8"/>
+<text class="zt" x="734" y="91">Hosted</text>
+<text class="zc" x="1346" y="91" text-anchor="end">shared + live</text><rect class="bx" x="744" y="116" width="288" height="140" rx="5"/><path d="M744.5,121 a5,5 0 0 1 5,-5 h0 v130 h0 a5,5 0 0 1 -5,-5 z" fill="var(--dg-shared,var(--f-shared))"/>
+<rect x="745" y="117" width="4" height="138" fill="var(--dg-shared,var(--f-shared))"/><text class="bt" x="762" y="139">Supabase · Postgres</text><text class="bm" x="762" y="158">price_current  ~39k rows, fixed</text><text class="bm" x="762" y="174">price_history  delta only, ~1.8M/yr</text><text class="bs" x="762" y="190">Read through the app, not by the</text><text class="bs" x="762" y="206">browser: the anon key would ship in</text><text class="bs" x="762" y="222">the bundle.</text><rect class="bx" x="1048" y="116" width="288" height="140" rx="5"/><text class="bt" x="1062" y="139">GitHub Actions</text><text class="bs" x="1062" y="158">Daily price pass. 20,444 cards at</text><text class="bs" x="1062" y="174">concurrency 8 — measured 4.8 min,</text><text class="bs" x="1062" y="190">43 MB, zero failures.</text><text class="bs" x="1062" y="206">Triggered by pg_cron, not by</text><text class="bs" x="1062" y="222">schedule:, which self-disables.</text>
+<rect class="zn" x="720" y="300" width="640" height="240" rx="8"/>
+<text class="zt" x="734" y="321">Third parties · untrusted</text>
+<rect class="bx2" x="744" y="346" width="288" height="92" rx="5"/><text class="bt" x="758" y="369">TCGdex</text><text class="bs" x="758" y="388">Catalogue + prices</text><text class="bs" x="758" y="404">Both marketplaces, daily</text><rect class="bx2" x="1048" y="346" width="288" height="92" rx="5"/><text class="bt" x="1062" y="369">PokeAPI</text><text class="bs" x="1062" y="388">Species, stats, evolutions</text><rect class="bx2" x="744" y="458" width="592" height="62" rx="5"/><text class="bt" x="758" y="481">Card art CDNs — fetched by the WebView directly, never proxied</text><polyline class="ar" points="656,175 740,175 740,178" marker-end="url(#ah)"/><text class="al" x="698" y="166" text-anchor="middle">prices</text><polyline class="ar" points="1192,260 1192,342" marker-end="url(#ah)"/><text class="al" x="1200" y="302" text-anchor="start">fetch</text><polyline class="ar" points="888,260 888,342" marker-end="url(#ah)" marker-start="url(#ah)"/><polyline class="ard" points="360,175 700,175 700,470 740,470" marker-end="url(#ahm)"/><text class="alm" x="620" y="462" text-anchor="middle">images</text>
+</svg></div>
+      <figcaption><b>Figure A1</b><span>The Express server does not survive the move — there is no localhost on a phone — so its query layer moves into the app rather than being hosted.</span></figcaption>
+    </figure>
+    <p>Two things are worth drawing out. Card art is fetched by the WebView <em>directly</em> from the image CDNs
+    and never passes through anything of ours, which keeps egress at zero and is also the arrangement most likely
+    to attract attention at scale (section 07). And Supabase is read <em>through the app&rsquo;s query layer</em>,
+    not from the browser: a direct read needs the anon key, the anon key ships inside the bundle, and a bundled key
+    makes the price tables readable by anyone who unpacks the APK.</p>
+  </section>
+
+  <section id="storage">
+    <h2><span class="n">02</span>Storage</h2>
+    <p class="lede">The direct answer to &ldquo;<code>%appdata%</code> is no longer an option&rdquo;: app-private
+    internal storage, which is the same idea with the operating system enforcing it.</p>
+
+    <figure>
+      <div class="plate"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 576" width="1400" height="576" role="img" aria-label="Storage model: personal data and catalogue in app-private SQLite, secrets in the Keystore, with the rejected alternatives and why">
+<title>Storage model: personal data and catalogue in app-private SQLite, secrets in the Keystore, with the rejected alternatives and why</title>
+<style>
+  svg {
+    --f-ink:#0d1418; --f-muted:#5b6a77; --f-surface:#ffffff; --f-surface2:#f4f7f9;
+    --f-line:#c9d3db; --f-zone:#e7edf2; --f-zoneline:#a9b8c4; --f-accent:#17607d;
+    --f-shared:#1f6feb; --f-user:#7b4bb7; --f-secret:#a92e26;
+    font-family:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    svg {
+      --f-ink:#e6edf3; --f-muted:#93a4b3; --f-surface:#1a2027; --f-surface2:#151b21;
+      --f-line:#39444f; --f-zone:#161c22; --f-zoneline:#3d4954; --f-accent:#5cc2e8;
+      --f-shared:#6ea8fe; --f-user:#c08cf5; --f-secret:#f0837a;
+    }
+  }
+  .zn   { fill:var(--dg-zone,var(--f-zone)); stroke:var(--dg-zoneline,var(--f-zoneline)); stroke-width:1.25; stroke-dasharray:5 4; }
+  .zt   { fill:var(--dg-muted,var(--f-muted)); font-size:12px; font-weight:600; letter-spacing:.09em; text-transform:uppercase;
+          font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .zc   { fill:var(--dg-muted,var(--f-muted)); font-size:11.5px; font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .bx   { fill:var(--dg-surface,var(--f-surface)); stroke:var(--dg-line,var(--f-line)); stroke-width:1.25; }
+  .bx2  { fill:var(--dg-surface2,var(--f-surface2)); stroke:var(--dg-line,var(--f-line)); stroke-width:1.25; }
+  .bt   { fill:var(--dg-ink,var(--f-ink)); font-size:14px; font-weight:600; }
+  .bs   { fill:var(--dg-muted,var(--f-muted)); font-size:12px; }
+  .bm   { fill:var(--dg-muted,var(--f-muted)); font-size:11.5px; font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .ar   { fill:none; stroke:var(--dg-accent,var(--f-accent)); stroke-width:1.6; }
+  .ard  { fill:none; stroke:var(--dg-muted,var(--f-muted)); stroke-width:1.4; stroke-dasharray:5 4; }
+  .al   { fill:var(--dg-accent,var(--f-accent)); font-size:11.5px; font-weight:500;
+          font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .alm  { fill:var(--dg-muted,var(--f-muted)); font-size:11.5px; font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .tb   { fill:none; stroke:var(--dg-secret,var(--f-secret)); stroke-width:1.4; stroke-dasharray:7 5; opacity:.75; }
+  .tbt  { fill:var(--dg-secret,var(--f-secret)); font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase;
+          font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .ttl  { fill:var(--dg-ink,var(--f-ink)); font-size:15px; font-weight:700; letter-spacing:.02em;
+          font-family:"IBM Plex Sans Condensed","IBM Plex Sans",system-ui,sans-serif; }
+  .num  { fill:var(--dg-surface,var(--f-surface)); font-size:11px; font-weight:700;
+          font-family:"IBM Plex Mono",ui-monospace,monospace; }
+</style>
+<defs>
+  <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="var(--dg-accent,var(--f-accent))"/>
+  </marker>
+  <marker id="ahm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="var(--dg-muted,var(--f-muted))"/>
+  </marker>
+</defs>
+<text class="ttl" x="40" y="44">Figure A2 · Storage — where each kind of data goes, and why</text>
+<rect class="zn" x="40" y="70" width="1320" height="300" rx="8"/>
+<text class="zt" x="54" y="91">App-private internal storage · /data/data/net.utsec.pokemans/</text>
+<text class="zc" x="1346" y="91" text-anchor="end">the %appdata% replacement</text><rect class="bx" x="64" y="116" width="410" height="234" rx="5"/><path d="M64.5,121 a5,5 0 0 1 5,-5 h0 v224 h0 a5,5 0 0 1 -5,-5 z" fill="var(--dg-user,var(--f-user))"/>
+<rect x="65" y="117" width="4" height="232" fill="var(--dg-user,var(--f-user))"/><text class="bt" x="82" y="139">databases/personal.db</text><text class="bm" x="82" y="158">collection_boxes · collection_entries</text><text class="bm" x="82" y="174">want_lists · want_list_entries</text><text class="bm" x="82" y="190">card_price_history · fx_rates</text><text class="bm" x="82" y="206">settings</text><text class="bs" x="82" y="222">Irreplaceable. Nothing upstream can</text><text class="bs" x="82" y="238">reconstruct which cards you own, and a</text><text class="bs" x="82" y="254">price day not captured is gone —</text><text class="bs" x="82" y="270">the sources only ever serve today.</text><text class="bs" x="82" y="286">INCLUDED in Auto Backup.</text><rect class="bx" x="494" y="116" width="410" height="234" rx="5"/><text class="bt" x="508" y="139">databases/catalog.db</text><text class="bm" x="508" y="158">tcg_cards · tcg_card_variants</text><text class="bm" x="508" y="174">tcg_sets · tcg_series</text><text class="bm" x="508" y="190">pokemon · abilities · evolutions</text><text class="bs" x="508" y="206">~11 MB, 20,444 cards.</text><text class="bs" x="508" y="222">Shared but static — changes a handful</text><text class="bs" x="508" y="238">of times a year, when a set drops.</text><text class="bs" x="508" y="254">Re-downloadable, so it is EXCLUDED</text><text class="bs" x="508" y="270">from Auto Backup and shipped or</text><text class="bs" x="508" y="286">fetched on first run.</text><rect class="bx" x="924" y="116" width="412" height="234" rx="5"/><path d="M924.5,121 a5,5 0 0 1 5,-5 h0 v224 h0 a5,5 0 0 1 -5,-5 z" fill="var(--dg-secret,var(--f-secret))"/>
+<rect x="925" y="117" width="4" height="232" fill="var(--dg-secret,var(--f-secret))"/><text class="bt" x="942" y="139">EncryptedSharedPreferences</text><text class="bs" x="942" y="158">PokemonPriceTracker API key</text><text class="bs" x="942" y="174">Supabase read credential</text><text class="bs" x="942" y="190">Moved out of the database entirely.</text><text class="bs" x="942" y="206">linked_accounts held ciphertext with</text><text class="bs" x="942" y="222">the key elsewhere on disk, which is a</text><text class="bs" x="942" y="238">reasonable desktop compromise and the</text><text class="bs" x="942" y="254">wrong answer on a device that has a</text><text class="bs" x="942" y="270">hardware-backed Keystore.</text>
+<rect class="zn" x="40" y="396" width="1320" height="150" rx="8"/>
+<text class="zt" x="54" y="417">Ruled out</text>
+<rect class="bx2" x="64" y="436" width="410" height="92" rx="5"/><text class="bt" x="78" y="459">External / shared storage</text><text class="bs" x="78" y="478">World-readable. Collection data has no business there,</text><text class="bs" x="78" y="494">and scoped storage makes it awkward regardless.</text><rect class="bx2" x="494" y="436" width="410" height="92" rx="5"/><text class="bt" x="508" y="459">localStorage / IndexedDB only</text><text class="bs" x="508" y="478">The advanced query language is SQL. Reimplementing it</text><text class="bs" x="508" y="494">over IndexedDB means rewriting the feature, not porting it.</text><rect class="bx2" x="924" y="436" width="412" height="92" rx="5"/><text class="bt" x="938" y="459">Everything hosted, nothing local</text><text class="bs" x="938" y="478">Kills offline. A collection app is used at shows and</text><text class="bs" x="938" y="494">conventions, which is exactly where signal is worst.</text>
+</svg></div>
+      <figcaption><b>Figure A2</b><span>Both databases in app-private storage, secrets moved out of the database into the Keystore, and the three alternatives that were considered and rejected.</span></figcaption>
+    </figure>
+    <p>The split between the two databases earns its keep here. <code>personal.db</code> is 240 KB and cannot be
+    reconstructed from anywhere &mdash; no upstream knows which cards you own, and a price day not captured is gone
+    because the sources only ever serve today&rsquo;s number. <code>catalog.db</code> is 11 MB and can be fetched
+    again from TCGdex. So Auto Backup includes the first and excludes the second, which puts the irreplaceable
+    240 KB comfortably inside the 25 MB ceiling.</p>
+
+    <p>That is not a theoretical benefit. A collection was deleted by accident during development and the undo
+    failed; the data was unrecoverable because nothing outside the local file had a copy. On Android the operating
+    system would have held one.</p>
+
+    <p>The API keys move out of the database entirely. <code>linked_accounts</code> currently stores ciphertext
+    with the key material elsewhere on the same disk &mdash; a fair compromise on a desktop, and the wrong answer
+    on a device with a hardware-backed Keystore. <code>EncryptedSharedPreferences</code> keeps the key out of the
+    process.</p>
+  </section>
+
+  <section id="port">
+    <h2><span class="n">03</span>The async port</h2>
+    <p class="lede">The expensive part, and the reason this is a phased migration rather than a rewrite.</p>
+
+    <figure>
+      <div class="plate"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 700" width="1400" height="700" role="img" aria-label="The async port in three stages: synchronous today, asynchronous on the desktop where it is testable, then the same code on Android with the driver swapped">
+<title>The async port in three stages: synchronous today, asynchronous on the desktop where it is testable, then the same code on Android with the driver swapped</title>
+<style>
+  svg {
+    --f-ink:#0d1418; --f-muted:#5b6a77; --f-surface:#ffffff; --f-surface2:#f4f7f9;
+    --f-line:#c9d3db; --f-zone:#e7edf2; --f-zoneline:#a9b8c4; --f-accent:#17607d;
+    --f-shared:#1f6feb; --f-user:#7b4bb7; --f-secret:#a92e26;
+    font-family:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    svg {
+      --f-ink:#e6edf3; --f-muted:#93a4b3; --f-surface:#1a2027; --f-surface2:#151b21;
+      --f-line:#39444f; --f-zone:#161c22; --f-zoneline:#3d4954; --f-accent:#5cc2e8;
+      --f-shared:#6ea8fe; --f-user:#c08cf5; --f-secret:#f0837a;
+    }
+  }
+  .zn   { fill:var(--dg-zone,var(--f-zone)); stroke:var(--dg-zoneline,var(--f-zoneline)); stroke-width:1.25; stroke-dasharray:5 4; }
+  .zt   { fill:var(--dg-muted,var(--f-muted)); font-size:12px; font-weight:600; letter-spacing:.09em; text-transform:uppercase;
+          font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .zc   { fill:var(--dg-muted,var(--f-muted)); font-size:11.5px; font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .bx   { fill:var(--dg-surface,var(--f-surface)); stroke:var(--dg-line,var(--f-line)); stroke-width:1.25; }
+  .bx2  { fill:var(--dg-surface2,var(--f-surface2)); stroke:var(--dg-line,var(--f-line)); stroke-width:1.25; }
+  .bt   { fill:var(--dg-ink,var(--f-ink)); font-size:14px; font-weight:600; }
+  .bs   { fill:var(--dg-muted,var(--f-muted)); font-size:12px; }
+  .bm   { fill:var(--dg-muted,var(--f-muted)); font-size:11.5px; font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .ar   { fill:none; stroke:var(--dg-accent,var(--f-accent)); stroke-width:1.6; }
+  .ard  { fill:none; stroke:var(--dg-muted,var(--f-muted)); stroke-width:1.4; stroke-dasharray:5 4; }
+  .al   { fill:var(--dg-accent,var(--f-accent)); font-size:11.5px; font-weight:500;
+          font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .alm  { fill:var(--dg-muted,var(--f-muted)); font-size:11.5px; font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .tb   { fill:none; stroke:var(--dg-secret,var(--f-secret)); stroke-width:1.4; stroke-dasharray:7 5; opacity:.75; }
+  .tbt  { fill:var(--dg-secret,var(--f-secret)); font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase;
+          font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .ttl  { fill:var(--dg-ink,var(--f-ink)); font-size:15px; font-weight:700; letter-spacing:.02em;
+          font-family:"IBM Plex Sans Condensed","IBM Plex Sans",system-ui,sans-serif; }
+  .num  { fill:var(--dg-surface,var(--f-surface)); font-size:11px; font-weight:700;
+          font-family:"IBM Plex Mono",ui-monospace,monospace; }
+</style>
+<defs>
+  <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="var(--dg-accent,var(--f-accent))"/>
+  </marker>
+  <marker id="ahm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="var(--dg-muted,var(--f-muted))"/>
+  </marker>
+</defs>
+<text class="ttl" x="40" y="44">Figure A3 · The async port — the expensive part, done before Capacitor is in the picture</text>
+<rect class="zn" x="40" y="70" width="1320" height="176" rx="8"/>
+<text class="zt" x="54" y="91">Today · synchronous</text>
+<rect class="bx" x="64" y="112" width="300" height="110" rx="5"/><text class="bt" x="78" y="135">Routes</text><text class="bm" x="78" y="154">const rows = all(sql, params)</text><text class="bs" x="78" y="170">Returns rows, not a promise.</text><text class="bs" x="78" y="186">260 call sites, 27 files.</text><rect class="bx" x="388" y="112" width="300" height="110" rx="5"/><text class="bt" x="402" y="135">node:sqlite</text><text class="bm" x="402" y="154">DatabaseSync</text><text class="bs" x="402" y="170">In-process. A query is a</text><text class="bs" x="402" y="186">function call.</text><rect class="bx" x="712" y="112" width="300" height="110" rx="5"/><text class="bt" x="726" y="135">Express</text><text class="bs" x="726" y="154">Runs on localhost.</text><text class="bs" x="726" y="170">Has no equivalent on a phone.</text><rect class="bx2" x="1036" y="112" width="300" height="110" rx="5"/><text class="bt" x="1050" y="135">Browser</text><text class="bs" x="1050" y="154">Fetches /api/*</text>
+<rect class="zn" x="40" y="274" width="1320" height="176" rx="8"/>
+<text class="zt" x="54" y="295">After · asynchronous, still on the desktop</text>
+<rect class="bx" x="64" y="316" width="300" height="110" rx="5"/><text class="bt" x="78" y="339">Routes</text><text class="bm" x="78" y="358">const rows = await db.all(...)</text><text class="bs" x="78" y="374">Await pushes up through every</text><text class="bs" x="78" y="390">caller. This is the whole job.</text><rect class="bx" x="388" y="316" width="300" height="110" rx="5"/><path d="M388.5,321 a5,5 0 0 1 5,-5 h0 v100 h0 a5,5 0 0 1 -5,-5 z" fill="var(--dg-shared,var(--f-shared))"/>
+<rect x="389" y="317" width="4" height="108" fill="var(--dg-shared,var(--f-shared))"/><text class="bt" x="406" y="339">SqlDatabase</text><text class="bm" x="406" y="358">all · get · run · exec</text><text class="bm" x="406" y="374">transaction</text><text class="bs" x="406" y="390">One interface, two drivers.</text><rect class="bx" x="712" y="316" width="300" height="110" rx="5"/><text class="bt" x="726" y="339">node:sqlite driver</text><text class="bs" x="726" y="358">Wrapped to return promises.</text><text class="bs" x="726" y="374">Express still runs, browser still</text><text class="bs" x="726" y="390">works — so this step is testable.</text><rect class="bx2" x="1036" y="316" width="300" height="110" rx="5"/><text class="bt" x="1050" y="339">Browser</text><text class="bs" x="1050" y="358">Unchanged</text>
+<rect class="zn" x="40" y="478" width="1320" height="176" rx="8"/>
+<text class="zt" x="54" y="499">Then · the same code on Android</text>
+<rect class="bx" x="64" y="520" width="300" height="110" rx="5"/><text class="bt" x="78" y="543">Routes</text><text class="bs" x="78" y="562">Unchanged from the step above.</text><text class="bs" x="78" y="578">Already async, already tested.</text><rect class="bx" x="388" y="520" width="300" height="110" rx="5"/><path d="M388.5,525 a5,5 0 0 1 5,-5 h0 v100 h0 a5,5 0 0 1 -5,-5 z" fill="var(--dg-shared,var(--f-shared))"/>
+<rect x="389" y="521" width="4" height="108" fill="var(--dg-shared,var(--f-shared))"/><text class="bt" x="406" y="543">SqlDatabase</text><text class="bs" x="406" y="562">Same interface.</text><rect class="bx" x="712" y="520" width="300" height="110" rx="5"/><path d="M712.5,525 a5,5 0 0 1 5,-5 h0 v100 h0 a5,5 0 0 1 -5,-5 z" fill="var(--dg-user,var(--f-user))"/>
+<rect x="713" y="521" width="4" height="108" fill="var(--dg-user,var(--f-user))"/><text class="bt" x="730" y="543">Capacitor SQLite driver</text><text class="bs" x="730" y="562">Crosses the WebView bridge.</text><text class="bs" x="730" y="578">Cannot be synchronous — which is</text><text class="bs" x="730" y="594">why the conversion is unavoidable.</text><rect class="bx2" x="1036" y="520" width="300" height="110" rx="5"/><text class="bt" x="1050" y="543">WebView</text><text class="bs" x="1050" y="562">Calls the query layer directly.</text><text class="bs" x="1050" y="578">No HTTP, no server.</text><polyline class="ar" points="700,226 700,310" marker-end="url(#ah)"/><text class="al" x="708" y="270" text-anchor="start">the work</text><polyline class="ar" points="700,430 700,514" marker-end="url(#ah)"/><text class="al" x="708" y="474" text-anchor="start">swap the driver</text><text class="zc" x="64" y="676">Doing the conversion first means an async bug and a native-shell bug are never being diagnosed at the same time.</text>
+</svg></div>
+      <figcaption><b>Figure A3</b><span>The conversion is done on the desktop, where Express still runs and a browser can still test it, before the native shell is introduced.</span></figcaption>
+    </figure>
+    <p><code>node:sqlite</code> is synchronous: <code>all()</code> returns rows. The Capacitor plugin cannot be,
+    because the query crosses the WebView bridge into native code, and there is no synchronous shim for a message
+    pass. So every data access becomes <code>await</code>, and <code>await</code> propagates up through every
+    caller.</p>
+
+    <p class="lede" style="margin-top:1.1rem">260 call sites across 27 files &mdash; 107 <code>get()</code>,
+    60 <code>all()</code>, 25 <code>run()</code>, and 69 more through the personal-database helpers.</p>
+
+    <p>This is done <em>first</em>, and deliberately while Express is still standing. An async codebase runs
+    perfectly well against <code>node:sqlite</code> wrapped to return promises, which means the conversion is
+    verifiable in the browser exactly as the app is developed today. Doing it after Capacitor arrives would mean an
+    async bug and a native-shell bug are never being diagnosed at the same time &mdash; and they would be.</p>
+
+    <p><code>src/data/sqlite.ts</code> already declares the interface, including an explicit
+    <code>transaction()</code>. That is not decoration: on native each statement is a separate bridge call, so
+    without it, filing a card or rewriting collection order becomes several independent transactions and a failure
+    halfway leaves an order with duplicate positions.</p>
+  </section>
+
+  <section id="touch">
+    <h2><span class="n">04</span>Touch</h2>
+    <p class="lede">Some of the interface is already touch-ready. One part of it is dead on arrival.</p>
+
+    <ul class="legend" style="display:block">
+      <li style="display:block;margin-bottom:.55rem"><b>Collection reorder does not work at all.</b> It uses HTML5
+      drag events, which never fire on a touchscreen. This is known, not discovered &mdash; the arrow controls that
+      used to provide a touch path were removed in favour of dragging. It needs rebuilding on pointer events.</li>
+      <li style="display:block;margin-bottom:.55rem"><b>Advanced search fixes itself.</b> Its fallback ships the
+      whole catalogue to the client when a query uses operators SQL cannot push down: 12.4 MB and 8.7 s measured
+      over loopback. With SQLite on the device that becomes a local query again.</li>
+      <li style="display:block;margin-bottom:.55rem"><b>The tilt card already works.</b> It is built on pointer
+      events with <code>touch-action: none</code>, so drag-to-rotate behaves on a phone.</li>
+      <li style="display:block;margin-bottom:.55rem"><b>Tap-to-file already works.</b> The collection rail is taps,
+      not drags.</li>
+      <li style="display:block"><b>Unverified:</b> the rail&rsquo;s mobile collapse was built but never rendered at
+      phone width &mdash; the browser would not resize below the display. First real device build settles it.</li>
+    </ul>
+
+    <p>Beyond that: a bottom sheet in place of the right-hand rail, larger hit targets, and swipe-to-remove on
+    collection rows. None of it is structural, and none of it should start before the app installs.</p>
+  </section>
+
+  <section id="build">
+    <h2><span class="n">05</span>Building and testing</h2>
+    <p class="lede">Better than it looks, precisely because it is a WebView.</p>
+    <table>
+      <thead><tr><th>Task</th><th>How</th></tr></thead>
+      <tbody>
+        <tr><td class="id">Emulator</td><td>Android Studio AVD, or <code>npx cap run android</code></td></tr>
+        <tr><td class="id">Live reload on a device</td><td><code>npx cap run android --livereload --external</code> &mdash; edit React, see it on the phone</td></tr>
+        <tr><td class="id">Full DevTools</td><td><code>chrome://inspect</code> attaches to the app&rsquo;s WebView: same console, same element inspector, same network tab</td></tr>
+        <tr><td class="id">Install a build</td><td><code>adb install app-debug.apk</code></td></tr>
+        <tr><td class="id">Distribution</td><td>Play Console internal testing track</td></tr>
+      </tbody>
+    </table>
+    <p>The DevTools line is the one that matters. Every diagnosis in this project so far has come from inspecting
+    computed styles and DOM state in a browser; that method survives the move intact, which it would not under
+    React Native.</p>
+    <p><b>Prerequisite:</b> none of it is installed. No JDK, no <code>ANDROID_HOME</code>, no SDK, no Android
+    Studio. Installing Android Studio brings all four. Nothing before phase 3 needs it.</p>
+  </section>
+
+  <section id="play">
+    <h2><span class="n">06</span>Getting onto Play</h2>
+    <ul class="legend" style="display:block">
+      <li style="display:block;margin-bottom:.55rem"><b>Policy 4.3, minimum functionality.</b> Cleared by being a
+      real app with offline capability rather than a site mirror.</li>
+      <li style="display:block;margin-bottom:.55rem"><b>Privacy policy and Data safety form.</b> Mandatory. The
+      honest answers are short: data stays on the device, nothing is collected, the only outbound calls are to
+      public card APIs.</li>
+      <li style="display:block;margin-bottom:.55rem"><b>Target API level.</b> Play enforces a recent minimum and
+      raises it annually; Capacitor tracks this.</li>
+      <li style="display:block"><b>Twelve testers, fourteen days.</b> A calendar constraint, not a work item.
+      Start it the moment anything installs.</li>
+    </ul>
+  </section>
+
+  <section id="risks">
+    <h2><span class="n">07</span>Risks</h2>
+    <p class="lede">Two worth settling before phase 1, because both are cheaper to act on now than after the port.</p>
+
+    <p><b>Intellectual property.</b> The app shows Pokémon card artwork, uses Pokémon names, and is branded
+    &ldquo;PokéMans&rdquo;. Publishing that on a public store is a materially different exposure from running it on
+    one laptop, and The Pokémon Company enforces actively. This is a decision to take deliberately rather than
+    discover.</p>
+
+    <p><b>Hotlinking at distribution scale.</b> Card art is fetched straight from
+    <code>images.pokemontcg.io</code> and <code>assets.tcgdex.net</code>. One developer&rsquo;s browser is
+    unremarkable; an installed base pointing at someone else&rsquo;s CDN is a different proposition, and their
+    terms may not permit it. Caching art into app storage on first view would reduce both the exposure and the
+    dependence.</p>
+  </section>
+
+  <section id="phases">
+    <h2><span class="n">08</span>Order of work</h2>
+
+    <figure>
+      <div class="plate"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 400" width="1400" height="400" role="img" aria-label="Five phases: async port, hosted prices, Capacitor shell, touch redesign, Play Store">
+<title>Five phases: async port, hosted prices, Capacitor shell, touch redesign, Play Store</title>
+<style>
+  svg {
+    --f-ink:#0d1418; --f-muted:#5b6a77; --f-surface:#ffffff; --f-surface2:#f4f7f9;
+    --f-line:#c9d3db; --f-zone:#e7edf2; --f-zoneline:#a9b8c4; --f-accent:#17607d;
+    --f-shared:#1f6feb; --f-user:#7b4bb7; --f-secret:#a92e26;
+    font-family:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    svg {
+      --f-ink:#e6edf3; --f-muted:#93a4b3; --f-surface:#1a2027; --f-surface2:#151b21;
+      --f-line:#39444f; --f-zone:#161c22; --f-zoneline:#3d4954; --f-accent:#5cc2e8;
+      --f-shared:#6ea8fe; --f-user:#c08cf5; --f-secret:#f0837a;
+    }
+  }
+  .zn   { fill:var(--dg-zone,var(--f-zone)); stroke:var(--dg-zoneline,var(--f-zoneline)); stroke-width:1.25; stroke-dasharray:5 4; }
+  .zt   { fill:var(--dg-muted,var(--f-muted)); font-size:12px; font-weight:600; letter-spacing:.09em; text-transform:uppercase;
+          font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .zc   { fill:var(--dg-muted,var(--f-muted)); font-size:11.5px; font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .bx   { fill:var(--dg-surface,var(--f-surface)); stroke:var(--dg-line,var(--f-line)); stroke-width:1.25; }
+  .bx2  { fill:var(--dg-surface2,var(--f-surface2)); stroke:var(--dg-line,var(--f-line)); stroke-width:1.25; }
+  .bt   { fill:var(--dg-ink,var(--f-ink)); font-size:14px; font-weight:600; }
+  .bs   { fill:var(--dg-muted,var(--f-muted)); font-size:12px; }
+  .bm   { fill:var(--dg-muted,var(--f-muted)); font-size:11.5px; font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .ar   { fill:none; stroke:var(--dg-accent,var(--f-accent)); stroke-width:1.6; }
+  .ard  { fill:none; stroke:var(--dg-muted,var(--f-muted)); stroke-width:1.4; stroke-dasharray:5 4; }
+  .al   { fill:var(--dg-accent,var(--f-accent)); font-size:11.5px; font-weight:500;
+          font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .alm  { fill:var(--dg-muted,var(--f-muted)); font-size:11.5px; font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .tb   { fill:none; stroke:var(--dg-secret,var(--f-secret)); stroke-width:1.4; stroke-dasharray:7 5; opacity:.75; }
+  .tbt  { fill:var(--dg-secret,var(--f-secret)); font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase;
+          font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  .ttl  { fill:var(--dg-ink,var(--f-ink)); font-size:15px; font-weight:700; letter-spacing:.02em;
+          font-family:"IBM Plex Sans Condensed","IBM Plex Sans",system-ui,sans-serif; }
+  .num  { fill:var(--dg-surface,var(--f-surface)); font-size:11px; font-weight:700;
+          font-family:"IBM Plex Mono",ui-monospace,monospace; }
+</style>
+<defs>
+  <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="var(--dg-accent,var(--f-accent))"/>
+  </marker>
+  <marker id="ahm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="var(--dg-muted,var(--f-muted))"/>
+  </marker>
+</defs>
+<text class="ttl" x="40" y="44">Figure A4 · Order of work — each phase verifiable before the next begins</text><rect class="bx" x="64" y="96" width="240" height="168" rx="5"/><path d="M64.5,101 a5,5 0 0 1 5,-5 h0 v158 h0 a5,5 0 0 1 -5,-5 z" fill="var(--dg-shared,var(--f-shared))"/>
+<rect x="65" y="97" width="4" height="166" fill="var(--dg-shared,var(--f-shared))"/><text class="bt" x="82" y="119">Async port</text><text class="bs" x="82" y="138">The 260 call sites. Desktop only,</text><text class="bs" x="82" y="154">Express still running, browser still</text><text class="bs" x="82" y="170">testable. No Android SDK needed.</text><circle cx="84" cy="296" r="9" fill="var(--dg-accent,var(--f-accent))"/>
+<text class="num" x="84" y="300" text-anchor="middle">1</text><polyline class="ar" points="308,180 324,180" marker-end="url(#ah)"/><rect class="bx" x="328" y="96" width="240" height="168" rx="5"/><text class="bt" x="342" y="119">Hosted prices</text><text class="bs" x="342" y="138">Supabase schema, the daily Action,</text><text class="bs" x="342" y="154">and the app reading price_current.</text><text class="bs" x="342" y="170">Independent of mobile.</text><circle cx="348" cy="296" r="9" fill="var(--dg-accent,var(--f-accent))"/>
+<text class="num" x="348" y="300" text-anchor="middle">2</text><polyline class="ar" points="572,180 588,180" marker-end="url(#ah)"/><rect class="bx" x="592" y="96" width="240" height="168" rx="5"/><text class="bt" x="606" y="119">Capacitor shell</text><text class="bs" x="606" y="138">cap add android. Swap the driver.</text><text class="bs" x="606" y="154">First build on an emulator.</text><text class="bs" x="606" y="170">Needs Android Studio.</text><circle cx="612" cy="296" r="9" fill="var(--dg-accent,var(--f-accent))"/>
+<text class="num" x="612" y="300" text-anchor="middle">3</text><polyline class="ar" points="836,180 852,180" marker-end="url(#ah)"/><rect class="bx" x="856" y="96" width="240" height="168" rx="5"/><text class="bt" x="870" y="119">Touch</text><text class="bs" x="870" y="138">Drag-and-drop is dead on touch.</text><text class="bs" x="870" y="154">Bottom sheet for the rail. Hit</text><text class="bs" x="870" y="170">targets. Swipe to remove.</text><circle cx="876" cy="296" r="9" fill="var(--dg-accent,var(--f-accent))"/>
+<text class="num" x="876" y="300" text-anchor="middle">4</text><polyline class="ar" points="1100,180 1116,180" marker-end="url(#ah)"/><rect class="bx" x="1120" y="96" width="240" height="168" rx="5"/><text class="bt" x="1134" y="119">Play</text><text class="bs" x="1134" y="138">Privacy policy, data safety form,</text><text class="bs" x="1134" y="154">target API. Internal → closed →</text><text class="bs" x="1134" y="170">production. 12 testers, 14 days.</text><circle cx="1140" cy="296" r="9" fill="var(--dg-accent,var(--f-accent))"/>
+<text class="num" x="1140" y="300" text-anchor="middle">5</text><text class="zc" x="64" y="352">Phase 1 is the only one on the critical path. Everything after it is additive, and phase 2 is useful whether or not the app ships.</text><text class="zc" x="64" y="374">The 14-day tester gate in phase 5 is a calendar constraint, not a work item — start it as soon as anything installs.</text>
+</svg></div>
+      <figcaption><b>Figure A4</b><span>Only phase 1 is on the critical path. Phase 2 is worth doing whether or not the app ships, and phase 5 has a fixed calendar cost.</span></figcaption>
+    </figure>
+    <p>The sequence exists to keep each step independently verifiable. Phase 1 changes 260 call sites but leaves
+    the app runnable and testable throughout. Phase 3 changes one line &mdash; which driver is constructed &mdash;
+    and if it breaks, the async layer is already known good.</p>
+  </section>
+
+  <footer>
+    Drafted 8 September 2026 &middot; figures generated by <code>docs/gen-android-diagrams.mjs</code>, document by
+    <code>docs/gen-android-doc.mjs</code> &middot; measurements taken from the working application
+  </footer>
+
+  </main>
+</div>
+</div>
