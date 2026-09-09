@@ -9,9 +9,10 @@ import type { ReactNode } from 'react';
  * ("Rare Holo VMAX" is a star), so they are matched by pattern rather than listed one by one —
  * a list would need editing every time a set invents another name for a star.
  */
-type Shape = 'circle' | 'diamond' | 'star' | 'double-star' | 'crown' | 'promo';
+import type { Shape } from '../types';
+export type { Shape };
 
-const SHAPES: Record<Shape, ReactNode> = {
+export const SHAPES: Record<Shape, ReactNode> = {
   circle: <circle cx="12" cy="12" r="6.5" />,
   diamond: <path d="M12 4 20 12 12 20 4 12z" />,
   star: <path d="M12 3.5 14.6 9.4 21 10.2 16.3 14.5 17.6 21 12 17.8 6.4 21 7.7 14.5 3 10.2 9.4 9.4z" />,
@@ -39,6 +40,20 @@ const FALLBACK = { shape: 'circle' as Shape, tone: '#6b7280' };
 
 export function rarityGlyph(rarity: string) {
   return RULES.find((r) => r.test.test(rarity)) ?? FALLBACK;
+}
+
+/** The shapes that are a star of some kind — everything the printed symbol marks as rare. */
+const STARRED: Shape[] = ['star', 'double-star', 'crown'];
+
+/**
+ * Whether a rarity is drawn with a star, which is the same question as whether it is rare.
+ * Read off the glyph rules above rather than matched separately, so the card that shows a
+ * star in the sidebar is exactly the card that catches star-shaped light in the tilt view.
+ * Promos are excluded by having a shape of their own: a promo is a distribution channel, and
+ * a promo of a Common is still a Common.
+ */
+export function isStarRarity(rarity: string | null | undefined) {
+  return rarity ? STARRED.includes(rarityGlyph(rarity).shape) : false;
 }
 
 export function RarityIcon({ rarity }: { rarity: string; active?: boolean }) {

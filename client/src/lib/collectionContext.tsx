@@ -7,7 +7,13 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { createCollectionBox, fetchCollectionBoxes, setCollectionBoxColor } from './api';
+import {
+  createCollectionBox,
+  fetchCollectionBoxes,
+  reorderCollectionBoxes,
+  setCollectionBoxColor,
+  setCollectionBoxIcon,
+} from './api';
 import type { CollectionBox, ContainerType } from '../types';
 
 interface CollectionContextValue {
@@ -19,6 +25,8 @@ interface CollectionContextValue {
   refresh: () => Promise<void>;
   createBox: (name: string, type?: ContainerType, color?: string | null) => Promise<CollectionBox>;
   setBoxColor: (boxId: number, color: string | null) => Promise<void>;
+  setBoxIcon: (boxId: number, icon: string | null) => Promise<void>;
+  reorderBoxes: (ids: number[]) => Promise<void>;
   setLastUsedBoxId: (id: number) => void;
 }
 
@@ -56,14 +64,36 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
     setBoxes((prev) => prev.map((b) => (b.id === boxId ? { ...b, color } : b)));
   }, []);
 
+  const setBoxIcon = useCallback(async (boxId: number, icon: string | null) => {
+    await setCollectionBoxIcon(boxId, icon);
+    setBoxes((prev) => prev.map((b) => (b.id === boxId ? { ...b, icon } : b)));
+  }, []);
+
+  /**
+   * Applies the new order locally first, then persists it. Waiting for the round trip would
+   * make a drag snap back before settling, which reads as the drag having failed.
+   */
+  const reorderBoxes = useCallback(async (ids: number[]) => {
+    setBoxes((prev) => {
+      const byId = new Map(prev.map((b) => [b.id, b]));
+      const ordered = ids.map((id) => byId.get(id)).filter((b): b is CollectionBox => !!b);
+      const rest = prev.filter((b) => !ids.includes(b.id));
+      return [...ordered, ...rest].map((b, i) => ({ ...b, position: i }));
+    });
+    await reorderCollectionBoxes(ids);
+  }, []);
+
   const setLastUsedBoxId = useCallback((id: number) => setLastUsedBoxIdState(id), []);
 
   // Memoised so consumers only re-render when the collection actually changes — a fresh
   // object literal here would invalidate every consumer on each provider render, including
   // the browsers' query schema (which is keyed off `boxes`) and with it their filter memo.
   const value = useMemo(
-    () => ({ boxes, lastUsedBoxId, pricesUpdatedAt, loading, refresh, createBox, setBoxColor, setLastUsedBoxId }),
-    [boxes, lastUsedBoxId, pricesUpdatedAt, loading, refresh, createBox, setBoxColor, setLastUsedBoxId],
+    () => ({
+      boxes, lastUsedBoxId, pricesUpdatedAt, loading, refresh, createBox,
+      setBoxColor, setBoxIcon, reorderBoxes, setLastUsedBoxId,
+    }),
+    [boxes, lastUsedBoxId, pricesUpdatedAt, loading, refresh, createBox, setBoxColor, setBoxIcon, reorderBoxes, setLastUsedBoxId],
   );
 
   return <CollectionContext.Provider value={value}>{children}</CollectionContext.Provider>;

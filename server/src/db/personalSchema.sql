@@ -13,7 +13,17 @@ CREATE TABLE IF NOT EXISTS collection_boxes (
   name TEXT NOT NULL UNIQUE,
   type TEXT NOT NULL DEFAULT 'box',
   color TEXT,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  -- Which glyph stands for this collection. One of:
+  --   'pokeball'        the default
+  --   'set:<setId>'     that expansion's printed symbol
+  --   'rarity:<shape>'  one of the drawn rarity symbols
+  -- Stored as a string rather than separate columns because it is one choice, and a null
+  -- here simply means the default rather than an incomplete row.
+  icon TEXT,
+  -- Manual ordering on the collection page. Null sorts last, which is where a collection
+  -- created before ordering existed belongs until the user places it.
+  position INTEGER
 );
 
 -- One row per (box, card, variant) — adding the same card and variant to the same box
@@ -40,6 +50,49 @@ CREATE TABLE IF NOT EXISTS collection_entries (
   -- (box, card, printing) that would collapse them back into a count.
   variant_position INTEGER
 );
+
+-- Want lists: cards the user is looking for, as opposed to cards they have.
+--
+-- Deliberately NOT collection_boxes rows with a different `type`. Everything that reads a
+-- box treats its entries as owned copies — /boxes sums their prices into the collection's
+-- worth, and a card's inBoxes drives the "in your collection" badge. Filing wants in the
+-- same table would inflate what the collection is worth and mark a card owned because it
+-- was wished for. Separate tables mean no existing aggregate has to learn to exclude them.
+--
+-- A list can be built by hand, or from a Cards-browser filter. When it comes from a filter
+-- the query is kept so the list can be re-run later; `live` is what decides whether it is.
+CREATE TABLE IF NOT EXISTS want_lists (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  color TEXT,
+  -- The Cards-browser filter this was built from, stored as its query string. NULL for a
+  -- list assembled by tapping cards.
+  query TEXT,
+  -- 0: the query was a one-time snapshot and the list only changes when the user changes
+  -- it. 1: re-run the query and absorb anything new that matches, so a set released next
+  -- year lands in the list on its own.
+  live INTEGER NOT NULL DEFAULT 0,
+  last_synced_at TEXT,
+  created_at TEXT NOT NULL
+);
+
+-- One row per card — a want list records THAT a card is wanted, not how many, so there is
+-- no quantity and no printing here. Wanting a specific printing is a different feature.
+--
+-- state 'excluded' is a tombstone rather than a deleted row: on a live list the query would
+-- otherwise put a card straight back the next time it ran, and taking something off a list
+-- has to mean it stays off. Rows for hand-built lists are simply deleted instead.
+CREATE TABLE IF NOT EXISTS want_list_entries (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  list_id INTEGER NOT NULL REFERENCES want_lists(id) ON DELETE CASCADE,
+  card_id TEXT NOT NULL,
+  added_at TEXT NOT NULL,
+  state TEXT NOT NULL DEFAULT 'want',
+  UNIQUE (list_id, card_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_want_list_entries_list ON want_list_entries(list_id);
+CREATE INDEX IF NOT EXISTS idx_want_list_entries_card ON want_list_entries(card_id);
 
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,

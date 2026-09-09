@@ -255,6 +255,28 @@ export interface LinkedAccount {
   keyHint: string | null;
   linkedAt: string | null;
   lastVerifiedAt: string | null;
+  /** Last observed API allowance, for providers that report one. Null until one is seen. */
+  quota: ApiQuota | null;
+}
+
+/**
+ * An API allowance as the provider last reported it.
+ *
+ * Every field is nullable because it comes from response headers, and a provider that stops
+ * sending one shouldn't turn the whole reading into a lie — the UI shows what it has.
+ */
+export interface ApiQuota {
+  dailyLimit: number | null;
+  dailyRemaining: number | null;
+  /** Credits bought on top of the daily allowance; these don't reset. */
+  purchasedRemaining: number | null;
+  totalRemaining: number | null;
+  minuteLimit: number | null;
+  minuteRemaining: number | null;
+  resetsAt: string | null;
+  observedAt: string;
+  /** The allowance has reset since this was taken, so `dailyRemaining` is understated. */
+  stale: boolean;
 }
 
 export interface PricePoint {
@@ -292,11 +314,18 @@ export interface CardPriceHistory {
 
 export type ContainerType = 'box' | 'deck' | 'collection';
 
+/** The drawn rarity symbols, re-exported so callers needn't import from a component. */
+export type Shape = 'circle' | 'diamond' | 'star' | 'double-star' | 'crown' | 'promo';
+
 export interface CollectionBox {
   id: number;
   name: string;
   type: ContainerType;
   color: string | null;
+  /** 'pokeball' (or null), 'set:<setId>', or 'rarity:<shape>'. */
+  icon: string | null;
+  /** Manual order on the collection page; null means never placed. */
+  position: number | null;
   createdAt: string;
   cardCount: number;
   totalQuantity: number;
@@ -417,4 +446,81 @@ export interface SourceState {
 export interface SyncStatus {
   active: { source: string; logId: number } | null;
   history: SyncLogEntry[];
+}
+
+/**
+ * A want list: cards being looked for, as opposed to cards owned.
+ *
+ * `query` is the Cards-browser filter it was built from, kept so the list can be re-run.
+ * `live` decides whether it actually is — off, the list is the snapshot taken when it was
+ * created and only changes when you change it; on, anything newly matching is absorbed.
+ */
+export interface WantList {
+  id: number;
+  name: string;
+  color: string | null;
+  query: string | null;
+  live: boolean;
+  lastSyncedAt: string | null;
+  createdAt: string;
+  wantedCount: number;
+  /** How many of the wanted cards are already in some collection. */
+  ownedCount: number;
+}
+
+export interface WantListCard {
+  id: string;
+  name: string;
+  number: string | null;
+  setId: string | null;
+  setName: string | null;
+  series: string | null;
+  rarity: string | null;
+  supertype: string | null;
+  illustrator: string | null;
+  releaseDate: string | null;
+  imageSmall: string | null;
+  imageLarge: string | null;
+  pokemonId: number | null;
+  pokemonName: string | null;
+  /** Empty means you don't own it — the client ghosts those. */
+  inBoxes: CollectionBoxRef[];
+}
+
+export interface WantListDetail extends Omit<WantList, 'wantedCount'> {
+  cards: WantListCard[];
+}
+
+/** Which want lists hold a given card, keyed by card id. */
+export type WantsByCard = Record<string, { listId: number; listName: string }[]>;
+
+/** One kind of data in a database, sized from SQLite's own page accounting. */
+export interface StorageItem {
+  id: string;
+  label: string;
+  description: string;
+  bytes: number;
+  /** Rows of the representative table, or 0 where a count would mean nothing. */
+  count: number;
+  countLabel: string;
+}
+
+export interface StorageDatabase {
+  id: string;
+  label: string;
+  file: string;
+  /** Database plus journal. */
+  onDisk: number;
+  main: number;
+  /** Write-ahead log and shared-memory index; a checkpoint collapses these. */
+  wal: number;
+  /** Sum of the items — the actual data. */
+  used: number;
+  /** Pages freed by deletes that SQLite keeps for reuse rather than returning to the OS. */
+  free: number;
+  items: StorageItem[];
+}
+
+export interface StorageReport {
+  databases: StorageDatabase[];
 }

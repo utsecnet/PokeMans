@@ -5,6 +5,7 @@ import { TypeBadge } from './TypeBadge';
 import { CardLocationBadge } from './CardLocationBadge';
 import { PriceHistoryChart } from './PriceHistoryChart';
 import { TiltCard } from './TiltCard';
+import { isStarRarity } from './RarityIcon';
 
 /**
  * The card view, opened from anywhere a card is clickable.
@@ -117,6 +118,7 @@ export function CardLightbox({
             alt={card.name}
             label={`${card.name} — enlarge`}
             imageRef={imageRef}
+            stars={isStarRarity(card.rarity)}
             onActivate={() => setExpanded(true)}
             className="mx-auto w-full shrink-0 cursor-zoom-in self-start sm:w-1/2"
             imageClassName="max-h-[70vh]"
@@ -197,6 +199,7 @@ export function CardLightbox({
             alt={card.name}
             label={`${card.name} — shrink`}
             onActivate={() => setExpanded(false)}
+            stars={isStarRarity(card.rarity)}
             maxTilt={16}
             className="cursor-zoom-out"
             imageClassName="max-h-[92vh]"

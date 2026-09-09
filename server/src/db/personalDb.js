@@ -266,6 +266,26 @@ function migratePriceHistoryPositions() {
 
 migratePriceHistoryPositions();
 
+// Per-collection appearance and manual ordering, both added after the table existed. Plain
+// ALTER TABLE is enough: they are new nullable columns, and null already means "the default
+// icon" and "not placed yet".
+function migrateCollectionBoxAppearance() {
+  const columns = personalDb.prepare('PRAGMA table_info(collection_boxes)').all();
+  if (columns.length === 0) return;
+  if (!columns.some((c) => c.name === 'icon')) {
+    personalDb.exec('ALTER TABLE collection_boxes ADD COLUMN icon TEXT');
+  }
+  if (!columns.some((c) => c.name === 'position')) {
+    personalDb.exec('ALTER TABLE collection_boxes ADD COLUMN position INTEGER');
+    // Seed the order from the order they were created, so the page looks unchanged until
+    // something is actually dragged. Without this every existing collection would sort as
+    // "unplaced" at once and the first drag would appear to shuffle the rest.
+    personalDb.exec('UPDATE collection_boxes SET position = id WHERE position IS NULL');
+  }
+}
+
+migrateCollectionBoxAppearance();
+
 export function personalAll(sql, params = {}) {
   return personalDb.prepare(sql).all(params);
 }

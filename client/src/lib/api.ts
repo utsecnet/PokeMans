@@ -1,4 +1,6 @@
 import type {
+  ApiQuota,
+  StorageReport,
   CardFilters,
   CardListItem,
   CardPriceHistory,
@@ -16,6 +18,9 @@ import type {
   StatKey,
   SourceState,
   SyncStatus,
+  WantList,
+  WantListDetail,
+  WantsByCard,
 } from '../types';
 import { cap } from './format';
 
@@ -119,31 +124,43 @@ export interface CardListParams {
   signal?: AbortSignal;
 }
 
+/**
+ * A card filter as query-string parameters.
+ *
+ * Split out of fetchCards because a want list built from a filter stores this string and
+ * re-runs it later, possibly months later. Serialising it twice would mean two definitions
+ * of what a filter is, and a live list would drift from what the browser shows the first
+ * time either gained a field. Sort is left out deliberately: a want list is a set, and the
+ * order cards were listed in when it was created has no bearing on membership.
+ */
+export function cardFilterParams(filters: Partial<CardFilters> | undefined): URLSearchParams {
+  const query = new URLSearchParams();
+  if (!filters) return query;
+  if (filters.search) query.set('search', filters.search);
+  if (filters.expansions?.length) query.set('expansions', filters.expansions.join(','));
+  if (filters.series?.length) query.set('series', filters.series.join(','));
+  if (filters.rarities?.length) query.set('rarities', filters.rarities.join(','));
+  if (filters.types?.length) query.set('types', filters.types.join(','));
+  if (filters.generations?.length) query.set('generations', filters.generations.join(','));
+  if (filters.supertypes?.length) query.set('supertypes', filters.supertypes.join(','));
+  if (filters.illustrators?.length) query.set('illustrators', filters.illustrators.join(','));
+  if (filters.owned !== null && filters.owned !== undefined) {
+    query.set('owned', String(filters.owned));
+  }
+  return query;
+}
+
 export function fetchCards({
   page,
   pageSize,
   filters,
   signal,
 }: CardListParams = {}): Promise<CardListResponse> {
-  const query = new URLSearchParams();
+  const query = cardFilterParams(filters);
   if (page) query.set('page', String(page));
   if (pageSize) query.set('pageSize', String(pageSize));
-
-  if (filters) {
-    if (filters.search) query.set('search', filters.search);
-    if (filters.expansions?.length) query.set('expansions', filters.expansions.join(','));
-    if (filters.series?.length) query.set('series', filters.series.join(','));
-    if (filters.rarities?.length) query.set('rarities', filters.rarities.join(','));
-    if (filters.types?.length) query.set('types', filters.types.join(','));
-    if (filters.generations?.length) query.set('generations', filters.generations.join(','));
-    if (filters.supertypes?.length) query.set('supertypes', filters.supertypes.join(','));
-    if (filters.illustrators?.length) query.set('illustrators', filters.illustrators.join(','));
-    if (filters.owned !== null && filters.owned !== undefined) {
-      query.set('owned', String(filters.owned));
-    }
-    if (filters.sortChain?.length) {
-      query.set('sort', filters.sortChain.map((r) => `${r.field}:${r.dir}`).join(','));
-    }
+  if (filters?.sortChain?.length) {
+    query.set('sort', filters.sortChain.map((r) => `${r.field}:${r.dir}`).join(','));
   }
 
   return fetch(`/api/cards?${query.toString()}`, { signal }).then(json<CardListResponse>);
@@ -293,6 +310,23 @@ export function setCollectionBoxColor(
   }).then(json<{ ok: boolean }>);
 }
 
+export function setCollectionBoxIcon(boxId: number, icon: string | null): Promise<{ ok: boolean }> {
+  return fetch(`/api/collection/boxes/${boxId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ icon }),
+  }).then(json<{ ok: boolean }>);
+}
+
+/** Sets the manual order from the arrangement the page is currently showing. */
+export function reorderCollectionBoxes(ids: number[]): Promise<{ ok: boolean }> {
+  return fetch('/api/collection/boxes/reorder', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids }),
+  }).then(json<{ ok: boolean }>);
+}
+
 export function deleteCollectionBox(boxId: number): Promise<{ ok: boolean }> {
   return fetch(`/api/collection/boxes/${boxId}`, { method: 'DELETE' }).then(json<{ ok: boolean }>);
 }
@@ -342,4 +376,87 @@ export function removeCollectionEntry(entryId: number): Promise<{ ok: boolean }>
   return fetch(`/api/collection/entries/${entryId}`, { method: 'DELETE' }).then(
     json<{ ok: boolean }>,
   );
+}
+
+/* ---------------------------------------------------------------- want lists */
+
+export function fetchWantLists(): Promise<{ lists: WantList[] }> {
+  return fetch('/api/wants').then(json<{ lists: WantList[] }>);
+}
+
+export function fetchWantList(listId: number): Promise<WantListDetail> {
+  return fetch(`/api/wants/${listId}`).then(json<WantListDetail>);
+}
+
+/**
+ * Creates a want list. Passing `query` seeds it with everything that filter currently
+ * matches; `live` additionally re-runs that filter later, so cards printed after today can
+ * join the list on their own.
+ */
+export function createWantList(
+  name: string,
+  color: string | null = null,
+  query: string | null = null,
+  live = false,
+): Promise<WantList & { seeded: number }> {
+  return fetch('/api/wants', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, color, query, live }),
+  }).then(json<WantList & { seeded: number }>);
+}
+
+export function updateWantList(
+  listId: number,
+  patch: { name?: string; color?: string | null; live?: boolean },
+): Promise<WantList & { added: number }> {
+  return fetch(`/api/wants/${listId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  }).then(json<WantList & { added: number }>);
+}
+
+export function deleteWantList(listId: number): Promise<void> {
+  return fetch(`/api/wants/${listId}`, { method: 'DELETE' }).then(() => undefined);
+}
+
+/** Re-runs a live list's filter now rather than waiting until it is next opened. */
+export function refreshWantList(listId: number): Promise<WantList & { added: number }> {
+  return fetch(`/api/wants/${listId}/refresh`, { method: 'POST' }).then(
+    json<WantList & { added: number }>,
+  );
+}
+
+export function addToWantList(listId: number, cardId: string): Promise<{ cardId: string }> {
+  return fetch(`/api/wants/${listId}/cards`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ cardId }),
+  }).then(json<{ cardId: string }>);
+}
+
+export function removeFromWantList(listId: number, cardId: string): Promise<void> {
+  return fetch(`/api/wants/${listId}/cards/${encodeURIComponent(cardId)}`, {
+    method: 'DELETE',
+  }).then(() => undefined);
+}
+
+export function fetchWantsByCard(): Promise<{ byCard: WantsByCard }> {
+  return fetch('/api/wants/meta/by-card').then(json<{ byCard: WantsByCard }>);
+}
+
+/**
+ * Re-reads a provider's remaining allowance. Costs one call against that allowance, which
+ * is why it is a deliberate action rather than something the Settings page does on load.
+ */
+export function refreshAccountQuota(service: string): Promise<{ quota: ApiQuota | null }> {
+  return fetch(`/api/settings/linked-accounts/${service}/quota`, { method: 'POST' }).then(
+    json<{ quota: ApiQuota | null }>,
+  );
+}
+
+/** How much of each kind of data the databases hold. Measured on request, not cached. */
+export function fetchStorage(): Promise<StorageReport> {
+  return fetch('/api/settings/storage').then(json<StorageReport>);
 }

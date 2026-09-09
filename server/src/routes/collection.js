@@ -79,13 +79,15 @@ export function latestPricesFor(entries) {
 
 collectionRouter.get('/boxes', (_req, res) => {
   const boxes = personalAll(
-    `SELECT b.id, b.name, b.type, b.color, b.created_at as createdAt,
+    `SELECT b.id, b.name, b.type, b.color, b.icon, b.position, b.created_at as createdAt,
             COUNT(DISTINCT e.card_id) as cardCount,
             COUNT(e.id) as totalQuantity
      FROM collection_boxes b
      LEFT JOIN collection_entries e ON e.box_id = b.id
      GROUP BY b.id
-     ORDER BY b.created_at`,
+     -- The user's own order first; anything never placed falls to the end in creation
+     -- order rather than jumping to the front on a null.
+     ORDER BY b.position IS NULL, b.position, b.created_at`,
   );
 
   // Valued in JS from the same helper the box view uses, rather than a second copy of the
@@ -174,12 +176,53 @@ collectionRouter.patch('/boxes/:id', (req, res) => {
     params.color = req.body.color ? String(req.body.color) : null;
   }
 
+  if (req.body?.icon !== undefined) {
+    const icon = req.body.icon ? String(req.body.icon) : null;
+    // Shape-checked rather than matched against the drawn set: the client owns that list,
+    // and an icon retired there should fall back to the default rather than make a rename
+    // fail. Anything unknown renders as the Poke Ball.
+    if (icon !== null && !/^[a-z0-9-]{1,32}$/.test(icon)) {
+      res.status(400).json({ error: 'unrecognised icon' });
+      return;
+    }
+    updates.push('icon = @icon');
+    params.icon = icon === 'pokeball' ? null : icon;
+  }
+
   if (updates.length === 0) {
-    res.status(400).json({ error: 'name or color is required' });
+    res.status(400).json({ error: 'name, color or icon is required' });
     return;
   }
 
   personalRun(`UPDATE collection_boxes SET ${updates.join(', ')} WHERE id = @id`, params);
+  res.json({ ok: true });
+});
+
+/**
+ * Sets the manual order from a list of ids, front to back.
+ *
+ * Takes the whole order rather than "move box 4 to slot 2" so the result can't drift from
+ * what the user is looking at: the client sends the arrangement it just rendered, and any
+ * collection it didn't mention keeps its place after the ones it did.
+ */
+collectionRouter.post('/boxes/reorder', (req, res) => {
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(Number).filter(Number.isFinite) : null;
+  if (!ids || ids.length === 0) {
+    res.status(400).json({ error: 'ids must be a non-empty array' });
+    return;
+  }
+  ids.forEach((id, index) => {
+    personalRun('UPDATE collection_boxes SET position = @position WHERE id = @id', {
+      position: index,
+      id,
+    });
+  });
+  // Anything not listed goes after everything that was, keeping its relative order.
+  personalRun(
+    `UPDATE collection_boxes SET position = @base + id
+     WHERE id NOT IN (${ids.map((_, i) => `@id${i}`).join(', ')})`,
+    { base: ids.length, ...Object.fromEntries(ids.map((id, i) => [`id${i}`, id])) },
+  );
   res.json({ ok: true });
 });
 
