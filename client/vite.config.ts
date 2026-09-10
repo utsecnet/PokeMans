@@ -15,6 +15,11 @@ export default defineConfig(({ mode }) => {
     plugins: [react(), tailwindcss()],
     server: {
       port: Number(env.CLIENT_PORT) || 5173,
+      // Fail rather than slide to the next free port. A checkout that was never given a
+      // CLIENT_PORT lands on an occupied 5173, quietly moves to 5174, and looks fine — until
+      // its /api calls go nowhere, because the proxy below still points at this checkout's
+      // own API port. Better to refuse to start and say why.
+      strictPort: true,
       proxy: {
         '/api': `http://localhost:${apiPort}`,
       },
