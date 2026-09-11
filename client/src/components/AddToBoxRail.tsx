@@ -358,26 +358,23 @@ export function AddToBoxRail({
         </div>
 
         <form onSubmit={handleCreate} className="mt-3 flex flex-col gap-1 border-t border-[var(--color-border)] pt-2">
-          <input
-            type="text"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder={isWant ? 'New want list…' : 'New collection…'}
-            className="rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs outline-none focus:border-[var(--color-accent)]"
-          />
-          <div className="flex flex-wrap gap-1">
-            {COLLECTION_COLORS.map((c) => (
-              <button
-                key={c.key}
-                type="button"
-                title={c.label}
-                onClick={() => setNewColor(newColor === c.key ? null : c.key)}
-                className={`h-4 w-4 rounded-full transition ${
-                  newColor === c.key ? 'ring-2 ring-offset-1 ring-[var(--color-text)] ring-offset-[var(--color-surface)]' : ''
-                }`}
-                style={{ backgroundColor: c.hex }}
-              />
-            ))}
+          {/* The colour sits on the left edge of the field it belongs to, rather than as a row
+              of ten swatches beneath it. Same dot every existing collection already carries,
+              so picking a colour is one gesture everywhere in the rail instead of two — and
+              the rail is narrow enough that ten swatches cost a line of its height. */}
+          <div className="flex items-center gap-1.5 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 focus-within:border-[var(--color-accent)]">
+            <ColorDot
+              color={newColor}
+              onPick={setNewColor}
+              title={isWant ? 'Colour for the new want list' : 'Colour for the new collection'}
+            />
+            <input
+              type="text"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder={isWant ? 'New want list…' : 'New collection…'}
+              className="min-w-0 flex-1 bg-transparent text-xs outline-none"
+            />
           </div>
           <button
             type="submit"
