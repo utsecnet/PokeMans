@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { localSprite, localiseSprites } from '../lib/artwork.js';
+import { localArtwork, localSprite, localiseSprites } from '../lib/artwork.js';
 import { all, get } from '../db/index.js';
 import { attachCollection } from '../lib/collectionInfo.js';
 import { typesByPokemon } from '../lib/pokemonTypes.js';
@@ -48,7 +48,7 @@ function buildEvolutionNode(pokemonId, transition = {}, seen = new Set()) {
     id: p.id,
     name: p.name,
     spriteUrl: localSprite(p.spriteUrl),
-    artworkUrl: p.artworkUrl,
+    artworkUrl: localArtwork(p.artworkUrl),
     types,
     trigger: transition.trigger ?? null,
     minLevel: transition.minLevel ?? null,
@@ -348,7 +348,13 @@ function buildVariantSummary(variantId) {
      WHERE pt.pokemon_id = @id ORDER BY pt.slot`,
     { id: variantId },
   ).map((r) => r.name);
-  return { ...p, spriteUrl: localSprite(p.spriteUrl), types, evolutionChain: buildEvolutionChain(variantId) };
+  return {
+    ...p,
+    spriteUrl: localSprite(p.spriteUrl),
+    artworkUrl: localArtwork(p.artworkUrl),
+    types,
+    evolutionChain: buildEvolutionChain(variantId),
+  };
 }
 
 pokemonRouter.get('/:id', (req, res) => {
@@ -368,6 +374,7 @@ pokemonRouter.get('/:id', (req, res) => {
   }
 
   pokemon.spriteUrl = localSprite(pokemon.spriteUrl);
+  pokemon.artworkUrl = localArtwork(pokemon.artworkUrl);
 
   const types = all(
     `SELECT t.name FROM pokemon_types pt JOIN types t ON t.id = pt.type_id
