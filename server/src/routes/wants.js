@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { localiseCardLarge, localiseCards } from '../lib/artwork.js';
+import { localCard, localiseCardLarge, localiseCards } from '../lib/artwork.js';
 import { all } from '../db/index.js';
 import { personalAll, personalGet, personalRun } from '../db/personalDb.js';
 import { cardIdsMatching } from '../lib/cardFilter.js';
@@ -47,6 +47,9 @@ function listRow(id) {
  * collection_entries rather than stored, so acquiring a card updates every list holding it
  * without anything having to write to those lists.
  */
+/** How many cards a tile previews. Past four they are too small to recognise. */
+const PREVIEW_CARDS = 4;
+
 wantsRouter.get('/', (_req, res) => {
   const lists = personalAll(
     `SELECT id, name, color, query, live, last_synced_at as lastSyncedAt, created_at as createdAt
@@ -67,12 +70,30 @@ wantsRouter.get('/', (_req, res) => {
   const wanted = byId(counts);
   const have = byId(owned);
 
+  // A few cards from each list, carrying whether each one is already owned. The detail page
+  // shows a card you own in full colour and one you do not in grey; the tile does the same, so
+  // the preview is the progress bar rather than an illustration sitting above one.
+  const members = personalAll(
+    `SELECT list_id AS listId, card_id AS cardId,
+            CASE WHEN card_id IN (SELECT card_id FROM collection_entries) THEN 1 ELSE 0 END AS owned
+     FROM want_list_entries WHERE state = 'want' ORDER BY list_id, id`,
+  );
+  const previewByList = new Map();
+  for (const m of members) {
+    const shown = previewByList.get(m.listId) ?? [];
+    if (shown.length >= PREVIEW_CARDS) continue;
+    const url = localCard(m.cardId);
+    if (url) shown.push({ url, owned: Boolean(m.owned) });
+    previewByList.set(m.listId, shown);
+  }
+
   res.json({
     lists: lists.map((l) => ({
       ...l,
       live: Boolean(l.live),
       wantedCount: wanted.get(l.id) ?? 0,
       ownedCount: have.get(l.id) ?? 0,
+      preview: previewByList.get(l.id) ?? [],
     })),
   });
 });

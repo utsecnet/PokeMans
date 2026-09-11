@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { localiseCardLarge, localiseCards } from '../lib/artwork.js';
+import { localCard, localiseCardLarge, localiseCards } from '../lib/artwork.js';
 import { all as syncAll } from '../db/index.js';
 import { personalAll, personalGet, personalRun } from '../db/personalDb.js';
 import { capturePricesForCard, lastPriceSyncAt } from '../sync/prices.js';
@@ -78,6 +78,9 @@ export function latestPricesFor(entries) {
   return best;
 }
 
+/** How many cards a tile previews. Past four they are too small to recognise. */
+const PREVIEW_CARDS = 4;
+
 collectionRouter.get('/boxes', (_req, res) => {
   const boxes = personalAll(
     `SELECT b.id, b.name, b.type, b.color, b.icon, b.position, b.created_at as createdAt,
@@ -96,7 +99,7 @@ collectionRouter.get('/boxes', (_req, res) => {
   // reporting several times what a box was worth.
   const entries = personalAll(
     `SELECT box_id AS boxId, card_id AS cardId, variant_position AS variantPosition
-       FROM collection_entries`,
+       FROM collection_entries ORDER BY id`,
   );
   const prices = latestPricesFor(entries);
   const valueByBox = new Map();
@@ -112,6 +115,21 @@ collectionRouter.get('/boxes', (_req, res) => {
       (e) => e.boxId === box.id && prices.get(`${e.cardId}:${e.variantPosition}`) == null,
     ).length;
   }
+  // A few cards from each box, so a tile can show what is in it rather than an icon that
+  // stands for it. Built from the entries already loaded above for the value sum — no extra
+  // query — and capped, because a tile can only show a handful before they stop being legible.
+  const previewByBox = new Map();
+  for (const entry of entries) {
+    const shown = previewByBox.get(entry.boxId) ?? [];
+    if (shown.length >= PREVIEW_CARDS || shown.some((p) => p.cardId === entry.cardId)) continue;
+    const url = localCard(entry.cardId);
+    if (url) shown.push({ cardId: entry.cardId, url });
+    previewByBox.set(entry.boxId, shown);
+  }
+  for (const box of boxes) {
+    box.preview = (previewByBox.get(box.id) ?? []).map((p) => p.url);
+  }
+
   res.json({
     boxes,
     lastUsedBoxId: getLastUsedBoxId(),

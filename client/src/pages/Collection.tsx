@@ -8,6 +8,7 @@ import { CollectionIconPicker } from '../components/CollectionIconPicker';
 import { useWants } from '../lib/wantContext';
 import { createUndoQueue } from '../lib/undoQueue';
 import { collectionColorHex } from '../lib/collectionColors';
+import { CardFan } from '../components/CardFan';
 import { PokeballIcon } from '../components/PokeballIcon';
 
 const UNDO_WINDOW_MS = 6000;
@@ -258,7 +259,7 @@ export function Collection() {
   const totalValue = visibleBoxes.reduce((sum, b) => sum + (b.valueUsd ?? 0), 0);
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6">
+    <div className="mx-auto max-w-7xl px-4 py-6">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h1 className="text-2xl font-bold">{isWants ? 'Want lists' : 'My Collection'}</h1>
         {totalValue > 0 && !isWants && (
@@ -310,7 +311,7 @@ export function Collection() {
         ))}
       </div>
 
-      <form onSubmit={handleCreate} className="mt-6 flex gap-2">
+      <form onSubmit={handleCreate} className="mt-6 flex max-w-md gap-2">
         <input
           type="text"
           value={newBoxName}
@@ -366,7 +367,7 @@ export function Collection() {
       )}
 
       {isWants && (
-        <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+        <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {visibleLists.map((list) => {
             const hex = collectionColorHex(list.color);
             const pct = list.wantedCount > 0 ? (list.ownedCount / list.wantedCount) * 100 : 0;
@@ -385,12 +386,19 @@ export function Collection() {
                   ×
                 </button>
                 <Link to={`/wants/${list.id}`} className="flex flex-col items-center gap-2">
-                  <PokeballIcon
-                    className={`h-10 w-10 ${hex ? '' : 'text-[var(--color-accent)]'}`}
-                    strokeWidth={1.5}
-                    dashed
-                    style={hex ? { color: hex } : undefined}
-                  />
+                  {/* The cards themselves, greyed until owned — the same rule the detail page
+                      states in words, so the tile reads as progress rather than illustrating
+                      a number printed beneath it. */}
+                  {list.preview && list.preview.length > 0 ? (
+                    <CardFan cards={list.preview.map((p) => ({ url: p.url, dimmed: !p.owned }))} />
+                  ) : (
+                    <PokeballIcon
+                      className={`h-10 w-10 ${hex ? '' : 'text-[var(--color-accent)]'}`}
+                      strokeWidth={1.5}
+                      dashed
+                      style={hex ? { color: hex } : undefined}
+                    />
+                  )}
                   <span className="font-semibold">{list.name}</span>
                   <span className="text-xs text-[var(--color-text-muted)]">
                     {list.ownedCount} of {list.wantedCount} found
@@ -430,7 +438,7 @@ export function Collection() {
           e.preventDefault();
           endDrag();
         }}
-        className={`mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4${isWants ? ' hidden' : ''}`}
+        className={`mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5${isWants ? ' hidden' : ''}`}
       >
         {previewBoxes.map((box) => {
           const hex = collectionColorHex(box.color);
@@ -485,8 +493,11 @@ export function Collection() {
 
 
               <Link to={`/collection/${box.id}`} className="flex flex-col items-center gap-2">
-                {/* The icon is a button in its own right, so it can't also be the link. */}
-                <span className="h-10 w-10" />
+                {/* What is actually in it. A tile used to show an icon standing for the
+                    collection; this shows the collection. */}
+                {box.preview && box.preview.length > 0 && (
+                  <CardFan cards={box.preview.map((url) => ({ url }))} />
+                )}
                 <span className="font-semibold">{box.name}</span>
                 <span className="text-xs text-[var(--color-text-muted)]">
                   {box.cardCount} card{box.cardCount === 1 ? '' : 's'}
@@ -506,17 +517,17 @@ export function Collection() {
                 onClick={() => setEditingIcon(editingIcon === box.id ? null : box.id)}
                 title="Change icon and colour"
                 aria-label={`Change ${box.name} icon`}
-                className="absolute left-1/2 top-5 z-10 -translate-x-1/2 rounded-lg p-0.5 transition hover:bg-[var(--color-bg)]"
+                className="absolute left-1.5 top-1.5 z-10 rounded-lg p-1 transition hover:bg-[var(--color-bg)]"
               >
                 <CollectionIcon
                   icon={box.icon}
                   color={hex}
-                  className={`h-10 w-10 ${hex ? '' : 'text-[var(--color-accent)]'}`}
+                  className={`h-5 w-5 ${hex ? '' : 'text-[var(--color-accent)]'}`}
                 />
               </button>
 
               {editingIcon === box.id && (
-                <div className="absolute left-1/2 top-16 z-30 -translate-x-1/2">
+                <div className="absolute left-0 top-9 z-30">
                   <CollectionIconPicker
                     icon={box.icon}
                     color={box.color}

@@ -335,6 +335,8 @@ export interface CollectionBox {
   valueUsd: number;
   /** Copies that can't be valued yet, almost always because no printing is recorded. */
   unpriced: number;
+  /** A few card images from the box, for the tile to show what is in it. */
+  preview: string[];
 }
 
 export interface CollectionBoxesResponse {
@@ -468,6 +470,8 @@ export interface WantList {
   wantedCount: number;
   /** How many of the wanted cards are already in some collection. */
   ownedCount: number;
+  /** A few wanted cards, each flagged with whether it is owned, for the tile. */
+  preview: { url: string; owned: boolean }[];
 }
 
 export interface WantListCard {
