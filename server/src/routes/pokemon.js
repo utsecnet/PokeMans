@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { localArtwork, localSprite, localiseSprites } from '../lib/artwork.js';
+import { localArtwork, localSprite, localiseCards, localiseSprites } from '../lib/artwork.js';
 import { all, get } from '../db/index.js';
 import { attachCollection } from '../lib/collectionInfo.js';
 import { typesByPokemon } from '../lib/pokemonTypes.js';
@@ -399,14 +399,16 @@ pokemonRouter.get('/:id', (req, res) => {
   const evolutionChain = buildEvolutionChain(id);
 
   const tcgCards = attachCollection(
-    all(
-      `SELECT c.id, c.name, c.number, c.set_id as setId, c.set_name as setName, c.series, c.rarity,
-              c.release_date as releaseDate,
-              COALESCE(c.image_webp, c.image_small) as imageSmall, c.image_large as imageLarge
-       FROM tcg_card_pokemon tcp JOIN tcg_cards c ON c.id = tcp.card_id
-       WHERE tcp.pokemon_id = @id
-       ORDER BY c.release_date, c.set_name, c.number`,
-      { id },
+    localiseCards(
+      all(
+        `SELECT c.id, c.name, c.number, c.set_id as setId, c.set_name as setName, c.series, c.rarity,
+                c.release_date as releaseDate,
+                COALESCE(c.image_webp, c.image_small) as imageSmall, c.image_large as imageLarge
+         FROM tcg_card_pokemon tcp JOIN tcg_cards c ON c.id = tcp.card_id
+         WHERE tcp.pokemon_id = @id
+         ORDER BY c.release_date, c.set_name, c.number`,
+        { id },
+      ),
     ),
   );
 

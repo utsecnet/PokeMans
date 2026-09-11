@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { localiseCards } from '../lib/artwork.js';
 import { all } from '../db/index.js';
 import { personalAll, personalGet, personalRun } from '../db/personalDb.js';
 import { cardIdsMatching } from '../lib/cardFilter.js';
@@ -244,7 +245,7 @@ wantsRouter.get('/:id', (req, res) => {
   res.json({
     ...listRow(id),
     live: Boolean(list.live),
-    cards: ordered,
+    cards: localiseCards(ordered),
     ownedCount: ordered.filter((c) => c.inBoxes.length > 0).length,
   });
 });

@@ -20,6 +20,17 @@ export default defineConfig(({ mode }) => {
       // its /api calls go nowhere, because the proxy below still points at this checkout's
       // own API port. Better to refuse to start and say why.
       strictPort: true,
+      watch: {
+        // The vendored image sets are static: 20,000+ files that cannot change during a dev
+        // session, because only the vendor scripts write them. Watching them cost Vite a
+        // gigabyte of resident memory and got the card vendor OOM-killed three times while it
+        // wrote into public/ — the watcher grew faster than the download progressed.
+        //
+        // The trade: files added to these directories while the server is up are invisible to
+        // it until a restart — requests for them fall through to the SPA index and arrive as
+        // text/html. Restart after any vendor run.
+        ignored: ["**/public/cards/**", "**/public/artwork/**", "**/public/sprites/**"],
+      },
       proxy: {
         '/api': `http://localhost:${apiPort}`,
       },

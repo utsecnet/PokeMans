@@ -24,3 +24,9 @@ local.properties
 # cache rather than fetch per view, and a build that silently skipped the vendor step would ship
 # 404s — artworkUrl is a real-looking path, so nothing falls back. Add an ignore rule here if
 # you would rather fetch them at build time, and add a build-time check with it.
+
+# Vendored trading card art — 20,394 files, ~317 MB, from server/src/sync/vendorCards.mjs.
+# NOT committed, unlike the Pokédex sets above. Play caps a base module at 200 MB, so this
+# cannot ship that way whatever git does, and 317 MB is permanent once it enters history.
+# Regenerate with: node server/src/sync/vendorCards.mjs  (resumable; it skips what it has)
+client/public/cards/

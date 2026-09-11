@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { localiseCards } from '../lib/artwork.js';
 import { all, get } from '../db/index.js';
 import { personalAll } from '../db/personalDb.js';
 import { attachCollection } from '../lib/collectionInfo.js';
@@ -218,7 +219,7 @@ cardsRouter.get('/', (req, res) => {
     countParams,
   );
 
-  const withTypes = attachCardTypes(items);
+  const withTypes = localiseCards(attachCardTypes(items));
 
   res.json({ items: attachCollection(withTypes), total, page, pageSize });
 });
