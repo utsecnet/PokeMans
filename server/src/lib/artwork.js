@@ -4,7 +4,7 @@
  *
  * Three vendored sets, written by two scripts in sync/:
  *
- *   client/public/sprites   96px Pokédex sprites, PNG          1,079 files     1 MB
+ *   client/public/sprites   96px Pokédex sprites, WebP         1,079 files  0.79 MB
  *   client/public/artwork   475px official artwork, AVIF       1,079 files    16 MB
  *   client/public/cards     245px trading card art, AVIF      20,394 files   317 MB
  *
@@ -29,13 +29,15 @@ const SPRITE_HOST = /^https?:\/\/raw\.githubusercontent\.com\/PokeAPI\/sprites\/
 /**
  * The local path for a vendored 96px sprite, or null.
  *
+ * Upstream is PNG, the vendored copy is lossless WebP — same pixels, 27% fewer bytes.
+ *
  * Matches only the flat sprite directory — a nested path is some other set (official artwork,
  * home, showdown) and is not what this serves.
  */
 export function localSprite(url) {
   if (!url || !SPRITE_HOST.test(url)) return null;
-  const match = /\/sprites\/pokemon\/(\d+\.png)$/i.exec(url);
-  return match ? `/sprites/${match[1]}` : null;
+  const match = /\/sprites\/pokemon\/(\d+)\.png$/i.exec(url);
+  return match ? `/sprites/${match[1]}.webp` : null;
 }
 
 /**

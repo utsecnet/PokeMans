@@ -25,8 +25,16 @@
  * What AVIF does cost is decode time, paid on every grid scroll rather than once at build. If
  * a mid-range phone struggles with 25 tiles at once, WebP q90 is the fallback to go back to.
  *
- * The sprites stay PNG. All 1,079 come to 1 MB together, so there is nothing to win, and they
- * are small pixel art where lossy encoding has the most to lose.
+ * The sprites are lossless WebP, which is a different answer from the artwork above and worth
+ * saying why. Measured across 40 real sprites: PNG 0.92 MB, lossless WebP 0.75 MB, lossless
+ * AVIF 2.85 MB. AVIF wins on a 475px render and loses badly on a 96px one — its container
+ * overhead alone is larger than the pixels — so the format that halved the artwork would have
+ * tripled this. Lossless rather than quality 80 because these are pixel art, where a lossy
+ * encoder spends its budget blurring the exact edges that carry the image.
+ *
+ * 153 of the 1,079 are smaller as PNG than as WebP. They are converted anyway: it costs 7.3 KB
+ * across the set and buys one extension, which is the difference between the server swapping
+ * a suffix and the server having to know which of two formats each sprite happens to be in.
  */
 import { mkdirSync, writeFileSync, existsSync, statSync } from 'node:fs';
 import path from 'node:path';
@@ -44,7 +52,12 @@ const PUBLIC = path.join(__dirname, '..', '..', '..', 'client', 'public');
  * and nothing reads it.
  */
 const SETS = [
-  { dir: 'sprites', column: 'sprite_url', ext: '.png', encode: null },
+  {
+    dir: 'sprites',
+    column: 'sprite_url',
+    ext: '.webp',
+    encode: (buf) => sharp(buf).webp({ lossless: true, effort: 6 }).toBuffer(),
+  },
   {
     dir: 'artwork',
     column: 'artwork_url',
