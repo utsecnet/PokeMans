@@ -7,6 +7,8 @@ import { formatName } from '../lib/format';
 import { collectionColorHex } from '../lib/collectionColors';
 import { CardLightbox } from '../components/CardLightbox';
 import { CardLocationBadge } from '../components/CardLocationBadge';
+import { AddToBoxRail } from '../components/AddToBoxRail';
+import { useBoxTapMode } from '../lib/boxTapMode';
 import type { WantListDetail } from '../types';
 
 export function WantListPage() {
@@ -17,6 +19,19 @@ export function WantListPage() {
   const [error, setError] = useState<string | null>(null);
   const [openCardId, setOpenCardId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const {
+    activeBoxId,
+    setActiveBoxId,
+    railMode,
+    setRailMode,
+    actionCount,
+    handleTap,
+    ringModeFor,
+    target,
+    setTarget,
+    activeWantListId,
+    activeBoxName,
+  } = useBoxTapMode();
 
   // `silent` reloads without blanking the grid, so acquiring a card or toggling live
   // doesn't flash the whole page — the same pattern the collection box uses.
@@ -36,6 +51,28 @@ export function WantListPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  /**
+   * A tap files the card into the armed collection; with nothing armed it opens the card.
+   *
+   * The row is updated in place rather than refetched, so a card acquired here turns from
+   * grey to full colour under the pointer and the "found" count above moves with it — the
+   * whole point of filing from this page rather than from somewhere else.
+   */
+  const handleCardTap = (card: WantListDetail['cards'][number]) =>
+    handleTap(
+      card,
+      (inBoxes) => {
+        setList((prev) =>
+          prev
+            ? { ...prev, cards: prev.cards.map((c) => (c.id === card.id ? { ...c, inBoxes } : c)) }
+            : prev,
+        );
+        // The index tile's progress is derived from collections, so it moves too.
+        refreshLists();
+      },
+      () => setOpenCardId(card.id),
+    );
 
   const owned = list?.cards.filter((c) => c.inBoxes.length > 0).length ?? 0;
   const total = list?.cards.length ?? 0;
@@ -159,7 +196,20 @@ export function WantListPage() {
         </div>
       )}
 
-      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+      <div className="mt-6 flex flex-col gap-4 md:flex-row md:items-start">
+        <AddToBoxRail
+          activeBoxId={activeBoxId}
+          activeWantListId={activeWantListId}
+          target={target}
+          onTargetChange={setTarget}
+          onSelect={setActiveBoxId}
+          mode={railMode}
+          onModeChange={setRailMode}
+          actionCount={actionCount}
+          className="md:order-2"
+        />
+
+        <div className="grid min-w-0 flex-1 grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4">
         {list.cards.map((card) => {
           const have = card.inBoxes.length > 0;
           return (
@@ -174,8 +224,16 @@ export function WantListPage() {
               {card.imageSmall && (
                 <button
                   type="button"
-                  onClick={() => setOpenCardId(card.id)}
-                  title={have ? `View ${card.name}` : `${card.name} — not in any collection`}
+                  onClick={() => handleCardTap(card)}
+                  title={
+                    activeBoxId
+                      ? railMode === 'remove'
+                        ? `Remove from ${activeBoxName}`
+                        : `Add to ${activeBoxName}`
+                      : have
+                        ? `View ${card.name}`
+                        : `${card.name} — not in any collection`
+                  }
                   className="block w-full"
                 >
                   {/* Not yet found: drained of colour and mostly transparent, so the list
@@ -190,6 +248,12 @@ export function WantListPage() {
                       have
                         ? ''
                         : 'opacity-30 grayscale group-hover:opacity-60 group-hover:grayscale-[0.4]'
+                    } ${
+                      ringModeFor(card) === 'remove'
+                        ? 'ring-2 ring-inset ring-red-500'
+                        : ringModeFor(card) === 'add'
+                          ? 'ring-2 ring-inset ring-[var(--color-accent)]'
+                          : ''
                     }`}
                   />
                 </button>
@@ -215,6 +279,23 @@ export function WantListPage() {
               {/* Where it actually is, for the ones already found. */}
               <CardLocationBadge inBoxes={card.inBoxes} />
 
+              {activeBoxId && (
+                <button
+                  type="button"
+                  onClick={() => handleCardTap(card)}
+                  title={
+                    railMode === 'remove' ? `Remove from ${activeBoxName}` : `Add to ${activeBoxName}`
+                  }
+                  className={`absolute left-1 top-1 z-10 flex h-6 min-w-6 items-center justify-center rounded-full border px-1 text-xs font-semibold shadow ${
+                    railMode === 'remove'
+                      ? 'border-red-500 bg-red-500 text-white'
+                      : 'border-[var(--color-accent)] bg-[var(--color-accent)] text-[var(--color-accent-contrast)]'
+                  }`}
+                >
+                  {railMode === 'remove' ? '−' : '+'}
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => removeCard(card.id)}
@@ -226,6 +307,7 @@ export function WantListPage() {
             </div>
           );
         })}
+        </div>
       </div>
 
       {openCardId && <CardLightbox cardId={openCardId} onClose={() => setOpenCardId(null)} />}
