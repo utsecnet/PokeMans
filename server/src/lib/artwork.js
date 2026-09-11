@@ -111,14 +111,15 @@ export function localCard(id) {
 /**
  * Points every card row in a result set at the vendored art, in place.
  *
- * Rows carry the card id as `id` everywhere except collection entries, which call it
- * `cardId`. Both are accepted rather than normalising the routes, which would mean renaming a
- * field the client already reads.
+ * Which field holds the card id depends on the row. Card rows call it `id`; collection
+ * entries call it `cardId`, and their `id` is the primary key of the entry, a different number
+ * entirely. So cardId wins wherever it exists: preferring `id` looked up a file named after
+ * the entry, found nothing, and blanked every image in every collection.
  */
 export function localiseCards(rows) {
   for (const row of rows) {
     if (!row || typeof row !== 'object' || !('imageSmall' in row)) continue;
-    row.imageSmall = localCard(row.id ?? row.cardId);
+    row.imageSmall = localCard(row.cardId ?? row.id);
   }
   return rows;
 }
@@ -200,7 +201,7 @@ export function localCardLarge(id) {
 export function localiseCardLarge(rows) {
   for (const row of rows) {
     if (!row || typeof row !== 'object' || !('imageLarge' in row)) continue;
-    row.imageLarge = localCardLarge(row.id ?? row.cardId);
+    row.imageLarge = localCardLarge(row.cardId ?? row.id);
   }
   return rows;
 }
