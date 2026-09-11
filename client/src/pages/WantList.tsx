@@ -279,23 +279,6 @@ export function WantListPage() {
               {/* Where it actually is, for the ones already found. */}
               <CardLocationBadge inBoxes={card.inBoxes} />
 
-              {activeBoxId && (
-                <button
-                  type="button"
-                  onClick={() => handleCardTap(card)}
-                  title={
-                    railMode === 'remove' ? `Remove from ${activeBoxName}` : `Add to ${activeBoxName}`
-                  }
-                  className={`absolute left-1 top-1 z-10 flex h-6 min-w-6 items-center justify-center rounded-full border px-1 text-xs font-semibold shadow ${
-                    railMode === 'remove'
-                      ? 'border-red-500 bg-red-500 text-white'
-                      : 'border-[var(--color-accent)] bg-[var(--color-accent)] text-[var(--color-accent-contrast)]'
-                  }`}
-                >
-                  {railMode === 'remove' ? '−' : '+'}
-                </button>
-              )}
-
               <button
                 type="button"
                 onClick={() => removeCard(card.id)}
