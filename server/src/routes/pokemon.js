@@ -1,5 +1,11 @@
 import { Router } from 'express';
-import { localArtwork, localSprite, localiseCards, localiseSprites } from '../lib/artwork.js';
+import {
+  localArtwork,
+  localSetSymbol,
+  localSprite,
+  localiseCards,
+  localiseSprites,
+} from '../lib/artwork.js';
 import { all, get } from '../db/index.js';
 import { attachCollection } from '../lib/collectionInfo.js';
 import { typesByPokemon } from '../lib/pokemonTypes.js';
@@ -315,6 +321,7 @@ pokemonRouter.get('/meta/expansions', (_req, res) => {
      GROUP BY c.set_id, c.set_name, c.series, s.symbol_url
      ORDER BY releaseDate, name`,
   );
+  for (const row of rows) row.symbolUrl = localSetSymbol(row.id, row.symbolUrl);
   res.json(rows);
 });
 

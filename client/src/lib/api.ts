@@ -266,6 +266,14 @@ export function triggerTcgSync(): Promise<{ started: boolean }> {
   return fetch('/api/sync/tcg', { method: 'POST' }).then(json<{ started: boolean }>);
 }
 
+/**
+ * Fetches set symbols and logos onto the device. Safe to repeat — anything already stored is
+ * skipped, so a second run only picks up sets added since the last one.
+ */
+export function triggerLogoSync(): Promise<{ started: boolean }> {
+  return fetch('/api/sync/logos', { method: 'POST' }).then(json<{ started: boolean }>);
+}
+
 /** Refreshes prices for owned cards now, rather than waiting for the daily schedule. */
 export function triggerPriceSync(): Promise<{ started: boolean }> {
   return fetch('/api/sync/prices', { method: 'POST' }).then(json<{ started: boolean }>);

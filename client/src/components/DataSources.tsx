@@ -32,6 +32,14 @@ const SOURCES: {
     action: 'Sync',
   },
   {
+    id: 'logos',
+    name: 'Set logos',
+    provides: 'Set symbols and logos, stored on the device instead of fetched per view',
+    origins: ['images.pokemontcg.io', 'assets.tcgdex.net'],
+    action: 'Sync',
+    note: 'Run after a card sync adds new sets',
+  },
+  {
     id: 'prices',
     name: 'Prices',
     provides: 'Market prices for the cards you own',

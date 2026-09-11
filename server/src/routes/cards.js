@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { localiseCards } from '../lib/artwork.js';
+import { localSeriesLogo, localiseCards } from '../lib/artwork.js';
 import { all, get } from '../db/index.js';
 import { personalAll } from '../db/personalDb.js';
 import { attachCollection } from '../lib/collectionInfo.js';
@@ -220,6 +220,7 @@ cardsRouter.get('/', (req, res) => {
   );
 
   const withTypes = localiseCards(attachCardTypes(items));
+  for (const row of withTypes) row.seriesLogoUrl = localSeriesLogo(row.series, row.seriesLogoUrl);
 
   res.json({ items: attachCollection(withTypes), total, page, pageSize });
 });

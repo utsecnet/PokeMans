@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { all, get } from '../db/index.js';
 import { personalGet } from '../db/personalDb.js';
-import { getActiveSync, runPokeApiSync, runPriceSync, runTcgSync } from '../sync/runner.js';
+import { getActiveSync, runLogoSync, runPokeApiSync, runPriceSync, runTcgSync } from '../sync/runner.js';
+import { logoStats } from '../sync/logos.js';
 
 export const syncRouter = Router();
 
@@ -41,6 +42,14 @@ syncRouter.get('/sources', (_req, res) => {
           { label: 'printings', value: get('SELECT COUNT(*) n FROM tcg_card_variants').n },
         ],
         lastRun: lastRun('tcg'),
+      },
+      {
+        id: 'logos',
+        counts: [
+          { label: 'stored', value: logoStats().stored },
+          { label: 'available', value: logoStats().total },
+        ],
+        lastRun: lastRun('logos'),
       },
       {
         id: 'prices',
@@ -97,6 +106,23 @@ syncRouter.post('/prices', (_req, res) => {
     () => {},
     (err) => {
       console.error('Price sync failed:', err);
+    },
+  );
+  res.json({ started: true });
+});
+
+// Set symbols and logos are the last images still fetched from another host at display time.
+// A run is cheap — a few hundred small files — and safe to repeat: anything already on disk is
+// skipped, so pressing it again only picks up sets added since.
+syncRouter.post('/logos', (_req, res) => {
+  if (getActiveSync()) {
+    res.status(409).json({ error: 'A sync is already running' });
+    return;
+  }
+  runLogoSync().then(
+    () => {},
+    (err) => {
+      console.error('Logo sync failed:', err);
     },
   );
   res.json({ started: true });

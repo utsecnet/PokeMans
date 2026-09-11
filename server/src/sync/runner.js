@@ -3,6 +3,7 @@ import { syncPokeApi } from './pokeapi.js';
 import { syncTcgCards } from './tcgapi.js';
 import { syncTcgdexEnrichment } from './tcgdex.js';
 import { syncOwnedCardPrices } from './prices.js';
+import { syncLogos } from './logos.js';
 
 let activeSync = null;
 
@@ -110,6 +111,29 @@ export async function runPriceSync({ trigger = 'manual' } = {}) {
         `${result.rowsWritten} rows written`,
     );
     finishLog(logId, result.rowsWritten);
+    return result;
+  } catch (err) {
+    failLog(logId, err);
+    throw err;
+  } finally {
+    activeSync = null;
+  }
+}
+
+// Logos go through the runner so the settings page can show them beside the other sources and
+// so they cannot run on top of a catalogue sync — the targets are read from tcg_sets, which a
+// catalogue sync is in the middle of rewriting.
+export async function runLogoSync() {
+  if (activeSync) throw new Error('A sync is already running');
+  const logId = startLog('logos');
+  activeSync = { source: 'logos', logId };
+  try {
+    const result = await syncLogos({ onProgress: (p) => progressLog(logId, p.done) });
+    console.log(
+      `[logos] ${result.written} downloaded, ${result.skipped} already held, ${result.failed} failed — ` +
+        `${(result.bytes / 1048576).toFixed(1)} MB`,
+    );
+    finishLog(logId, result.written + result.skipped);
     return result;
   } catch (err) {
     failLog(logId, err);

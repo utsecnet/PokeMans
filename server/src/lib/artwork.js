@@ -69,8 +69,13 @@ export function localiseSprites(rows) {
  * injective: "_" is itself escaped, which means no unescaped id can collide with an escaped
  * one. vendorCards.mjs exports the same function and asserts uniqueness across the catalogue.
  */
+export function safeFileName(value) {
+  return String(value).replace(/[^a-zA-Z0-9.-]/g, (c) => '_' + c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0'));
+}
+
+/** A card id as the filename vendorCards.mjs wrote. */
 export function cardFileName(id) {
-  return id.replace(/[^a-zA-Z0-9.-]/g, (c) => '_' + c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0'));
+  return safeFileName(id);
 }
 
 /**
@@ -116,4 +121,52 @@ export function localiseCards(rows) {
     row.imageSmall = localCard(row.id ?? row.cardId);
   }
   return rows;
+}
+
+const LOGO_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'client', 'public', 'logos');
+
+/**
+ * Which set and series logos we hold, read once and refreshed when a sync writes more.
+ *
+ * Unlike the card and Pokédex sets, these fall back to the remote URL rather than to null.
+ * The logo sync is a button on the settings page, so a fresh install has none of them, and
+ * resolving to null there would blank every set symbol until someone found and pressed it.
+ * Falling back keeps the page working and makes the button an improvement rather than a
+ * prerequisite.
+ */
+let logoFiles = null;
+function haveLogo(fileName) {
+  if (logoFiles === null) {
+    try {
+      logoFiles = new Set(readdirSync(LOGO_DIR));
+    } catch {
+      logoFiles = new Set();
+    }
+  }
+  return logoFiles.has(fileName);
+}
+
+/** Called by the logo sync, whose whole job is to invalidate the answer above. */
+export function refreshLogoCache() {
+  logoFiles = null;
+}
+
+function localLogo(key, url) {
+  const file = key + '.avif';
+  return haveLogo(file) ? '/logos/' + file : (url ?? null);
+}
+
+/** The vendored set symbol, or the original URL when the logo sync has not fetched it. */
+export function localSetSymbol(setId, url) {
+  return setId ? localLogo('set-' + safeFileName(setId) + '-symbol', url) : (url ?? null);
+}
+
+/** The vendored set logo, or the original URL. */
+export function localSetLogo(setId, url) {
+  return setId ? localLogo('set-' + safeFileName(setId) + '-logo', url) : (url ?? null);
+}
+
+/** The vendored series logo, or the original URL. Series are keyed by name; they have no id. */
+export function localSeriesLogo(series, url) {
+  return series ? localLogo('series-' + safeFileName(series), url) : (url ?? null);
 }

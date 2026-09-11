@@ -433,7 +433,7 @@ export interface SourceCount {
 }
 
 export interface SourceState {
-  id: 'pokeapi' | 'tcg' | 'prices';
+  id: 'pokeapi' | 'tcg' | 'logos' | 'prices';
   counts: SourceCount[];
   lastRun: {
     startedAt: string;

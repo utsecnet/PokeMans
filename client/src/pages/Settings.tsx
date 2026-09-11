@@ -4,6 +4,7 @@ import {
   fetchSyncSources,
   fetchSyncStatus,
   setDisplayCurrency,
+  triggerLogoSync,
   triggerPokeApiSync,
   triggerPriceSync,
   triggerTcgSync,
@@ -28,6 +29,13 @@ function StatusPill({ status }: { status: string }) {
         : 'bg-amber-500/15 text-amber-600 dark:text-amber-400';
   return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${color}`}>{status}</span>;
 }
+
+const SYNC_TRIGGERS: Record<SourceState['id'], () => Promise<{ started: boolean }>> = {
+  pokeapi: triggerPokeApiSync,
+  tcg: triggerTcgSync,
+  logos: triggerLogoSync,
+  prices: triggerPriceSync,
+};
 
 export function Settings() {
   const [message, setMessage] = useState<string | null>(null);
@@ -113,11 +121,7 @@ export function Settings() {
             sources={sources}
             syncStatus={syncStatus}
             busy={isSyncing}
-            onRun={(id) =>
-              handleTrigger(
-                id === 'pokeapi' ? triggerPokeApiSync : id === 'tcg' ? triggerTcgSync : triggerPriceSync,
-              )
-            }
+            onRun={(id) => handleTrigger(SYNC_TRIGGERS[id])}
           />
         </div>
 
