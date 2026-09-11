@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { fetchCard } from '../lib/api';
+import { fetchCard, warmCardHires } from '../lib/api';
 import type { CardListItem } from '../types';
 import { TypeBadge } from './TypeBadge';
 import { CardLocationBadge } from './CardLocationBadge';
@@ -26,6 +26,9 @@ export function CardLightbox({
 }) {
   const [fetched, setFetched] = useState<CardListItem | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Tagged with the card it belongs to: opening a different card must not show the previous
+  // card's upgrade, and comparing here is simpler than resetting from an effect.
+  const [hires, setHires] = useState<{ cardId: string; url: string } | null>(null);
   // The card art sets the height budget for the price history beside it — chart plus key
   // shouldn't run past the bottom of the card.
   const imageRef = useRef<HTMLImageElement>(null);
@@ -62,6 +65,52 @@ export function CardLightbox({
     return () => observer.disconnect();
   }, [card]);
 
+  // Upgrade the art in the background.
+  //
+  // The view paints immediately from the 245px copy that ships with the app, then asks the
+  // server to fetch and convert the full-size one. The swap happens only after the new file
+  // has decoded, so the card never blinks through an empty frame — and if nothing can be
+  // reached, the effect simply never sets anything and the thumbnail stands. That is what
+  // makes this work offline: the floor is local, and this is only ever an improvement.
+  const upgradeId = card && !card.imageLarge ? card.id : null;
+  useEffect(() => {
+    if (!upgradeId) return;
+    let cancelled = false;
+
+    // Decode it before showing it, and retry briefly if it is not there yet.
+    //
+    // The server writes the file before it answers, so by the time we have a url the bytes are
+    // on disk — but the dev server indexes its static directory from a watcher, and for a
+    // filename it has never seen there is a short window where the request 404s anyway. One
+    // attempt lands in that window often enough to matter. Retrying a few times costs nothing
+    // and means the upgrade is not silently skipped for the rest of the session.
+    const load = (url: string, attempt = 0): Promise<boolean> =>
+      new Promise((resolve) => {
+        const pre = new Image();
+        pre.onload = () => resolve(true);
+        pre.onerror = () => {
+          if (cancelled || attempt >= 5) return resolve(false);
+          setTimeout(() => resolve(load(url, attempt + 1)), 300);
+        };
+        pre.src = url;
+      });
+
+    warmCardHires(upgradeId)
+      .then(async ({ url }) => {
+        if (cancelled || !url) return;
+        if (await load(url)) {
+          if (!cancelled) setHires({ cardId: upgradeId, url });
+        }
+      })
+      .catch(() => {
+        // Offline, or the sources are gone. The thumbnail is already on screen.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [upgradeId]);
+
   useEffect(() => {
     if (provided) return;
     const controller = new AbortController();
@@ -95,7 +144,10 @@ export function CardLightbox({
     );
   }
 
-  const image = card.imageLarge ?? card.imageSmall;
+  // The full-size art, once it has arrived this session. card.imageLarge is the copy already
+  // cached on disk from a previous open; hires is the one fetched for this open.
+  const upgraded = hires?.cardId === card.id ? hires.url : null;
+  const image = upgraded ?? card.imageLarge ?? card.imageSmall;
 
   return (
     <>

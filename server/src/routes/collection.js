@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { localiseCards } from '../lib/artwork.js';
+import { localiseCardLarge, localiseCards } from '../lib/artwork.js';
 import { all as syncAll } from '../db/index.js';
 import { personalAll, personalGet, personalRun } from '../db/personalDb.js';
 import { capturePricesForCard, lastPriceSyncAt } from '../sync/prices.js';
@@ -294,7 +294,7 @@ collectionRouter.get('/boxes/:id', (req, res) => {
     })
     .filter((e) => e !== null);
 
-  res.json({ ...box, entries: localiseCards(entries) });
+  res.json({ ...box, entries: localiseCardLarge(localiseCards(entries)) });
 });
 
 // Quick-add: files `delta` more copies of this card (or removes that many when negative).

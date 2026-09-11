@@ -29,6 +29,10 @@ export default defineConfig(({ mode }) => {
         // The trade: files added to these directories while the server is up are invisible to
         // it until a restart — requests for them fall through to the SPA index and arrive as
         // text/html. Restart after any vendor run.
+        //
+        // public/cards-hi is deliberately absent from this list. It fills at runtime, one file
+        // per card someone opens, and the card view swaps to each new file the moment the
+        // server reports it — which only works if Vite can see a file it did not start with.
         ignored: ["**/public/cards/**", "**/public/artwork/**", "**/public/sprites/**"],
       },
       proxy: {

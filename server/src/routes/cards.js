@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { localSeriesLogo, localiseCards } from '../lib/artwork.js';
+import { localSeriesLogo, localiseCardLarge, localiseCards } from '../lib/artwork.js';
+import { ensureCardHires } from '../lib/cardHires.js';
 import { all, get } from '../db/index.js';
 import { personalAll } from '../db/personalDb.js';
 import { attachCollection } from '../lib/collectionInfo.js';
@@ -219,7 +220,7 @@ cardsRouter.get('/', (req, res) => {
     countParams,
   );
 
-  const withTypes = localiseCards(attachCardTypes(items));
+  const withTypes = localiseCardLarge(localiseCards(attachCardTypes(items)));
   for (const row of withTypes) row.seriesLogoUrl = localSeriesLogo(row.series, row.seriesLogoUrl);
 
   res.json({ items: attachCollection(withTypes), total, page, pageSize });
@@ -391,6 +392,25 @@ cardsRouter.get('/meta/series', (_req, res) => {
 // carry a full card object around.
 //
 // Declared last so the literal `/meta/...` paths above are matched first.
+/**
+ * Fetches this card's full-size art, converts it, and answers with where it landed.
+ *
+ * Called by the card view after it has already painted the shipped 245px copy, so latency here
+ * costs nothing visible. A null url means no source could be reached — offline, usually — and
+ * the caller is expected to do nothing with it, because what is on screen is already valid.
+ *
+ * Declared above /:id so the router does not read "hires" as a card id.
+ */
+cardsRouter.post('/:id/hires', async (req, res) => {
+  const id = String(req.params.id);
+  try {
+    res.json({ url: await ensureCardHires(id) });
+  } catch (err) {
+    console.error('Card hires fetch failed:', err);
+    res.json({ url: null });
+  }
+});
+
 cardsRouter.get('/:id', (req, res) => {
   const rows = all(`SELECT ${CARD_COLUMNS} ${CARD_FROM} WHERE c.id = @id`, {
     id: String(req.params.id),
@@ -399,6 +419,7 @@ cardsRouter.get('/:id', (req, res) => {
     res.status(404).json({ error: 'Card not found' });
     return;
   }
-  const [card] = attachCollection(attachCardTypes(rows));
+  const [card] = attachCollection(localiseCardLarge(localiseCards(attachCardTypes(rows))));
+  card.seriesLogoUrl = localSeriesLogo(card.series, card.seriesLogoUrl);
   res.json(card);
 });

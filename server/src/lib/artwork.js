@@ -17,7 +17,7 @@
  * host, which is not.
  */
 
-import { readdirSync } from 'node:fs';
+import { readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -169,4 +169,38 @@ export function localSetLogo(setId, url) {
 /** The vendored series logo, or the original URL. Series are keyed by name; they have no id. */
 export function localSeriesLogo(series, url) {
   return series ? localLogo('series-' + safeFileName(series), url) : (url ?? null);
+}
+
+const CARD_HI_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'client', 'public', 'cards-hi');
+
+/**
+ * The cached full-size card art, or null.
+ *
+ * Checked against the filesystem on every call rather than from an in-memory index. An index
+ * is the obvious optimisation and it is wrong here: this directory is a disposable cache that
+ * a user can delete at any time, and an index that only ever gains entries then reports art
+ * that is not there, which shows up as a broken card rather than a thumbnail. A stat per row
+ * costs nothing against a local SSD and a few hundred rows.
+ *
+ * Null is the signal the card view acts on: it means "show the 245px copy now and ask the
+ * server to fetch this one". A remote URL here would defeat the point — the view would stall
+ * on a 600x825 PNG over the network instead of painting instantly from the local thumbnail.
+ */
+export function localCardLarge(id) {
+  if (!id) return null;
+  const file = safeFileName(id) + '.avif';
+  try {
+    return statSync(path.join(CARD_HI_DIR, file)).size > 0 ? `/cards-hi/${file}` : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Points every card row at its cached full-size art, in place. */
+export function localiseCardLarge(rows) {
+  for (const row of rows) {
+    if (!row || typeof row !== 'object' || !('imageLarge' in row)) continue;
+    row.imageLarge = localCardLarge(row.id ?? row.cardId);
+  }
+  return rows;
 }

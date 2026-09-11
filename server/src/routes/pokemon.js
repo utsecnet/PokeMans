@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   localArtwork,
   localSetSymbol,
+  localiseCardLarge,
   localSprite,
   localiseCards,
   localiseSprites,
@@ -406,15 +407,17 @@ pokemonRouter.get('/:id', (req, res) => {
   const evolutionChain = buildEvolutionChain(id);
 
   const tcgCards = attachCollection(
-    localiseCards(
-      all(
-        `SELECT c.id, c.name, c.number, c.set_id as setId, c.set_name as setName, c.series, c.rarity,
-                c.release_date as releaseDate,
-                COALESCE(c.image_webp, c.image_small) as imageSmall, c.image_large as imageLarge
-         FROM tcg_card_pokemon tcp JOIN tcg_cards c ON c.id = tcp.card_id
-         WHERE tcp.pokemon_id = @id
-         ORDER BY c.release_date, c.set_name, c.number`,
-        { id },
+    localiseCardLarge(
+      localiseCards(
+        all(
+          `SELECT c.id, c.name, c.number, c.set_id as setId, c.set_name as setName, c.series, c.rarity,
+                  c.release_date as releaseDate,
+                  COALESCE(c.image_webp, c.image_small) as imageSmall, c.image_large as imageLarge
+           FROM tcg_card_pokemon tcp JOIN tcg_cards c ON c.id = tcp.card_id
+           WHERE tcp.pokemon_id = @id
+           ORDER BY c.release_date, c.set_name, c.number`,
+          { id },
+        ),
       ),
     ),
   );

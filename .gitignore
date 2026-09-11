@@ -31,3 +31,9 @@ local.properties
 # cannot ship that way whatever git does, and 317 MB is permanent once it enters history.
 # Regenerate with: node server/src/sync/vendorCards.mjs  (resumable; it skips what it has)
 client/public/cards/
+
+# Full-size card art, fetched per card the first time someone opens it and kept thereafter.
+# Not committed and not vendored: the whole set is 1.31 GB, and this only ever holds the cards
+# this install actually looked at. Safe to delete — it refills on use, and the shipped 245px
+# copies mean deleting it costs quality on next open, not function.
+client/public/cards-hi/

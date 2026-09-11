@@ -274,6 +274,19 @@ export function triggerLogoSync(): Promise<{ started: boolean }> {
   return fetch('/api/sync/logos', { method: 'POST' }).then(json<{ started: boolean }>);
 }
 
+/**
+ * Asks the server to fetch, convert and keep this card's full-size art.
+ *
+ * Resolves to { url: null } when no source could be reached rather than rejecting: the card
+ * view has already painted the shipped 245px copy, so a failure here is a view that stays as
+ * it is, not an error anyone needs to see.
+ */
+export function warmCardHires(cardId: string): Promise<{ url: string | null }> {
+  return fetch(`/api/cards/${encodeURIComponent(cardId)}/hires`, { method: 'POST' }).then(
+    json<{ url: string | null }>,
+  );
+}
+
 /** Refreshes prices for owned cards now, rather than waiting for the daily schedule. */
 export function triggerPriceSync(): Promise<{ started: boolean }> {
   return fetch('/api/sync/prices', { method: 'POST' }).then(json<{ started: boolean }>);
