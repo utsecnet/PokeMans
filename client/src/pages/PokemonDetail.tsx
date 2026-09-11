@@ -4,13 +4,14 @@ import { Link, useParams } from 'react-router-dom';
 import { fetchPokemonDetail } from '../lib/api';
 import type { CollectionBoxRef, PokemonDetail as PokemonDetailType, TcgCard } from '../types';
 import { TypeBadge } from '../components/TypeBadge';
+import { typeColor } from '../lib/typeColor';
 import { StatBar } from '../components/StatBar';
 import { EvolutionTree } from '../components/EvolutionTree';
 import { AddToBoxRail } from '../components/AddToBoxRail';
 import { CardLocationBadge } from '../components/CardLocationBadge';
 import { CardLightbox } from '../components/CardLightbox';
 import { useBoxTapMode } from '../lib/boxTapMode';
-import { formatName } from '../lib/format';
+import { formatGeneration, formatName } from '../lib/format';
 
 const STAT_LABELS: Record<string, string> = {
   hp: 'HP',
@@ -42,7 +43,7 @@ function RegionalVariants({ pokemon }: { pokemon: PokemonDetailType }) {
 
   return (
     <section className="mt-8">
-      <h2 className="mb-3 text-lg font-semibold">Regional Variants</h2>
+      <h2 className="mb-3 text-lg font-semibold">Regional variants</h2>
       <div className="space-y-4">
         {pokemon.variants.map((variant) => {
           const chain = variant.evolutionChain;
@@ -204,6 +205,13 @@ export function PokemonDetail() {
   }
 
   const image = pokemon.artworkUrl ?? pokemon.spriteUrl;
+  const accent = typeColor(pokemon.types[0]);
+  const statTotal = pokemon.stats
+    ? (Object.keys(STAT_LABELS) as (keyof typeof STAT_LABELS)[]).reduce(
+        (sum, key) => sum + ((pokemon.stats as unknown as Record<string, number>)[key] ?? 0),
+        0,
+      )
+    : 0;
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6">
@@ -211,62 +219,103 @@ export function PokemonDetail() {
         ← Back
       </Link>
 
-      <div className="mt-4 flex flex-col items-center gap-6 sm:flex-row sm:items-start">
-        <div className="flex h-48 w-48 shrink-0 items-center justify-center rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)]">
-          {image && <CardImage src={image} alt={pokemon.name} className="h-40 w-40 object-contain" />}
-        </div>
-
-        <div className="flex-1">
-          <span className="font-mono text-sm text-[var(--color-text-muted)]">
-            #{String(pokemon.nationalDexNumber).padStart(4, '0')}
-          </span>
-          <h1 className="text-3xl font-bold capitalize">{formatName(pokemon.name)}</h1>
-          <div className="mt-2 flex gap-2">
-            {pokemon.types.map((t) => (
-              <TypeBadge key={t} type={t} />
-            ))}
-          </div>
-          {pokemon.flavorText && (
-            <p className="mt-3 text-sm text-[var(--color-text-muted)]">{pokemon.flavorText}</p>
+      {/* The species, coloured by its own primary type.
+          The palette is the one the type badges already use, promoted from a 20px chip to the
+          page accent — so a fire type reads warm and a water type cool without inventing a
+          decoration, and 1,025 pages stop looking like each other. The artwork leads because
+          it is the most characteristic thing here and the page was showing it at 160px inside
+          a 192px box while a 475px copy sat vendored on disk. */}
+      <header
+        className="relative mt-4 overflow-hidden rounded-2xl border border-[var(--color-border)]"
+        style={{
+          background: `linear-gradient(135deg, color-mix(in srgb, ${accent} 20%, var(--color-surface)) 0%, var(--color-surface) 62%)`,
+        }}
+      >
+        <div className="flex flex-col items-center gap-6 p-6 sm:flex-row sm:items-end sm:gap-8 sm:p-8">
+          {image && (
+            <CardImage
+              src={image}
+              alt={pokemon.name}
+              className="h-44 w-44 shrink-0 object-contain drop-shadow-2xl sm:h-56 sm:w-56"
+            />
           )}
-          <div className="mt-3 flex gap-6 text-sm text-[var(--color-text-muted)]">
-            {pokemon.height != null && <span>Height {pokemon.height / 10} m</span>}
-            {pokemon.weight != null && <span>Weight {pokemon.weight / 10} kg</span>}
+
+          <div className="min-w-0 flex-1 text-center sm:pb-1 sm:text-left">
+            {/* Where this species sits: its dex number and the generation it arrived in.
+                Spaced rather than joined by a separator — they are two facts, not a path. */}
+            <div className="flex items-center justify-center gap-4 text-sm text-[var(--color-text-muted)] sm:justify-start">
+              <span className="font-mono">
+                #{String(pokemon.nationalDexNumber).padStart(4, "0")}
+              </span>
+              {pokemon.generation && <span>{formatGeneration(pokemon.generation)}</span>}
+            </div>
+            <h1 className="text-4xl font-bold capitalize leading-tight sm:text-5xl">
+              {formatName(pokemon.name)}
+            </h1>
+            <div className="mt-2 flex justify-center gap-2 sm:justify-start">
+              {pokemon.types.map((t) => (
+                <TypeBadge key={t} type={t} />
+              ))}
+            </div>
+            {pokemon.flavorText && (
+              <p className="mx-auto mt-3 max-w-prose text-sm text-[var(--color-text-muted)] sm:mx-0">
+                {pokemon.flavorText}
+              </p>
+            )}
+            <div className="mt-3 flex justify-center gap-6 text-sm text-[var(--color-text-muted)] sm:justify-start">
+              {pokemon.height != null && <span>Height {pokemon.height / 10} m</span>}
+              {pokemon.weight != null && <span>Weight {pokemon.weight / 10} kg</span>}
+            </div>
           </div>
         </div>
+      </header>
+
+      {/* Stats and abilities side by side: both are short, and stacking them full-width was
+          most of the scroll between the hero and the cards most people came for. */}
+      <div className="mt-6 grid items-start gap-4 lg:grid-cols-[1.35fr_1fr]">
+        {pokemon.stats && (
+          <section>
+            <h2 className="mb-3 text-lg font-semibold">Base stats</h2>
+            <div className="flex flex-col gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+              {(Object.keys(STAT_LABELS) as (keyof typeof STAT_LABELS)[]).map((key) => (
+                <StatBar
+                  key={key}
+                  label={STAT_LABELS[key]}
+                  value={(pokemon.stats as unknown as Record<string, number>)[key] ?? 0}
+                  accent={accent}
+                />
+              ))}
+              {/* The number people actually compare between species, and it was the one the
+                  page made you add up yourself. */}
+              <div className="mt-1 flex items-center justify-between border-t border-[var(--color-border)] pt-2 text-sm">
+                <span className="text-[var(--color-text-muted)]">Total</span>
+                <span className="font-semibold tabular-nums">{statTotal}</span>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {pokemon.abilities.length > 0 && (
+          <section>
+            <h2 className="mb-3 text-lg font-semibold">Abilities</h2>
+            <div className="flex flex-col gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+              {pokemon.abilities.map((a) => (
+                <div key={a.name} className="flex items-baseline gap-2">
+                  <span
+                    className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: accent }}
+                    aria-hidden="true"
+                  />
+                  <span className="capitalize">{formatName(a.name)}</span>
+                  {a.isHidden && (
+                    <span className="text-xs text-[var(--color-text-muted)]">hidden</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
-
-      {pokemon.stats && (
-        <section className="mt-8">
-          <h2 className="mb-3 text-lg font-semibold">Base Stats</h2>
-          <div className="flex flex-col gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
-            {(Object.keys(STAT_LABELS) as (keyof typeof STAT_LABELS)[]).map((key) => (
-              <StatBar
-                key={key}
-                label={STAT_LABELS[key]}
-                value={(pokemon.stats as unknown as Record<string, number>)[key] ?? 0}
-              />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {pokemon.abilities.length > 0 && (
-        <section className="mt-8">
-          <h2 className="mb-3 text-lg font-semibold">Abilities</h2>
-          <div className="flex flex-wrap gap-2">
-            {pokemon.abilities.map((a) => (
-              <span
-                key={a.name}
-                className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-sm capitalize"
-              >
-                {formatName(a.name)}
-                {a.isHidden && <span className="ml-1 text-xs text-[var(--color-text-muted)]">(hidden)</span>}
-              </span>
-            ))}
-          </div>
-        </section>
-      )}
 
       <EvolutionChain pokemon={pokemon} />
 
@@ -290,7 +339,7 @@ export function PokemonDetail() {
             <div className="min-w-0 flex-1">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-lg font-semibold">
-                  Trading Cards ({visibleCards.length}
+                  Trading cards ({visibleCards.length}
                   {visibleCards.length !== pokemon.tcgCards.length
                     ? ` of ${pokemon.tcgCards.length}`
                     : ''}
