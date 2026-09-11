@@ -177,60 +177,79 @@ export function CardLightbox({
           />
         )}
 
-        <div className="min-w-0 flex-1 space-y-3">
-          <div>
-            <div className="flex items-start justify-between gap-3">
-              <h2 className="text-lg font-bold">{card.name}</h2>
-              {/* The series wordmark, sized by height so the varying widths (2:1 through
-                  5:1) all sit on one baseline instead of each setting its own. Right-aligned
-                  and out of the text column, since it is era at a glance, not a label.
-                  Named underneath, because a wordmark you do not recognise tells you
-                  nothing — and several of them are barely legible at this height. */}
-              {(card.seriesLogoUrl || card.series) && (
-                <div className="flex shrink-0 flex-col items-end gap-1">
-                  {card.seriesLogoUrl && (
-                    <img
-                      src={card.seriesLogoUrl}
-                      alt=""
-                      loading="lazy"
-                      className="h-6 w-auto max-w-[9rem] object-contain"
-                    />
-                  )}
-                  {card.series && (
-                    <span className="text-xs text-[var(--color-text-muted)]">{card.series} series</span>
-                  )}
-                </div>
+        <div className="min-w-0 flex-1 space-y-4">
+          {/* Laid out the way the card itself is printed: name and element together at the
+              top, then the set, then the strip along the bottom edge that carries symbol,
+              number, rarity and illustrator. Collectors already read a card in that order,
+              so the panel does not ask them to learn a second one. */}
+          <div className="flex items-start justify-between gap-3">
+            <h2 className="text-lg font-bold leading-tight">{card.name}</h2>
+            {card.types.length > 0 && (
+              <div className="flex shrink-0 flex-wrap justify-end gap-1">
+                {card.types.map((t) => (
+                  <TypeBadge key={t} type={t} />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* One mark, big enough to read. Two were competing at sizes where neither was
+              legible — the set logo is the more specific of them, so it stays and the series
+              is spelled out underneath instead of being a second picture to squint at. */}
+          <div className="flex items-center gap-3 border-t border-[var(--color-border)] pt-3">
+            {(card.setLogoUrl || card.setSymbolUrl) && (
+              <img
+                src={card.setLogoUrl ?? card.setSymbolUrl ?? undefined}
+                alt=""
+                loading="lazy"
+                className="h-10 w-auto max-w-[7.5rem] shrink-0 object-contain"
+              />
+            )}
+            <div className="min-w-0">
+              <p className="truncate font-medium leading-tight">{card.setName ?? 'Unknown set'}</p>
+              {card.series && (
+                <p className="truncate text-sm text-[var(--color-text-muted)]">{card.series} series</p>
               )}
-            </div>
-            {/* The set, with its own symbol beside it. The symbol is the thing printed on the
-                card itself, so pairing the two is how someone matches what they are holding
-                to what they are reading. */}
-            <div className="mt-1 flex items-center gap-1.5">
-              {card.setSymbolUrl && (
-                <img
-                  src={card.setSymbolUrl}
-                  alt=""
-                  loading="lazy"
-                  className="h-4 w-4 shrink-0 object-contain"
-                />
-              )}
-              <p className="truncate text-sm">
-                <span className="font-medium">{card.setName}</span>
-                <span className="text-[var(--color-text-muted)]">
-                  {card.number ? ` · #${card.number}` : ''}
-                  {card.rarity ? ` · ${card.rarity}` : ''}
-                  {card.illustrator ? ` · ${card.illustrator}` : ''}
-                </span>
-              </p>
             </div>
           </div>
 
-          {card.types.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {card.types.map((t) => (
-                <TypeBadge key={t} type={t} />
-              ))}
-            </div>
+          {/* A field is named or it is a guess: "Common" and "43" mean nothing on their own,
+              and a middle-dot run makes the reader count positions to work out which is
+              which. Only fields the card actually has get a column. */}
+          {(card.number || card.rarity || card.illustrator) && (
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
+              {card.number && (
+                <div className="min-w-0">
+                  <dt className="text-xs text-[var(--color-text-muted)]">Number</dt>
+                  <dd className="mt-0.5 flex items-center gap-1.5">
+                    {/* Beside the number because that is where it sits on the card. */}
+                    {card.setSymbolUrl && (
+                      <img
+                        src={card.setSymbolUrl}
+                        alt=""
+                        loading="lazy"
+                        className="h-3.5 w-3.5 shrink-0 object-contain"
+                      />
+                    )}
+                    <span className="truncate">{card.number}</span>
+                  </dd>
+                </div>
+              )}
+              {card.rarity && (
+                <div className="min-w-0">
+                  <dt className="text-xs text-[var(--color-text-muted)]">Rarity</dt>
+                  <dd className="mt-0.5 truncate">{card.rarity}</dd>
+                </div>
+              )}
+              {card.illustrator && (
+                <div className="min-w-0">
+                  <dt className="text-xs text-[var(--color-text-muted)]">Illustrator</dt>
+                  <dd className="mt-0.5 truncate" title={card.illustrator}>
+                    {card.illustrator}
+                  </dd>
+                </div>
+              )}
+            </dl>
           )}
 
           <div>
