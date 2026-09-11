@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { CardImage } from './CardImage';
 import type { RefObject } from 'react';
 
@@ -75,6 +75,24 @@ export function TiltCard({
   imageRef?: RefObject<HTMLImageElement | null>;
   label?: string;
 }) {
+  // Crossfade when the art is replaced under us.
+  //
+  // The card view opens on the thumbnail that ships with the app and swaps to the full-size
+  // copy when it arrives. Swapping the src alone is a hard cut — one frame soft, the next
+  // sharp — which reads as a flicker even though nothing failed. Holding the old image for
+  // one animation turns it into a dissolve.
+  //
+  // Only a genuine replacement counts: first paint has nothing to fade from, so the initial
+  // src must not produce an outgoing layer.
+  const [outgoing, setOutgoing] = useState<string | null>(null);
+  const shownRef = useRef(src);
+  useEffect(() => {
+    if (shownRef.current !== src) {
+      setOutgoing(shownRef.current);
+      shownRef.current = src;
+    }
+  }, [src]);
+
   // The wrapper is deliberately the untransformed element: measuring a rotated box would
   // feed the rotation back into its own input and the card would judder.
   const wrapRef = useRef<HTMLButtonElement>(null);
@@ -209,6 +227,19 @@ export function TiltCard({
           draggable={false}
           className={`tilt-image ${imageClassName}`}
         />
+        {/* The art being replaced, held on top until it has faded. Hidden from assistive
+            tech and from pointers: it is the same card, on its way out. */}
+        {outgoing && (
+          <CardImage
+            key={outgoing}
+            src={outgoing}
+            alt=""
+            aria-hidden="true"
+            draggable={false}
+            className={`tilt-image tilt-image-outgoing ${imageClassName}`}
+            onAnimationEnd={() => setOutgoing(null)}
+          />
+        )}
         {/* Directly on the art and under every reflection, because that is where a clear
             coat physically sits: the lacquer is above the paint, and what the light plays
             on is the lacquer. */}

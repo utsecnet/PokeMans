@@ -191,6 +191,12 @@
  */
 .tilt-inner {
   display: grid;
+  /* Fill the wrapper rather than shrink to the art. This grid stacks the image and its
+     reflections in one cell, and without a width its track is sized by the image inside it —
+     which makes the image's own width: 100% resolve against itself. A 245px thumbnail then
+     draws at 245px while its 600px replacement draws at the full width, and the upgrade
+     jumps between two boxes instead of swapping pixels in one. */
+  width: 100%;
   max-width: 100%;
   line-height: 0;
   border-radius: var(--tilt-radius, 0.5rem);
@@ -223,6 +229,44 @@
   height: auto;
   max-width: 100%;
   user-select: none;
+  /* Pin the box to the card ratio so every source fills exactly the same space. The 245px
+     thumbnail and the 600px upgrade agree to within 0.04% on their own, but "agree by
+     coincidence" is not the same as "cannot shift": this makes the swap a change of pixels
+     and nothing else, at the cost of a stretch too small to see. */
+  aspect-ratio: 245 / 337;
+  /* width, not just max-width: without it a 245px thumbnail draws at 245px while the 600px
+     upgrade draws at the full container width, and the swap jumps from one box to the other.
+     Filling the box means the thumbnail is already the size the upgrade will be. */
+  width: 100%;
+  /* contain rather than fill: the ratio above is the card ratio, so there is nothing to
+     letterbox in practice, but a short viewport caps the height and contain keeps the art
+     undistorted where fill would squash it. */
+  object-fit: contain;
+}
+
+/* The outgoing image during an upgrade.
+   Painted over the incoming one — later in the grid cell, so it stacks on top — and faded
+   out to reveal it. Fading the old out over a new one that is already fully opaque
+   underneath means there is never a frame where neither is solid, which is what a naive
+   fade-in of the new would produce. */
+.tilt-image-outgoing {
+  animation: tilt-crossfade 420ms ease forwards;
+  pointer-events: none;
+}
+
+@keyframes tilt-crossfade {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tilt-image-outgoing {
+    animation-duration: 1ms;
+  }
 }
 
 .tilt-clearcoat,
