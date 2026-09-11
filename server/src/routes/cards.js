@@ -1,5 +1,11 @@
 import { Router } from 'express';
-import { localSeriesLogo, localiseCardLarge, localiseCards } from '../lib/artwork.js';
+import {
+  localSeriesLogo,
+  localSetLogo,
+  localSetSymbol,
+  localiseCardLarge,
+  localiseCards,
+} from '../lib/artwork.js';
 import { ensureCardHires } from '../lib/cardHires.js';
 import { all, get } from '../db/index.js';
 import { personalAll } from '../db/personalDb.js';
@@ -75,11 +81,13 @@ const CARD_COLUMNS = `c.id, c.name, c.number, c.set_id as setId, c.set_name as s
        -- enrichment pass found no confident match.
        COALESCE(c.image_webp, c.image_small) as imageSmall, c.image_large as imageLarge,
        c.supertype, c.illustrator, sr.logo_url as seriesLogoUrl,
+       st.symbol_url as setSymbolUrl, st.logo_url as setLogoUrl,
        pk.id as pokemonId, pk.name as pokemonName`;
 
 const CARD_FROM = `FROM tcg_cards c
      LEFT JOIN pokemon pk ON pk.id = (SELECT MIN(tcp.pokemon_id) FROM tcg_card_pokemon tcp WHERE tcp.card_id = c.id)
-     LEFT JOIN tcg_series sr ON sr.name = c.series`;
+     LEFT JOIN tcg_series sr ON sr.name = c.series
+     LEFT JOIN tcg_sets st ON st.id = c.set_id`;
 
 const SORT_COLUMNS = {
   releaseDate: 'c.release_date',
@@ -109,6 +117,14 @@ function addInClause(where, params, expr, values, prefix) {
     params[k] = values[i];
   });
   where.push(`${expr} IN (${keys.map((k) => `@${k}`).join(', ')})`);
+}
+
+/** Points a card row's set and series imagery at the vendored copies. */
+function localiseCardSetArt(row) {
+  row.seriesLogoUrl = localSeriesLogo(row.series, row.seriesLogoUrl);
+  row.setSymbolUrl = localSetSymbol(row.setId, row.setSymbolUrl);
+  row.setLogoUrl = localSetLogo(row.setId, row.setLogoUrl);
+  return row;
 }
 
 cardsRouter.get('/', (req, res) => {
@@ -221,7 +237,7 @@ cardsRouter.get('/', (req, res) => {
   );
 
   const withTypes = localiseCardLarge(localiseCards(attachCardTypes(items)));
-  for (const row of withTypes) row.seriesLogoUrl = localSeriesLogo(row.series, row.seriesLogoUrl);
+  withTypes.forEach(localiseCardSetArt);
 
   res.json({ items: attachCollection(withTypes), total, page, pageSize });
 });
@@ -420,6 +436,6 @@ cardsRouter.get('/:id', (req, res) => {
     return;
   }
   const [card] = attachCollection(localiseCardLarge(localiseCards(attachCardTypes(rows))));
-  card.seriesLogoUrl = localSeriesLogo(card.series, card.seriesLogoUrl);
+  localiseCardSetArt(card);
   res.json(card);
 });

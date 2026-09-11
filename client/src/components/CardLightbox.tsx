@@ -183,23 +183,46 @@ export function CardLightbox({
               <h2 className="text-lg font-bold">{card.name}</h2>
               {/* The series wordmark, sized by height so the varying widths (2:1 through
                   5:1) all sit on one baseline instead of each setting its own. Right-aligned
-                  and out of the text column, since it is era at a glance, not a label. */}
-              {card.seriesLogoUrl && (
-                <img
-                  src={card.seriesLogoUrl}
-                  alt={card.series ? `${card.series} series` : ''}
-                  title={card.series ?? undefined}
-                  loading="lazy"
-                  className="h-6 w-auto max-w-[9rem] shrink-0 object-contain"
-                />
+                  and out of the text column, since it is era at a glance, not a label.
+                  Named underneath, because a wordmark you do not recognise tells you
+                  nothing — and several of them are barely legible at this height. */}
+              {(card.seriesLogoUrl || card.series) && (
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  {card.seriesLogoUrl && (
+                    <img
+                      src={card.seriesLogoUrl}
+                      alt=""
+                      loading="lazy"
+                      className="h-6 w-auto max-w-[9rem] object-contain"
+                    />
+                  )}
+                  {card.series && (
+                    <span className="text-xs text-[var(--color-text-muted)]">{card.series} series</span>
+                  )}
+                </div>
               )}
             </div>
-            <p className="text-sm text-[var(--color-text-muted)]">
-              {card.setName}
-              {card.number ? ` · #${card.number}` : ''}
-              {card.rarity ? ` · ${card.rarity}` : ''}
-              {card.illustrator ? ` · ${card.illustrator}` : ''}
-            </p>
+            {/* The set, with its own symbol beside it. The symbol is the thing printed on the
+                card itself, so pairing the two is how someone matches what they are holding
+                to what they are reading. */}
+            <div className="mt-1 flex items-center gap-1.5">
+              {card.setSymbolUrl && (
+                <img
+                  src={card.setSymbolUrl}
+                  alt=""
+                  loading="lazy"
+                  className="h-4 w-4 shrink-0 object-contain"
+                />
+              )}
+              <p className="truncate text-sm">
+                <span className="font-medium">{card.setName}</span>
+                <span className="text-[var(--color-text-muted)]">
+                  {card.number ? ` · #${card.number}` : ''}
+                  {card.rarity ? ` · ${card.rarity}` : ''}
+                  {card.illustrator ? ` · ${card.illustrator}` : ''}
+                </span>
+              </p>
+            </div>
           </div>
 
           {card.types.length > 0 && (

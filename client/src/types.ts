@@ -154,6 +154,8 @@ export interface CardListItem {
   illustrator: string | null;
   /** Wordmark for the card's series; null where TCGdex publishes none. */
   seriesLogoUrl: string | null;
+  setSymbolUrl: string | null;
+  setLogoUrl: string | null;
   /** Every distinct printing of this card, in upstream order. */
   variants: CardPrinting[];
   // Null for Trainer and Energy cards, which have no Pokémon of their own.

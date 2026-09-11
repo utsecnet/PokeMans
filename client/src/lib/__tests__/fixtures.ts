@@ -176,6 +176,8 @@ function card(overrides: Partial<CardListItem>): CardListItem {
     rarity: 'Common',
     illustrator: null,
     seriesLogoUrl: null,
+    setSymbolUrl: null,
+    setLogoUrl: null,
     releaseDate: '1999/01/09',
     imageSmall: null,
     imageLarge: null,
