@@ -1,7 +1,8 @@
 import type { CSSProperties, ReactNode } from 'react';
 import type { Expansion } from '../types';
 import { formatGeneration } from '../lib/format';
-import { TypeIcon, typeKey } from './TypeIcon';
+import { TypeIcon } from './TypeIcon';
+import { typeKey } from '../lib/typeColor';
 import { FilterSection } from './FilterSection';
 
 // Every piece the Pokémon and card sidebars have in common lives here, so the two panels

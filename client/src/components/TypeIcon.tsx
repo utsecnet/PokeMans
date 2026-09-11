@@ -1,3 +1,4 @@
+import { typeKey } from '../lib/typeColor';
 import type { ReactNode } from 'react';
 
 // Small stylized glyphs per type, not official artwork — simple enough to read at ~12px.
@@ -87,18 +88,6 @@ const TYPE_GLYPHS: Record<string, ReactNode> = {
  * Without this the card filters fell through to the fallback glyph on a grey chip — the same
  * icon and colour for every energy, which read as having no icons at all.
  */
-const ENERGY_ALIASES: Record<string, string> = {
-  lightning: 'electric',
-  darkness: 'dark',
-  metal: 'steel',
-  colorless: 'normal',
-};
-
-/** The glyph and palette key for a Pokémon type or a TCG energy name. */
-export function typeKey(type: string): string {
-  const lower = type.toLowerCase();
-  return ENERGY_ALIASES[lower] ?? lower;
-}
 
 export function TypeIcon({ type, active }: { type: string; active: boolean }) {
   const key = typeKey(type);

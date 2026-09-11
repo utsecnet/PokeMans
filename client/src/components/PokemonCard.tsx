@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { CardImage } from './CardImage';
 import type { PokemonSummary } from '../types';
 import { TypeBadge } from './TypeBadge';
-import { typeKey } from './TypeIcon';
+import { typeColor, typeKey } from '../lib/typeColor';
 
 /**
  * The glow behind the sprite on hover, in the Pokémon's own type colours.
@@ -54,15 +54,35 @@ const SPECK_MASK = 'radial-gradient(closest-side at 50% 52%, #000 25%, #000 62%,
 
 export function PokemonCard({ pokemon }: { pokemon: PokemonSummary }) {
   const image = pokemon.artworkUrl ?? pokemon.spriteUrl;
+  const accent = typeColor(pokemon.types[0]);
 
   return (
     <Link
       to={`/pokemon/${pokemon.id}`}
-      className="group flex flex-col items-center rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 transition hover:-translate-y-0.5 hover:shadow-lg"
+      // The same wash the species page puts behind its hero, at a tenth of the strength: the
+      // grid gains a warm/cool rhythm you can scan without reading every badge, and a tile
+      // still belongs to the page it opens. Quiet on purpose — the hover backlight below is
+      // the moment, and 25 loud tiles would take it.
+      className="group flex flex-col items-center rounded-2xl border p-4 transition hover:-translate-y-0.5 hover:shadow-lg"
+      style={{
+        background: `linear-gradient(160deg, color-mix(in srgb, ${accent} 9%, var(--color-surface)) 0%, var(--color-surface) 70%)`,
+        borderColor: `color-mix(in srgb, ${accent} 28%, var(--color-border))`,
+      }}
     >
-      <span className="self-start font-mono text-xs text-[var(--color-text-muted)]">
-        #{String(pokemon.nationalDexNumber).padStart(4, '0')}
-      </span>
+      {/* Dex number and card count at either end: both are counts, both belong to the tile
+          rather than to the name, and putting them in the corners lets the name sit on its
+          own. The count used to trail the name as a bare "(28)", which needed its own
+          tooltip to say what it counted. */}
+      <div className="flex w-full items-baseline justify-between gap-2">
+        <span className="font-mono text-xs text-[var(--color-text-muted)]">
+          #{String(pokemon.nationalDexNumber).padStart(4, "0")}
+        </span>
+        {pokemon.cardCount > 0 && (
+          <span className="text-xs text-[var(--color-text-muted)]">
+            {pokemon.cardCount} {pokemon.cardCount === 1 ? "card" : "cards"}
+          </span>
+        )}
+      </div>
       <div className="relative flex h-28 w-28 items-center justify-center">
         {/* Sits behind the sprite and spills past the box, so the light appears to come from
             behind the Pokémon rather than to be a panel it is standing on. */}
@@ -114,19 +134,7 @@ export function PokemonCard({ pokemon }: { pokemon: PokemonSummary }) {
           <div className="relative h-full w-full rounded-full bg-[var(--color-border)]" />
         )}
       </div>
-      <h3 className="mt-1 capitalize text-[var(--color-text)]">
-        {pokemon.name.replace(/-/g, ' ')}
-        {/* How many cards exist for this Pokémon — omitted at zero rather than showing
-            "(0)" on every Pokémon with no cards synced. */}
-        {pokemon.cardCount > 0 && (
-          <span
-            className="ml-1 font-mono text-xs text-[var(--color-text-muted)]"
-            title={`${pokemon.cardCount} card${pokemon.cardCount === 1 ? '' : 's'}`}
-          >
-            ({pokemon.cardCount})
-          </span>
-        )}
-      </h3>
+      <h3 className="mt-1 capitalize text-[var(--color-text)]">{pokemon.name.replace(/-/g, ' ')}</h3>
       <div className="mt-2 flex gap-1.5">
         {pokemon.types.map((t) => (
           <TypeBadge key={t} type={t} />

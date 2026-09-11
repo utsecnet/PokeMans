@@ -1,23 +1,27 @@
 /**
  * The Pokémon type palette, and how to read it.
  *
- * Lives here rather than beside the badge because it is not a component concern: the species
- * page tints its hero, its stat bars and its ability marks from the same values, so the badge
- * is one consumer of the palette rather than its owner.
+ * Lives here rather than beside a component because it is not a component concern: the type
+ * chips, the type glyphs, the grid tiles and the whole species page all colour themselves
+ * from these values, so none of them owns it.
  */
 
-// The palette is keyed by Pokémon type name, but cards print the TCG's own energy types —
-// same colours, different words. Only the four that disagree need mapping.
-const PALETTE_KEY: Record<string, string> = {
-  colorless: 'normal',
+// Keyed by Pokémon type name, but cards print the TCG's own energy types — same colours,
+// different words. Only the four that disagree need mapping.
+const ENERGY_ALIASES: Record<string, string> = {
   lightning: 'electric',
   darkness: 'dark',
   metal: 'steel',
+  colorless: 'normal',
 };
 
-/** The CSS custom property for a type, falling back to the house accent when unknown. */
+/** The glyph and palette key for a Pokémon type or a TCG energy name. */
+export function typeKey(type: string): string {
+  return ENERGY_ALIASES[type.toLowerCase()] ?? type.toLowerCase();
+}
+
+/** The CSS colour for a type, falling back to the house accent when there isn't one. */
 export function typeColor(type: string | undefined | null): string {
   if (!type) return 'var(--color-accent)';
-  const key = PALETTE_KEY[type.toLowerCase()] ?? type.toLowerCase();
-  return `var(--color-type-${key}, var(--color-accent))`;
+  return `var(--color-type-${typeKey(type)}, var(--color-accent))`;
 }
