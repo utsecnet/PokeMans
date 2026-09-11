@@ -128,7 +128,7 @@ export function PokemonCard({ pokemon }: { pokemon: PokemonSummary }) {
             src={image}
             alt={pokemon.name}
             loading="lazy"
-            className="relative h-full w-full object-contain transition group-hover:scale-105"
+            className="sprite-relief relative h-full w-full object-contain transition group-hover:scale-105"
           />
         ) : (
           <div className="relative h-full w-full rounded-full bg-[var(--color-border)]" />

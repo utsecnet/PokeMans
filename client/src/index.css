@@ -507,6 +507,26 @@
   }
 }
 
+/* A thin dark edge around the sprite, raised with the backlight.
+   The glow behind a Pokémon is drawn in its own type colours, so the subject and the light
+   are often the same hue — a grass-green Bulbasaur on a grass-green glow has no edge at all.
+   drop-shadow follows the alpha channel rather than the box, so this traces the silhouette;
+   two passes give a tight line that holds the outline and a wider one that falls away, which
+   separates the sprite without reading as an outline drawn around it. */
+.sprite-relief {
+  transition: filter 300ms ease;
+}
+
+.group:hover .sprite-relief {
+  filter: drop-shadow(0 0 1px rgb(0 0 0 / 0.55)) drop-shadow(0 0 3px rgb(0 0 0 / 0.3));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sprite-relief {
+    transition: none;
+  }
+}
+
 html,
 body,
 #root {
