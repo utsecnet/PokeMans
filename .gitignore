@@ -37,3 +37,11 @@ client/public/cards/
 # this install actually looked at. Safe to delete — it refills on use, and the shipped 245px
 # copies mean deleting it costs quality on next open, not function.
 client/public/cards-hi/
+
+# Architecture notes and diagrams — reference material, not part of the app. Nothing imports it
+# and no npm script builds it. Kept untracked so it lives only in the dev checkout; the clean
+# `main` worktree stays limited to what the app actually needs.
+#
+# The .html and .svg files are output; regenerate them with:
+#   node docs/gen-diagrams.mjs ; node docs/gen-android-diagrams.mjs ; node docs/gen-android-doc.mjs
+docs/
