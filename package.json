@@ -11,8 +11,9 @@
     "sync": "npm run sync -w server",
     "test:rls": "node supabase/tests/rls.mjs",
     "test:meta": "node supabase/tests/meta-parity.mjs",
-    "test:supabase": "npm run test:rls && npm run test:meta && npm run test:cards",
-    "test:cards": "node supabase/tests/cards-parity.mjs"
+    "test:supabase": "npm run test:rls && npm run test:meta && npm run test:cards && npm run test:pokemon",
+    "test:cards": "node supabase/tests/cards-parity.mjs",
+    "test:pokemon": "node supabase/tests/pokemon-parity.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.0"

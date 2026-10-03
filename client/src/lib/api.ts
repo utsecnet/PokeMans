@@ -22,9 +22,14 @@ import type {
   WantListDetail,
   WantsByCard,
 } from '../types';
-import { cap } from './format';
 import { supabase } from './supabase';
-import { localiseCard, localiseCards, localSetSymbol } from './localImages';
+import {
+  localiseCard,
+  localiseCards,
+  localSetSymbol,
+  localSprite,
+  localArtwork,
+} from './localImages';
 
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -79,50 +84,57 @@ export interface PokemonListParams {
   signal?: AbortSignal;
 }
 
-export function fetchPokemonList({
+/**
+ * The nine numeric filters as one object, which is how search_pokemon takes them.
+ *
+ * The server spelled these as eighteen query parameters (minHp, maxHp, minHeight …).
+ * Collapsing them here keeps the function signature readable and means adding a tenth
+ * filter later is a key, not two more parameters.
+ */
+function rangePayload(filters: Partial<PokemonFilters> | undefined) {
+  if (!filters) return null;
+  const out: Record<string, { min: number; max: number }> = {};
+  for (const key of Object.keys(filters.stats ?? {}) as StatKey[]) {
+    const r = filters.stats?.[key];
+    if (r) out[key] = { min: r.min, max: r.max };
+  }
+  if (filters.height) out.height = filters.height;
+  if (filters.weight) out.weight = filters.weight;
+  if (filters.baseExperience) out.baseExperience = filters.baseExperience;
+  return Object.keys(out).length > 0 ? out : null;
+}
+
+export async function fetchPokemonList({
   page,
   pageSize,
   filters,
   signal,
 }: PokemonListParams = {}): Promise<PokemonListResponse> {
-  const query = new URLSearchParams();
-  if (page) query.set('page', String(page));
-  if (pageSize) query.set('pageSize', String(pageSize));
-
-  if (filters) {
-    if (filters.search) query.set('search', filters.search);
-    if (filters.types?.length) query.set('types', filters.types.join(','));
-    if (filters.typeMode) query.set('typeMode', filters.typeMode);
-    if (filters.generations?.length) query.set('generations', filters.generations.join(','));
-    if (filters.abilities?.length) query.set('abilities', filters.abilities.join(','));
-    if (filters.expansions?.length) query.set('expansions', filters.expansions.join(','));
-    if (filters.sortChain?.length) {
-      query.set('sort', filters.sortChain.map((r) => `${r.field}:${r.dir}`).join(','));
-    }
-
-    if (filters.stats) {
-      for (const key of Object.keys(filters.stats) as StatKey[]) {
-        const range = filters.stats[key];
-        if (!range) continue;
-        query.set(`min${cap(key)}`, String(range.min));
-        query.set(`max${cap(key)}`, String(range.max));
-      }
-    }
-    if (filters.height) {
-      query.set('minHeight', String(filters.height.min));
-      query.set('maxHeight', String(filters.height.max));
-    }
-    if (filters.weight) {
-      query.set('minWeight', String(filters.weight.min));
-      query.set('maxWeight', String(filters.weight.max));
-    }
-    if (filters.baseExperience) {
-      query.set('minBaseExperience', String(filters.baseExperience.min));
-      query.set('maxBaseExperience', String(filters.baseExperience.max));
-    }
+  const res = await rpc<PokemonListResponse>(
+    'search_pokemon',
+    {
+      p_search: filters?.search || null,
+      p_types: filters?.types?.length ? filters.types : null,
+      p_type_mode: filters?.typeMode === 'all' ? 'all' : 'any',
+      p_generations: filters?.generations?.length ? filters.generations : null,
+      p_abilities: filters?.abilities?.length ? filters.abilities : null,
+      p_expansions: filters?.expansions?.length ? filters.expansions : null,
+      p_ranges: rangePayload(filters),
+      p_sort: filters?.sortChain?.length
+        ? filters.sortChain.map((r) => `${r.field}:${r.dir}`).join(',')
+        : null,
+      p_page: page ?? 1,
+      p_page_size: pageSize ?? 60,
+    },
+    signal,
+  );
+  // Sprites and artwork are named by dex id, which for a default variety is the same as
+  // the species id — and the list only ever returns default varieties.
+  for (const row of res.items as unknown as Record<string, unknown>[]) {
+    row.spriteUrl = localSprite(row.id as number);
+    row.artworkUrl = localArtwork(row.id as number);
   }
-
-  return fetch(`/api/pokemon?${query.toString()}`, { signal }).then(json<PokemonListResponse>);
+  return res;
 }
 
 export function fetchPokemonDetail(id: number | string): Promise<PokemonDetail> {
