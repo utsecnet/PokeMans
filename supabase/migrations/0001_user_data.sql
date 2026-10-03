@@ -164,6 +164,15 @@ alter table public.want_lists         enable row level security;
 alter table public.want_list_entries  enable row level security;
 alter table public.user_settings      enable row level security;
 
+-- Supabase grants the signed-out role a set of privileges on every new table in `public`.
+-- RLS already denies it SELECT, INSERT, UPDATE and DELETE, since it holds no policy — but
+-- the grant also carries TRUNCATE, and TRUNCATE is not subject to row level security at
+-- all. Nothing exposes TRUNCATE through the REST API, so this was never reachable; it is
+-- removed because a guard that depends on no one ever exposing it is not a guard.
+revoke all on table public.collection_boxes, public.collection_entries,
+                    public.want_lists, public.want_list_entries,
+                    public.user_settings from anon;
+
 do $policies$
 declare
   t text;
