@@ -77,6 +77,29 @@ begin
 end
 $grants$;
 
+-- -------------------------------------------------------------------------------------
+-- The service role: everything, on every table.
+--
+-- This is the role the sync and the import run as, and it is the only one that may write
+-- to the shared tables. It is often assumed to need no grants because it bypasses row
+-- level security — but bypassing policies is not the same as holding privileges. It still
+-- has to get past the grant, and on this project it never had one: the import failed with
+-- the same 42501 that signed-in users hit, for the same reason.
+--
+-- Supabase's default privileges normally make all of this invisible. They did not apply
+-- to these tables, so every role had to be granted explicitly.
+-- -------------------------------------------------------------------------------------
+do $service$
+declare
+  t text;
+begin
+  for t in select tablename from pg_tables where schemaname = 'public'
+  loop
+    execute format('grant all on table public.%I to service_role', t);
+  end loop;
+end
+$service$;
+
 -- =====================================================================================
 -- Unchanged: nothing is granted to the signed-out role, and nothing at all reaches
 -- user_roles. Restated rather than assumed, so this file cannot quietly undo them.

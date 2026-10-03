@@ -58,8 +58,18 @@ const boxId = made.data?.id;
   check('A can read it back', mine.data?.length === 1, `${mine.data?.length} rows`);
   check('the row is stamped with A', mine.data?.[0]?.user_id === aId);
 
-  const cat = await A.from('tcg_cards').select('id').limit(1);
-  check('A can read the shared catalogue', !cat.error, cat.error?.message ?? 'reachable (table empty)');
+  // Rows, not merely absence of an error: before the catalogue was imported this check
+  // passed against an empty table, which proved only that the request was not refused.
+  const cat = await A.from('tcg_cards').select('id,name').eq('id', 'base1-4').single();
+  check('A can read the shared catalogue', cat.data?.name === 'Charizard',
+    cat.error?.message ?? `base1-4 = ${cat.data?.name}`);
+
+  const countable = await A.from('tcg_cards').select('*', { count: 'exact', head: true });
+  check('A sees the whole catalogue', (countable.count ?? 0) > 20000, `${countable.count} cards`);
+
+  const write = await A.from('tcg_cards').update({ name: 'tampered' }).eq('id', 'base1-4').select();
+  check('A cannot write to the catalogue', write.error !== null || write.data?.length === 0,
+    write.error ? write.error.code : `${write.data?.length} rows changed`);
 
   const roles = await A.from('user_roles').select('user_id').limit(1);
   check('A cannot read user_roles', roles.error !== null || roles.data?.length === 0,
