@@ -48,6 +48,44 @@ export type SignInOutcome =
   | { ok: false; reason: 'already-registered' | 'failed'; message: string };
 
 /**
+ * Reads a failure Supabase sent back on the return leg of an OAuth round trip.
+ *
+ * This is the half that matters and is easy to miss. linkIdentity() resolves as soon as
+ * the redirect begins — it cannot know whether the provider will accept. A refusal
+ * arrives later, as query and fragment parameters on the page the browser lands on, and
+ * nothing rejects. The symptom is a sign-in that appears to do nothing: away to Google,
+ * back again, still signed out.
+ *
+ * `identity_already_exists` is the common one: the Google account is already attached to
+ * another user here, so it cannot also be attached to this anonymous one. Signing in as
+ * that account is the way through, and it means leaving the anonymous session behind.
+ *
+ * Pure: it reads and returns. Clearing the URL is clearOAuthError, kept separate so this
+ * can be called during render without a side effect, and so a double-invoked initialiser
+ * in development cannot consume the error before anything displays it.
+ */
+export function readOAuthError(): { code: string; message: string } | null {
+  const url = new URL(window.location.href);
+  const fragment = new URLSearchParams(url.hash.replace(/^#/, ''));
+  const code = url.searchParams.get('error_code') ?? fragment.get('error_code');
+  if (!code) return null;
+
+  const description =
+    url.searchParams.get('error_description') ?? fragment.get('error_description') ?? code;
+
+  return { code, message: description.replace(/\+/g, ' ') };
+}
+
+/** Drops the error parameters, so a reload does not resurrect one already dealt with. */
+export function clearOAuthError(): void {
+  const url = new URL(window.location.href);
+  if (!url.search && !url.hash) return;
+  url.search = '';
+  url.hash = '';
+  window.history.replaceState({}, '', url.toString());
+}
+
+/**
  * Begins a Google sign-in, preserving anything done anonymously where it can.
  *
  * Both branches redirect away from the page, so a resolved promise here means the

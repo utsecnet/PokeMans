@@ -9,15 +9,32 @@
  * The exception is a Google account that already belongs to someone here. Both accounts
  * may hold collections and nothing can merge them safely, so it asks instead of choosing.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSession } from '../lib/sessionContext';
-import { startGoogleSignIn, signInDiscardingAnonymous, signOut } from '../lib/auth';
+import {
+  startGoogleSignIn,
+  signInDiscardingAnonymous,
+  signOut,
+  readOAuthError,
+  clearOAuthError,
+} from '../lib/auth';
 
 export function SignIn() {
   const { user, anonymous } = useSession();
   const [busy, setBusy] = useState(false);
-  const [conflict, setConflict] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+
+  // A refusal from the provider comes back on the URL, not as a rejected promise, so it
+  // is read on arrival. Read during the first render rather than in an effect: the value
+  // is already there in the address bar, and deriving it avoids a second render to show
+  // something that was known before the first.
+  const [failure] = useState(readOAuthError);
+  const [conflict, setConflict] = useState(failure?.code === 'identity_already_exists');
+  const [error, setError] = useState<string | null>(
+    failure && failure.code !== 'identity_already_exists' ? failure.message : null,
+  );
+
+  // Tidying the address bar is the side effect, and the only thing the effect is for.
+  useEffect(clearOAuthError, []);
 
   async function begin() {
     setBusy(true);
@@ -70,7 +87,8 @@ export function SignIn() {
     return (
       <div className="flex items-center gap-2 text-sm">
         <span className="text-[var(--color-text-muted)]">
-          That account already exists here. Signing in leaves this browser's collection behind.
+          That Google account is already registered here. Signing in to it leaves anything
+          added in this browser behind.
         </span>
         <button
           type="button"
