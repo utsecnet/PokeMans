@@ -6,9 +6,6 @@ import type {
   CardPriceHistory,
   CardPricing,
   CardListResponse,
-  CollectionBoxDetail,
-  CollectionBoxesResponse,
-  ContainerType,
   Expansion,
   LinkedAccount,
   MetaRanges,
@@ -369,112 +366,24 @@ export function triggerPriceSync(): Promise<{ started: boolean }> {
   return fetch('/api/sync/prices', { method: 'POST' }).then(json<{ started: boolean }>);
 }
 
-export function fetchCollectionBoxes(): Promise<CollectionBoxesResponse> {
-  return fetch('/api/collection/boxes').then(json<CollectionBoxesResponse>);
-}
-
-export function fetchCollectionBox(boxId: number): Promise<CollectionBoxDetail> {
-  return fetch(`/api/collection/boxes/${boxId}`).then(json<CollectionBoxDetail>);
-}
-
-export function createCollectionBox(
-  name: string,
-  type: ContainerType = 'box',
-  color: string | null = null,
-): Promise<CollectionBoxesResponse['boxes'][number]> {
-  return fetch('/api/collection/boxes', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, type, color }),
-  }).then(json<CollectionBoxesResponse['boxes'][number]>);
-}
-
-export function renameCollectionBox(boxId: number, name: string): Promise<{ ok: boolean }> {
-  return fetch(`/api/collection/boxes/${boxId}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name }),
-  }).then(json<{ ok: boolean }>);
-}
-
-export function setCollectionBoxColor(
-  boxId: number,
-  color: string | null,
-): Promise<{ ok: boolean }> {
-  return fetch(`/api/collection/boxes/${boxId}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ color }),
-  }).then(json<{ ok: boolean }>);
-}
-
-export function setCollectionBoxIcon(boxId: number, icon: string | null): Promise<{ ok: boolean }> {
-  return fetch(`/api/collection/boxes/${boxId}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ icon }),
-  }).then(json<{ ok: boolean }>);
-}
-
-/** Sets the manual order from the arrangement the page is currently showing. */
-export function reorderCollectionBoxes(ids: number[]): Promise<{ ok: boolean }> {
-  return fetch('/api/collection/boxes/reorder', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ids }),
-  }).then(json<{ ok: boolean }>);
-}
-
-export function deleteCollectionBox(boxId: number): Promise<{ ok: boolean }> {
-  return fetch(`/api/collection/boxes/${boxId}`, { method: 'DELETE' }).then(json<{ ok: boolean }>);
-}
-
-export function addToCollection(
-  boxId: number,
-  cardId: string,
-  delta = 1,
-): Promise<{ id: number; quantity: number; boxId: number; cardId: string }> {
-  return fetch('/api/collection/entries', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ boxId, cardId, delta }),
-  }).then(json<{ id: number; quantity: number; boxId: number; cardId: string }>);
-}
-
-
-/**
- * Records which printing a copy is. Passing null clears it back to unrecorded. If the box
- * already holds that card in that printing the two rows are merged, and the response says
- * which entry absorbed this one.
- */
-/** Moves one copy to another collection, keeping its printing and filing date. */
-export function moveCollectionEntry(
-  entryId: number,
-  boxId: number,
-): Promise<{ ok: true; boxId: number; movedFrom: number | null }> {
-  return fetch(`/api/collection/entries/${entryId}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ boxId }),
-  }).then(json<{ ok: true; boxId: number; movedFrom: number | null }>);
-}
-
-export function setCollectionEntryVariant(
-  entryId: number,
-  variantPosition: number | null,
-): Promise<{ ok: boolean; variantPosition: number | null; mergedInto?: number }> {
-  return fetch(`/api/collection/entries/${entryId}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ variantPosition }),
-  }).then(json<{ ok: boolean; variantPosition: number | null; mergedInto?: number }>);
-}
-
-export function removeCollectionEntry(entryId: number): Promise<{ ok: boolean }> {
-  return fetch(`/api/collection/entries/${entryId}`, { method: 'DELETE' }).then(
-    json<{ ok: boolean }>,
-  );
-}
+// Collections moved to collectionApi.ts when they moved to Supabase: the Express versions
+// were a dozen fetch calls, the Supabase ones carry real logic (copy ordering on removal,
+// label building, local image paths) and had outgrown sitting inline here. Re-exported so
+// every call site keeps importing from one place.
+export {
+  fetchCollectionBoxes,
+  fetchCollectionBox,
+  createCollectionBox,
+  renameCollectionBox,
+  setCollectionBoxColor,
+  setCollectionBoxIcon,
+  reorderCollectionBoxes,
+  deleteCollectionBox,
+  addToCollection,
+  moveCollectionEntry,
+  setCollectionEntryVariant,
+  removeCollectionEntry,
+} from './collectionApi';
 
 /* ---------------------------------------------------------------- want lists */
 
