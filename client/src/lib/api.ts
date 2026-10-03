@@ -15,9 +15,6 @@ import type {
   StatKey,
   SourceState,
   SyncStatus,
-  WantList,
-  WantListDetail,
-  WantsByCard,
 } from '../types';
 import { supabase } from './supabase';
 import {
@@ -387,76 +384,22 @@ export {
 
 /* ---------------------------------------------------------------- want lists */
 
-export function fetchWantLists(): Promise<{ lists: WantList[] }> {
-  return fetch('/api/wants').then(json<{ lists: WantList[] }>);
-}
+// Want lists moved to wantsApi.ts when they moved to Supabase, for the same reason
+// collections did: the Supabase versions carry logic (live refresh, exclusion on removal,
+// local image paths) that had outgrown sitting inline. Re-exported so call sites are
+// unaffected.
+export {
+  fetchWantLists,
+  fetchWantList,
+  fetchWantsByCard,
+  createWantList,
+  updateWantList,
+  deleteWantList,
+  refreshWantList,
+  addToWantList,
+  removeFromWantList,
+} from './wantsApi';
 
-export function fetchWantList(listId: number): Promise<WantListDetail> {
-  return fetch(`/api/wants/${listId}`).then(json<WantListDetail>);
-}
-
-/**
- * Creates a want list. Passing `query` seeds it with everything that filter currently
- * matches; `live` additionally re-runs that filter later, so cards printed after today can
- * join the list on their own.
- */
-export function createWantList(
-  name: string,
-  color: string | null = null,
-  query: string | null = null,
-  live = false,
-): Promise<WantList & { seeded: number }> {
-  return fetch('/api/wants', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, color, query, live }),
-  }).then(json<WantList & { seeded: number }>);
-}
-
-export function updateWantList(
-  listId: number,
-  patch: { name?: string; color?: string | null; live?: boolean },
-): Promise<WantList & { added: number }> {
-  return fetch(`/api/wants/${listId}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(patch),
-  }).then(json<WantList & { added: number }>);
-}
-
-export function deleteWantList(listId: number): Promise<void> {
-  return fetch(`/api/wants/${listId}`, { method: 'DELETE' }).then(() => undefined);
-}
-
-/** Re-runs a live list's filter now rather than waiting until it is next opened. */
-export function refreshWantList(listId: number): Promise<WantList & { added: number }> {
-  return fetch(`/api/wants/${listId}/refresh`, { method: 'POST' }).then(
-    json<WantList & { added: number }>,
-  );
-}
-
-export function addToWantList(listId: number, cardId: string): Promise<{ cardId: string }> {
-  return fetch(`/api/wants/${listId}/cards`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ cardId }),
-  }).then(json<{ cardId: string }>);
-}
-
-export function removeFromWantList(listId: number, cardId: string): Promise<void> {
-  return fetch(`/api/wants/${listId}/cards/${encodeURIComponent(cardId)}`, {
-    method: 'DELETE',
-  }).then(() => undefined);
-}
-
-export function fetchWantsByCard(): Promise<{ byCard: WantsByCard }> {
-  return fetch('/api/wants/meta/by-card').then(json<{ byCard: WantsByCard }>);
-}
-
-/**
- * Re-reads a provider's remaining allowance. Costs one call against that allowance, which
- * is why it is a deliberate action rather than something the Settings page does on load.
- */
 export function refreshAccountQuota(service: string): Promise<{ quota: ApiQuota | null }> {
   return fetch(`/api/settings/linked-accounts/${service}/quota`, { method: 'POST' }).then(
     json<{ quota: ApiQuota | null }>,
