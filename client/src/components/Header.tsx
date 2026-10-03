@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { BrowseViewToggle } from './BrowseViewToggle';
 import { ThemeToggle } from './ThemeToggle';
 import { PokeballIcon } from './PokeballIcon';
+import { SignIn } from './SignIn';
 
 export function Header() {
   return (
@@ -49,6 +50,7 @@ export function Header() {
             </svg>
           </Link>
           <ThemeToggle />
+          <SignIn />
         </div>
       </div>
     </header>

@@ -23,6 +23,8 @@ import type {
   WantsByCard,
 } from '../types';
 import { cap } from './format';
+import { supabase } from './supabase';
+import { localiseCard, localiseCards, localSetSymbol } from './localImages';
 
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -36,6 +38,37 @@ async function json<T>(res: Response): Promise<T> {
     throw new Error(message);
   }
   return res.json() as Promise<T>;
+}
+
+/**
+ * Calls a Postgres function and returns its result, or throws.
+ *
+ * Every read in this file used to be a fetch of an Express route; the catalogue ones are
+ * now database functions reached through PostgREST. The shapes they return are unchanged,
+ * so nothing that calls into this module had to change.
+ *
+ * A caller passing an AbortSignal expects the old fetch behaviour, where aborting a
+ * superseded request stops it. supabase-js takes a signal through .abortSignal(), and an
+ * aborted call rejects — which is what the callers already handle, since that is what
+ * fetch did.
+ */
+async function rpc<T>(
+  fn: string,
+  args: Record<string, unknown> = {},
+  signal?: AbortSignal,
+): Promise<T> {
+  let q = supabase.rpc(fn, args);
+  if (signal) q = q.abortSignal(signal);
+  const { data, error } = await q;
+  if (error) {
+    // 42501 is "permission denied", which here almost always means the session expired
+    // or never started rather than anything the user did wrong.
+    if (error.code === '42501') {
+      throw new Error('Not signed in. Reload the page to start a session.');
+    }
+    throw new Error(error.message);
+  }
+  return data as T;
 }
 
 export interface PokemonListParams {
@@ -97,23 +130,25 @@ export function fetchPokemonDetail(id: number | string): Promise<PokemonDetail> 
 }
 
 export function fetchTypes(): Promise<string[]> {
-  return fetch('/api/pokemon/meta/types').then(json<string[]>);
+  return rpc<string[]>('meta_pokemon_types');
 }
 
 export function fetchGenerations(): Promise<string[]> {
-  return fetch('/api/pokemon/meta/generations').then(json<string[]>);
+  return rpc<string[]>('meta_generations');
 }
 
 export function fetchAbilities(): Promise<string[]> {
-  return fetch('/api/pokemon/meta/abilities').then(json<string[]>);
+  return rpc<string[]>('meta_abilities');
 }
 
 export function fetchRanges(): Promise<MetaRanges> {
-  return fetch('/api/pokemon/meta/ranges').then(json<MetaRanges>);
+  return rpc<MetaRanges>('meta_ranges');
 }
 
-export function fetchExpansions(): Promise<Expansion[]> {
-  return fetch('/api/pokemon/meta/expansions').then(json<Expansion[]>);
+export async function fetchExpansions(): Promise<Expansion[]> {
+  const rows = await rpc<Expansion[]>('meta_expansions');
+  for (const row of rows) row.symbolUrl = localSetSymbol(row.id);
+  return rows;
 }
 
 export interface CardListParams {
@@ -150,42 +185,72 @@ export function cardFilterParams(filters: Partial<CardFilters> | undefined): URL
   return query;
 }
 
-export function fetchCards({
+export async function fetchCards({
   page,
   pageSize,
   filters,
   signal,
 }: CardListParams = {}): Promise<CardListResponse> {
-  const query = cardFilterParams(filters);
-  if (page) query.set('page', String(page));
-  if (pageSize) query.set('pageSize', String(pageSize));
-  if (filters?.sortChain?.length) {
-    query.set('sort', filters.sortChain.map((r) => `${r.field}:${r.dir}`).join(','));
-  }
-
-  return fetch(`/api/cards?${query.toString()}`, { signal }).then(json<CardListResponse>);
+  const res = await rpc<CardListResponse>(
+    'search_cards',
+    {
+      p_search: filters?.search || null,
+      p_expansions: filters?.expansions?.length ? filters.expansions : null,
+      p_series: filters?.series?.length ? filters.series : null,
+      p_rarities: filters?.rarities?.length ? filters.rarities : null,
+      p_types: filters?.types?.length ? filters.types : null,
+      p_generations: filters?.generations?.length ? filters.generations : null,
+      p_supertypes: filters?.supertypes?.length ? filters.supertypes : null,
+      p_illustrators: filters?.illustrators?.length ? filters.illustrators : null,
+      p_owned: filters?.owned ?? null,
+      p_sort: filters?.sortChain?.length
+        ? filters.sortChain.map((r) => `${r.field}:${r.dir}`).join(',')
+        : null,
+      p_page: page ?? 1,
+      p_page_size: pageSize ?? 60,
+    },
+    signal,
+  );
+  localiseCards(res.items as unknown as Record<string, unknown>[]);
+  return res;
 }
 
 export function fetchRarities(): Promise<string[]> {
-  return fetch('/api/cards/meta/rarities').then(json<string[]>);
+  return rpc<string[]>('meta_rarities');
 }
 
 /** The energy types printed on cards — a different vocabulary from fetchTypes()'s Pokémon types. */
 export function fetchCardSupertypes(): Promise<string[]> {
-  return fetch('/api/cards/meta/supertypes').then(json<string[]>);
+  return rpc<string[]>('meta_supertypes');
 }
 
 export function fetchCardIllustrators(): Promise<string[]> {
-  return fetch('/api/cards/meta/illustrators').then(json<string[]>);
+  return rpc<string[]>('meta_illustrators');
 }
 
 export function fetchCardTypes(): Promise<string[]> {
-  return fetch('/api/cards/meta/types').then(json<string[]>);
+  return rpc<string[]>('meta_card_types');
 }
 
 /** One card in the same shape the list returns — lets the card view open from just an id. */
-export function fetchCard(cardId: string, signal?: AbortSignal): Promise<CardListItem> {
-  return fetch(`/api/cards/${encodeURIComponent(cardId)}`, { signal }).then(json<CardListItem>);
+export async function fetchCard(cardId: string, signal?: AbortSignal): Promise<CardListItem> {
+  // Reuses the list query rather than defining a second card row shape that would have to
+  // be kept in step with it. Narrowed to the card's own set first, so this reads one set
+  // rather than the catalogue.
+  //
+  // That relies on a card id being exactly <set_id>-<rest>, which holds for all 20,635
+  // cards, and on no set id containing a dash, which holds for all 176 sets. Both were
+  // checked rather than assumed; if a future set breaks either, this falls back to a
+  // not-found error rather than a wrong card.
+  const res = await rpc<CardListResponse>(
+    'search_cards',
+    { p_search: null, p_page: 1, p_page_size: 25000, p_expansions: [cardId.split('-')[0]] },
+    signal,
+  );
+  const found = res.items.find((c) => c.id === cardId);
+  if (!found) throw new Error(`Card not found: ${cardId}`);
+  localiseCard(found as unknown as Record<string, unknown>);
+  return found;
 }
 
 /** Recorded price history, grouped into one chart per service and marketplace. */
@@ -247,7 +312,7 @@ export function fetchCardPricing(cardId: string, signal?: AbortSignal): Promise<
 }
 
 export function fetchSeries(): Promise<string[]> {
-  return fetch('/api/cards/meta/series').then(json<string[]>);
+  return rpc<string[]>('meta_series');
 }
 
 export function fetchSyncSources(): Promise<{ sources: SourceState[] }> {

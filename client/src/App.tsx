@@ -12,6 +12,7 @@ import { ThemeProvider } from './lib/theme';
 import { WantProvider } from './lib/wantContext';
 import { CollectionProvider } from './lib/collectionContext';
 import { BrowseViewProvider } from './lib/browseView';
+import { SessionProvider } from './lib/sessionContext';
 
 // history.scrollRestoration is set to 'manual' in main.tsx, which hands us full control
 // of scroll position on every route change. Forward navigation (clicking a link) should
@@ -34,6 +35,9 @@ function ScrollManager() {
 function App() {
   return (
     <ThemeProvider>
+      {/* Outside the data providers on purpose: both fetch on mount, and nothing is
+          readable without a session, so they must not run until one exists. */}
+      <SessionProvider>
       <CollectionProvider>
         <WantProvider>
         <BrowseViewProvider>
@@ -55,6 +59,7 @@ function App() {
         </BrowseViewProvider>
         </WantProvider>
       </CollectionProvider>
+      </SessionProvider>
     </ThemeProvider>
   );
 }
