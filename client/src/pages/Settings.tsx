@@ -13,6 +13,8 @@ import type { SourceState, SyncStatus } from '../types';
 import { LinkedAccounts } from '../components/LinkedAccounts';
 import { StorageBreakdown } from '../components/StorageBreakdown';
 import { useCollection } from '../lib/collectionContext';
+import { AdminSync } from '../components/AdminSync';
+import { useSession } from '../lib/sessionContext';
 import { DataSources } from '../components/DataSources';
 
 function formatTime(iso: string | null) {
@@ -38,6 +40,7 @@ const SYNC_TRIGGERS: Record<SourceState['id'], () => Promise<{ started: boolean 
 };
 
 export function Settings() {
+  const { admin } = useSession();
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
@@ -110,6 +113,10 @@ export function Settings() {
     <div className="mx-auto max-w-2xl px-4 py-6">
       <h1 className="text-2xl font-bold">Settings</h1>
 
+      {/* Catalogue and price data are shared: one copy serves everyone, and only an admin
+          refreshes it. A normal user has nothing to sync, so the section does not exist
+          for them rather than appearing and refusing. */}
+      {admin && (
       <section className="mt-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
         <h2 className="text-lg font-semibold">Data Sync</h2>
         <p className="mt-1 text-sm text-[var(--color-text-muted)]">
@@ -163,6 +170,9 @@ export function Settings() {
           </tbody>
         </table>
       </section>
+      )}
+
+      {admin && <AdminSync />}
 
       <section className="mt-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
         <h2 className="text-lg font-semibold">Display</h2>
