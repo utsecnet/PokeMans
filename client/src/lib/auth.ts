@@ -122,15 +122,41 @@ export async function startGoogleSignIn(redirectTo = window.location.href): Prom
   return { ok: true, linked: false };
 }
 
+/** Where the anonymous session's token waits while the browser is away at Google. */
+const PENDING_MERGE = 'pokemans.pendingMerge';
+
+/** Has this anonymous session actually accumulated anything worth carrying across? */
+export async function anonymousHasData(): Promise<boolean> {
+  const [boxes, lists] = await Promise.all([
+    supabase.from('collection_boxes').select('id', { count: 'exact', head: true }),
+    supabase.from('want_lists').select('id', { count: 'exact', head: true }),
+  ]);
+  return (boxes.count ?? 0) > 0 || (lists.count ?? 0) > 0;
+}
+
 /**
- * Signs in with Google as a new identity, abandoning the current anonymous session.
+ * Signs in to an account that already exists, carrying this browser's work across.
  *
- * Only for the `already-registered` case above, and only once the person has been told
- * what they are leaving behind.
+ * The anonymous session's token is kept first, because signing in replaces it and the
+ * merge needs proof of both sides. It is stored rather than held in memory because the
+ * browser leaves the page entirely to visit Google — nothing in this tab survives that.
  */
-export async function signInDiscardingAnonymous(
+export async function signInAndMerge(
   redirectTo = window.location.href,
 ): Promise<SignInOutcome> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  const anonymous = isAnonymous(data.session?.user);
+
+  if (token && anonymous) {
+    try {
+      sessionStorage.setItem(PENDING_MERGE, token);
+    } catch {
+      // Private browsing, or storage disabled. Sign-in still works; only the carry-across
+      // is lost, and finishPendingMerge simply finds nothing.
+    }
+  }
+
   await supabase.auth.signOut();
   const { error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
@@ -138,6 +164,40 @@ export async function signInDiscardingAnonymous(
   });
   if (error) return { ok: false, reason: 'failed', message: error.message };
   return { ok: true, linked: false };
+}
+
+export interface MergeResult {
+  boxes: number;
+  cards: number;
+  lists: number;
+  wanted: number;
+}
+
+/**
+ * Completes a carry-across started before the trip to Google, if one is waiting.
+ *
+ * Called on every load, and does nothing almost every time. The stored token is cleared
+ * whatever happens: a merge that failed will not succeed by being retried on each
+ * subsequent page load, and a token left lying around is one more thing to lose.
+ */
+export async function finishPendingMerge(): Promise<MergeResult | null> {
+  let token: string | null = null;
+  try {
+    token = sessionStorage.getItem(PENDING_MERGE);
+    if (token) sessionStorage.removeItem(PENDING_MERGE);
+  } catch {
+    return null;
+  }
+  if (!token) return null;
+
+  const { data: session } = await supabase.auth.getSession();
+  if (!session.session || isAnonymous(session.session.user)) return null;
+
+  const { data, error } = await supabase.functions.invoke('merge-anonymous', {
+    body: { anonymousAccessToken: token },
+  });
+  if (error || !data?.moved) return null;
+  return { boxes: data.boxes, cards: data.cards, lists: data.lists, wanted: data.wanted };
 }
 
 /**
