@@ -6,6 +6,7 @@
  * makes a throwaway admin and runs a real capture against TCGdex.
  */
 import { createClient } from '@supabase/supabase-js';
+import { createTestUser } from './_helpers.mjs';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -23,11 +24,13 @@ if (!env.SUPABASE_SERVICE_ROLE_KEY) {
 }
 const FN = `${env.VITE_SUPABASE_URL}/functions/v1/sync-prices`;
 
-const user = createClient(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+// A real account, because the admin has to own cards for there to be anything to price —
+// and since migration 0014 a browsing session cannot own any.
+const owner = await createTestUser();
+const user = owner.client;
 const admin = createClient(env.VITE_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
-const { data: session, error: authErr } = await user.auth.signInAnonymously();
-if (authErr) { console.error('sign-in failed:', authErr.message); process.exit(1); }
-const token = session.session.access_token;
+const session = { user: owner.user, session: owner.session };
+const token = owner.session.access_token;
 
 let pass = 0, fail = 0;
 const check = (l, ok, d = '') => { console.log(`   ${ok ? 'PASS' : 'FAIL'}  ${l.padEnd(34)}${d}`); ok ? pass++ : fail++; };
@@ -85,7 +88,7 @@ const body2 = await again.json();
 check('a same-day re-run does no work', body2.priced === 0, JSON.stringify(body2.note ?? body2));
 
 await admin.from('user_roles').delete().eq('user_id', session.user.id);
-await user.from('collection_boxes').delete().eq('id', box.id);
+await owner.remove();
 
 console.log(`\n   ${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);

@@ -4,24 +4,13 @@
  * Covers the distinction that makes the feature work: a card removed from a live list is
  * marked excluded rather than deleted, so the next refresh does not put it straight back.
  */
-import { createClient } from '@supabase/supabase-js';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
+import { createTestUser, reporter } from './_helpers.mjs';
 
-const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const env = Object.fromEntries(
-  readFileSync(path.join(repo, 'client/.env.local'), 'utf8')
-    .split('\n').filter((l) => l.includes('=') && !l.trimStart().startsWith('#'))
-    .map((l) => [l.slice(0, l.indexOf('=')).trim(), l.slice(l.indexOf('=') + 1).trim()]),
-);
+const { check, finish } = reporter();
 
-const sb = createClient(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
-const { error: authErr } = await sb.auth.signInAnonymously();
-if (authErr) { console.error('sign-in failed:', authErr.message); process.exit(1); }
+const owner = await createTestUser();
+const sb = owner.client;
 
-let pass = 0, fail = 0;
-const check = (l, ok, d = '') => { console.log(`   ${ok ? 'PASS' : 'FAIL'}  ${l.padEnd(38)}${d}`); ok ? pass++ : fail++; };
 
 const { data: list, error: e1 } = await sb.from('want_lists')
   .insert({ name: 'Base set chase', color: '#ef4444' }).select().single();
@@ -70,6 +59,5 @@ await sb.from('want_lists').delete().eq('id', list.id);
 await sb.from('collection_boxes').delete().eq('id', box.id);
 const { data: after } = await sb.rpc('want_lists_overview');
 check('delete cascades to entries', after.lists.length === 0, `${after.lists.length} lists left`);
-
-console.log(`\n   ${pass} passed, ${fail} failed\n`);
-process.exit(fail === 0 ? 0 : 1);
+await owner.remove();
+finish();

@@ -5,6 +5,7 @@
  * mistake in it is a way to steal a collection by naming its owner.
  */
 import { createClient } from '@supabase/supabase-js';
+import { browsingSession, createTestUser } from './_helpers.mjs';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -25,22 +26,33 @@ let pass = 0, fail = 0;
 const check = (l, ok, d = '') => { console.log(`   ${ok ? 'PASS' : 'FAIL'}  ${l.padEnd(40)}${d}`); ok ? pass++ : fail++; };
 
 // A stands in for the account someone already has; B for the browser they were browsing in.
-const A = newSession(), B = newSession();
-const a = await A.auth.signInAnonymously();
-const b = await B.auth.signInAnonymously();
+const owner = await createTestUser();
+const A = owner.client;
+const a = { data: { user: owner.user, session: owner.session } };
+const browsing = await browsingSession();
+const B = browsing.client;
+const b = { data: { user: browsing.user, session: browsing.session } };
 
 const { data: aBox } = await A.from('collection_boxes').insert({ name: 'Binder 1' }).select().single();
 await A.from('collection_entries').insert({ box_id: aBox.id, card_id: 'base1-1' });
 
+// B's rows are seeded with the service role, not by B. Since migration 0014 a browsing
+// session cannot create a collection at all — so this is exactly the case the merge
+// exists for: rows that predate the rule, stranded in a session that can no longer add
+// to them and has no other way to keep them.
+//
 // Same name on both sides on purpose: names are unique per user, so the move has to
 // resolve the clash before it can happen.
-const { data: bBox } = await B.from('collection_boxes').insert({ name: 'Binder 1' }).select().single();
-await B.from('collection_entries').insert([
-  { box_id: bBox.id, card_id: 'base1-4' },
-  { box_id: bBox.id, card_id: 'base1-2' },
+const { data: bBox } = await svc.from('collection_boxes')
+  .insert({ name: 'Binder 1', user_id: b.data.user.id }).select().single();
+await svc.from('collection_entries').insert([
+  { box_id: bBox.id, card_id: 'base1-4', user_id: b.data.user.id },
+  { box_id: bBox.id, card_id: 'base1-2', user_id: b.data.user.id },
 ]);
-const { data: bList } = await B.from('want_lists').insert({ name: 'Chase' }).select().single();
-await B.from('want_list_entries').insert({ list_id: bList.id, card_id: 'base1-15', state: 'want' });
+const { data: bList } = await svc.from('want_lists')
+  .insert({ name: 'Chase', user_id: b.data.user.id }).select().single();
+await svc.from('want_list_entries')
+  .insert({ list_id: bList.id, card_id: 'base1-15', state: 'want', user_id: b.data.user.id });
 
 const post = (token, body) => fetch(FN, {
   method: 'POST',
@@ -83,6 +95,7 @@ if (real) {
 
 await svc.from('collection_boxes').delete().eq('user_id', a.data.user.id);
 await svc.from('want_lists').delete().eq('user_id', a.data.user.id);
+await owner.remove();
 
 console.log(`\n   ${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);

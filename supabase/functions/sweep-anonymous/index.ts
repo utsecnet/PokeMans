@@ -9,12 +9,13 @@
  * Only ever deletes an account that is all three of:
  *   anonymous   — a real account is never touched, whatever its age
  *   empty       — no collections and no want lists, so nothing is lost by deleting it
- *   stale       — older than `olderThanDays`, so someone mid-visit is not swept away
+ *   stale       — last seen more than `olderThanDays` ago, so nobody mid-visit is swept
  *
- * The empty test is what makes this safe. A visitor who built a collection anonymously and
- * comes back next month still has it, however long they were away; only accounts with
- * nothing in them are eligible, and for those, deletion is indistinguishable from never
- * having existed — the next visit simply issues a new one.
+ * The empty test is what makes a one-day cutoff safe rather than aggressive. Collecting
+ * now needs a real account, so an anonymous session has nothing to lose by definition and
+ * deleting one is indistinguishable from it never having existed — the next visit simply
+ * issues another. Anything that does hold rows predates that rule and is excluded here
+ * whatever its age, so it survives until its owner signs in and carries it across.
  *
  * Called by a schedule, or by an admin. Supports dryRun so it can be inspected first.
  */
@@ -24,7 +25,7 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
 
-const DEFAULT_AGE_DAYS = 30;
+const DEFAULT_AGE_DAYS = 1;
 /** A ceiling per run, so one invocation cannot spend its whole budget deleting. */
 const MAX_DELETIONS = 500;
 

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { isSignInRequired } from '../lib/signInRequired';
 import { useCollection } from '../lib/collectionContext';
 import { useWants } from '../lib/wantContext';
 import { COLLECTION_COLORS, collectionColorHex } from '../lib/collectionColors';
@@ -202,6 +203,10 @@ export function AddToBoxRail({
       setNewName('');
       setNewColor(null);
       onSelect(created.id);
+    } catch (err) {
+      // The gate has already put the invitation on screen; anything else is a real
+      // failure and belongs to whoever is above this.
+      if (!isSignInRequired(err)) throw err;
     } finally {
       setCreating(false);
     }

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { isSignInRequired } from '../lib/signInRequired';
 import { useNavigate } from 'react-router-dom';
 import { cardFilterParams } from '../lib/api';
 import { useWants } from '../lib/wantContext';
@@ -43,6 +44,9 @@ export function MakeWantListButton({
       setName('');
       navigate(`/wants/${list.id}`);
     } catch (err) {
+      // The account gate shows its own invitation; an error beside it would be the app
+      // objecting to its own suggestion.
+      if (isSignInRequired(err)) return;
       setError(err instanceof Error ? err.message : 'Could not create the want list');
     } finally {
       setBusy(false);

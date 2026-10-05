@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { isSignInRequired } from '../lib/signInRequired';
 import { Link, useSearchParams } from 'react-router-dom';
 import { deleteCollectionBox, deleteWantList } from '../lib/api';
 import { useCollection } from '../lib/collectionContext';
@@ -86,6 +87,9 @@ export function Collection() {
       else await createBox(name);
       setNewBoxName('');
     } catch (err) {
+      // The account gate shows its own invitation; an error beside it would be the app
+      // objecting to its own suggestion.
+      if (isSignInRequired(err)) return;
       setError(err instanceof Error ? err.message : 'Failed to create collection');
     } finally {
       setCreating(false);

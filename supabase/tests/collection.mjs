@@ -5,24 +5,14 @@
  * Covers the distinctions that are easy to get wrong: distinct cards against total
  * copies, an unknown box, and whether deleting a box takes its entries with it.
  */
-import { createClient } from '@supabase/supabase-js';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
+import { createTestUser, reporter } from './_helpers.mjs';
 
-const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const env = Object.fromEntries(
-  readFileSync(path.join(repo, 'client/.env.local'), 'utf8')
-    .split('\n').filter((l) => l.includes('=') && !l.trimStart().startsWith('#'))
-    .map((l) => [l.slice(0, l.indexOf('=')).trim(), l.slice(l.indexOf('=') + 1).trim()]),
-);
+const { check, finish } = reporter();
 
-const sb = createClient(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
-const { error: authErr } = await sb.auth.signInAnonymously();
-if (authErr) { console.error('sign-in failed:', authErr.message); process.exit(1); }
+// A real account: collecting needs one since migration 0014.
+const owner = await createTestUser();
+const sb = owner.client;
 
-let pass = 0, fail = 0;
-const check = (l, ok, d = '') => { console.log(`   ${ok ? 'PASS' : 'FAIL'}  ${l.padEnd(36)}${d}`); ok ? pass++ : fail++; };
 
 const { data: box, error: e1 } = await sb.from('collection_boxes').insert({ name: 'Test binder' }).select().single();
 check('create a collection', !e1, e1?.message ?? `id ${box?.id}`);
@@ -58,6 +48,5 @@ check('unknown box returns null', missing === null, JSON.stringify(missing));
 await sb.from('collection_boxes').delete().eq('id', box.id);
 const { data: after } = await sb.rpc('collection_overview');
 check('delete cascades to entries', after.boxes.length === 0, `${after.boxes.length} boxes left`);
-
-console.log(`\n   ${pass} passed, ${fail} failed\n`);
-process.exit(fail === 0 ? 0 : 1);
+await owner.remove();
+finish();

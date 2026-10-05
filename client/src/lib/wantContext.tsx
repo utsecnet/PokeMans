@@ -7,6 +7,8 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { useRequireAccount } from './requireAccount';
+import { SignInRequired } from './signInRequired';
 import { createWantList, fetchWantLists, updateWantList } from './api';
 import type { WantList } from '../types';
 
@@ -47,13 +49,18 @@ export function WantProvider({ children }: { children: ReactNode }) {
     refresh().finally(() => setLoading(false));
   }, [refresh]);
 
+  const { requireAccount } = useRequireAccount();
+
   const createList = useCallback(
     async (name: string, color: string | null = null, query: string | null = null, live = false) => {
+      if (!requireAccount('Want lists are kept with your account.')) {
+        throw new SignInRequired();
+      }
       const list = await createWantList(name, color, query, live);
       setLists((prev) => [...prev, list].sort((a, b) => a.name.localeCompare(b.name)));
       return list;
     },
-    [],
+    [requireAccount],
   );
 
   const setListColor = useCallback(async (listId: number, color: string | null) => {

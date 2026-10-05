@@ -7,6 +7,8 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { SignInRequired } from './signInRequired';
+import { useRequireAccount } from './requireAccount';
 import {
   createCollectionBox,
   fetchCollectionBoxes,
@@ -49,14 +51,21 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
     refresh().finally(() => setLoading(false));
   }, [refresh]);
 
+  const { requireAccount } = useRequireAccount();
+
   const createBox = useCallback(
     async (name: string, type: ContainerType = 'box', color: string | null = null) => {
+      // The policies refuse this for a browsing session anyway; stopping here is what
+      // turns a row-level-security error into an explanation.
+      if (!requireAccount('Collections are kept with your account.')) {
+        throw new SignInRequired();
+      }
       const box = await createCollectionBox(name, type, color);
       setBoxes((prev) => [...prev, box]);
       setLastUsedBoxIdState(box.id);
       return box;
     },
-    [],
+    [requireAccount],
   );
 
   const setBoxColor = useCallback(async (boxId: number, color: string | null) => {
