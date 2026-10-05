@@ -30,8 +30,18 @@ export function isAnonymous(user: User | null | undefined): boolean {
  * than being issued a fresh one each time.
  */
 export async function ensureSession(): Promise<Session | null> {
-  const { data: existing } = await supabase.auth.getSession();
-  if (existing.session) return existing.session;
+  // getSession reads from storage and refreshes an expired token on the way out. That
+  // refresh is also what catches an account deleted since this browser last visited —
+  // the sweep removes anonymous accounts idle for a month, by which time the stored
+  // access token is long expired, so the refresh fails and this returns nothing rather
+  // than a session that would be rejected by every query.
+  const { data: existing, error: existingError } = await supabase.auth.getSession();
+  if (existing.session && !existingError) return existing.session;
+  if (existingError) {
+    // A stored session that cannot be revived is worse than none: it would be handed to
+    // every query and refused. Drop it and start again.
+    await supabase.auth.signOut().catch(() => undefined);
+  }
 
   const { data, error } = await supabase.auth.signInAnonymously();
   if (error) {
