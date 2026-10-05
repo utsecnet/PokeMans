@@ -85,6 +85,15 @@ export function clearOAuthError(): void {
   window.history.replaceState({}, '', url.toString());
 }
 
+/** Has this anonymous session actually accumulated anything worth carrying across? */
+export async function anonymousHasData(): Promise<boolean> {
+  const [boxes, lists] = await Promise.all([
+    supabase.from('collection_boxes').select('id', { count: 'exact', head: true }),
+    supabase.from('want_lists').select('id', { count: 'exact', head: true }),
+  ]);
+  return (boxes.count ?? 0) > 0 || (lists.count ?? 0) > 0;
+}
+
 /**
  * Begins a Google sign-in, preserving anything done anonymously where it can.
  *
@@ -99,6 +108,20 @@ export function clearOAuthError(): void {
  */
 export async function startGoogleSignIn(redirectTo = window.location.href): Promise<SignInOutcome> {
   const { data: current } = await supabase.auth.getUser();
+
+  // Linking exists for one reason: to keep what was built anonymously. With nothing to
+  // keep, attempting it costs a whole round trip to Google that can only fail or succeed
+  // identically to signing in — and when it fails, the fallback sends the person to
+  // Google a second time to choose the same account again. So ask first whether there is
+  // anything worth linking for, and go straight to signing in when there is not.
+  if (isAnonymous(current.user) && !(await anonymousHasData())) {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo },
+    });
+    if (error) return { ok: false, reason: 'failed', message: error.message };
+    return { ok: true, linked: false };
+  }
 
   if (isAnonymous(current.user)) {
     const { error } = await supabase.auth.linkIdentity({
@@ -124,15 +147,6 @@ export async function startGoogleSignIn(redirectTo = window.location.href): Prom
 
 /** Where the anonymous session's token waits while the browser is away at Google. */
 const PENDING_MERGE = 'pokemans.pendingMerge';
-
-/** Has this anonymous session actually accumulated anything worth carrying across? */
-export async function anonymousHasData(): Promise<boolean> {
-  const [boxes, lists] = await Promise.all([
-    supabase.from('collection_boxes').select('id', { count: 'exact', head: true }),
-    supabase.from('want_lists').select('id', { count: 'exact', head: true }),
-  ]);
-  return (boxes.count ?? 0) > 0 || (lists.count ?? 0) > 0;
-}
 
 /**
  * Signs in to an account that already exists, carrying this browser's work across.
