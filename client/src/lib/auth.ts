@@ -76,13 +76,21 @@ export function readOAuthError(): { code: string; message: string } | null {
   return { code, message: description.replace(/\+/g, ' ') };
 }
 
-/** Drops the error parameters, so a reload does not resurrect one already dealt with. */
+/**
+ * Drops whatever the OAuth round trip left on the address, so a reload does not resurrect
+ * an error already dealt with — and so a successful sign-in does not leave the browser
+ * sitting on a URL ending in a bare "#".
+ *
+ * Compares the whole href rather than inspecting the parsed parts. For
+ * "http://localhost:5174/#" the URL object reports an *empty* hash: the fragment is there
+ * in the address bar but there is nothing in it, so checking `url.hash` concludes there is
+ * nothing to clean and leaves the stray character behind. That is what it did.
+ */
 export function clearOAuthError(): void {
-  const url = new URL(window.location.href);
-  if (!url.search && !url.hash) return;
-  url.search = '';
-  url.hash = '';
-  window.history.replaceState({}, '', url.toString());
+  const { href, origin, pathname } = window.location;
+  const clean = origin + pathname;
+  if (href === clean) return;
+  window.history.replaceState({}, '', clean);
 }
 
 /** Has this anonymous session actually accumulated anything worth carrying across? */
