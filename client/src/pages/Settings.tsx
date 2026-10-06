@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react';
 import { fetchDisplayCurrency, setDisplayCurrency } from '../lib/api';
-import { LinkedAccounts } from '../components/LinkedAccounts';
-import { StorageBreakdown } from '../components/StorageBreakdown';
 import { AdminSync } from '../components/AdminSync';
 import { useSession } from '../lib/sessionContext';
 
@@ -95,15 +93,6 @@ export function Settings() {
         </label>
       </section>
 
-      <section className="mt-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
-        <h2 className="text-lg font-semibold">Storage</h2>
-        <p className="mt-1 text-sm text-[var(--color-text-muted)]">
-          What the databases hold, and how much room each kind of data takes.
-        </p>
-        <StorageBreakdown />
-      </section>
-
-      <LinkedAccounts />
     </div>
   );
 }

@@ -1,13 +1,10 @@
 import type {
-  ApiQuota,
-  StorageReport,
   CardFilters,
   CardListItem,
   CardPriceHistory,
   CardPricing,
   CardListResponse,
   Expansion,
-  LinkedAccount,
   MetaRanges,
   PokemonDetail,
   PokemonFilters,
@@ -348,28 +345,8 @@ export async function setDisplayCurrency(
   return { currency: wanted, supported: [...SUPPORTED_CURRENCIES] };
 }
 
-/** External services the user can link. Never returns a stored key, only a masked hint. */
-export function fetchLinkedAccounts(): Promise<{ providers: LinkedAccount[] }> {
-  return fetch('/api/settings/linked-accounts').then(json<{ providers: LinkedAccount[] }>);
-}
 
-/** Saves a key after the service confirms it works; rejects it otherwise. */
-export function saveLinkedAccount(
-  service: string,
-  key: string,
-): Promise<{ ok: boolean; message: string | null; providers: LinkedAccount[] }> {
-  return fetch(`/api/settings/linked-accounts/${encodeURIComponent(service)}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ key }),
-  }).then(json<{ ok: boolean; message: string | null; providers: LinkedAccount[] }>);
-}
 
-export function removeLinkedAccount(service: string): Promise<{ providers: LinkedAccount[] }> {
-  return fetch(`/api/settings/linked-accounts/${encodeURIComponent(service)}`, {
-    method: 'DELETE',
-  }).then(json<{ providers: LinkedAccount[] }>);
-}
 
 /** Live market prices per print variant. Fetched on demand, so it's never stale. */
 /** Asks the server to fetch today's prices for this card if it doesn't already hold them. */
@@ -458,13 +435,4 @@ export {
   removeFromWantList,
 } from './wantsApi';
 
-export function refreshAccountQuota(service: string): Promise<{ quota: ApiQuota | null }> {
-  return fetch(`/api/settings/linked-accounts/${service}/quota`, { method: 'POST' }).then(
-    json<{ quota: ApiQuota | null }>,
-  );
-}
 
-/** How much of each kind of data the databases hold. Measured on request, not cached. */
-export function fetchStorage(): Promise<StorageReport> {
-  return fetch('/api/settings/storage').then(json<StorageReport>);
-}
