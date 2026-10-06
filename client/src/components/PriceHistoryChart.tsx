@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { captureCardPrices, fetchCardPriceHistory } from '../lib/api';
+import { fetchCardPriceHistory } from '../lib/api';
 import type { CardPriceHistory, PriceChart, PriceSeries } from '../types';
 
 // Plain SVG rather than a charting library: the project carries no chart dependency, and a
@@ -52,13 +52,9 @@ const COLORS = [
   '#2aa39a', '#c94f9c', '#7a8b3f', '#4a6fd6', '#c96a2f',
 ];
 
-const DISPLAY_NAMES: Record<string, string> = {
-  pokemonpricetracker: 'PokemonPriceTracker',
-  tcgdex: 'TCGdex',
-  tcgplayer: 'TCGplayer',
-  cardmarket: 'Cardmarket',
-};
-const displayName = (id: string) => DISPLAY_NAMES[id] ?? id;
+// A marketplace's display name is carried on the chart itself, read from price_source,
+// rather than looked up here. A hard-coded table meant adding a source in two places and
+// silently showing a raw key when someone forgot the second.
 
 // Best to worst: the band's top edge is the best condition present, its bottom the worst.
 const CONDITION_RANK: Record<string, number> = {
@@ -122,7 +118,7 @@ function toBands(series: PriceSeries[]): Band[] {
     const last = points[points.length - 1] ?? null;
     return {
       key,
-      label: showMarketplace ? `${printing} · ${displayName(group[0].marketplace)}` : printing,
+      label: showMarketplace ? `${printing} · ${group[0].marketplace}` : printing,
       points,
       conditions: group
         .map((s) => s.condition)
@@ -180,7 +176,7 @@ function Chart({ chart, maxHeight }: { chart: PriceChart; maxHeight: number | nu
         height={HEIGHT}
         className="block"
         role="img"
-        aria-label={`Price history from ${displayName(chart.service)} in ${chart.currency}`}
+        aria-label={`Price history from ${chart.label} in ${chart.currency}`}
       >
         <defs>
           {bands.map((_, i) => (
@@ -368,20 +364,11 @@ export function PriceHistoryChart({
       );
     };
 
-    // Stored history paints first so the panel isn't blank while the network call runs, then a
-    // capture fills in today's prices for any card — including ones outside the collection,
-    // which would otherwise have nothing to show. The server skips the fetch when it already
-    // holds today's figures, so re-opening a card costs a database read.
-    fetchCardPriceHistory(cardId, controller.signal)
-      .then((h) => {
-        show(h);
-        return captureCardPrices(cardId, controller.signal);
-      })
-      // Re-read unconditionally rather than only when the capture reported rows. React runs
-      // effects twice in development, and the first run's cleanup aborts its capture while the
-      // server completes it anyway — so the second run can see "already held, 0 rows" over a
-      // history it fetched before those rows landed, and would never look again.
-      .then(() => fetchCardPriceHistory(cardId, controller.signal).then(show))
+    // One read, no capture. Every card in the catalogue is priced by the daily sync, so
+    // there is nothing to fetch on demand any more — opening a card used to trigger an
+    // outbound request because the old source could only price cards one at a time.
+    fetchCardPriceHistory(cardId, 365, controller.signal)
+      .then(show)
       .catch((err) => {
         if (controller.signal.aborted) return;
         // A capture that fails still leaves whatever was already stored on screen.
@@ -399,7 +386,7 @@ export function PriceHistoryChart({
   if (history.charts.length === 0) {
     return (
       <p className="text-xs text-[var(--color-text-muted)]">
-        No prices published for this card by TCGdex or PokemonPriceTracker.
+        No prices recorded for this card yet.
       </p>
     );
   }
@@ -421,17 +408,15 @@ export function PriceHistoryChart({
                 : 'border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
             }`}
           >
-            {displayName(c.service)}
+            {c.label}
           </button>
         ))}
-        <span className="ml-auto pr-1 text-[10px] text-[var(--color-text-muted)]">{chart.currency}</span>
+        {/* The currency sits with the active tab, never on the page: two marketplaces quote
+            in different money and a figure read off the wrong one is wrong silently. */}
+        <span className="ml-auto pr-1 text-[10px] text-[var(--color-text-muted)]">
+          {chart.label} · {chart.currency}
+        </span>
       </div>
-
-      {history.ratesUnavailable && (
-        <p className="mt-1.5 text-[10px] text-[var(--color-text-muted)]">
-          Some values were left out — no exchange rate was available.
-        </p>
-      )}
 
       <div className="mt-2">
         <Chart key={chart.service} chart={chart} maxHeight={maxHeight} />

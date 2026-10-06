@@ -228,7 +228,6 @@ export interface CardVariantPricing {
   type: string;
   label: string;
   tcgplayer: (Record<string, CardPriceBucket> & { unit?: string; updated?: string }) | null;
-  cardmarket: (Record<string, number | string> & { unit?: string }) | null;
 }
 
 export interface CardPricing {
@@ -284,7 +283,14 @@ export interface ApiQuota {
 export interface PricePoint {
   date: string;
   market: number;
-  volume: number | null;
+  /**
+   * The lowest listing on the day, where the source gives one.
+   *
+   * Was `volume`, which no source we use actually reports -- it was always null and drew
+   * nothing. TCGplayer publishes a low alongside the market price, which is a real figure
+   * and the one the band on the chart is drawn from.
+   */
+  low: number | null;
 }
 
 /** One recorded series: a printing, and a condition where the service reports one. */
@@ -299,18 +305,24 @@ export interface PriceSeries {
   points: PricePoint[];
 }
 
-/** One chart per service; every value is converted to the display currency. */
+/**
+ * One chart per marketplace, in that marketplace's own currency.
+ *
+ * The currency belongs to the chart and never to the page, because a single axis carrying
+ * two currencies would be quietly wrong in a way a reader cannot see. One marketplace is
+ * collected today; the shape does not assume that.
+ */
 export interface PriceChart {
+  /** Stable key from price_source, e.g. "tcgplayer". */
   service: string;
+  /** What to show a reader, e.g. "TCGplayer". Comes from the database, not a lookup here. */
+  label: string;
   currency: string;
   series: PriceSeries[];
 }
 
 export interface CardPriceHistory {
   cardId: string;
-  currency: string;
-  /** True if some points were dropped because no exchange rate was available. */
-  ratesUnavailable: boolean;
   charts: PriceChart[];
 }
 
@@ -529,4 +541,53 @@ export interface StorageDatabase {
 
 export interface StorageReport {
   databases: StorageDatabase[];
+}
+
+// ---------------------------------------------------------------- admin dashboard
+
+/** One day in the sync calendar. `status` is 'none' when the job did not run at all. */
+export interface SyncDay {
+  day: string;
+  status: 'ok' | 'warn' | 'error' | 'none';
+  rows: number | null;
+  series: number | null;
+  fails: number | null;
+  ms: number | null;
+  note: string | null;
+}
+
+/** One job's year of days, for one source. */
+export interface SyncTrack {
+  sourceKey: string;
+  label: string;
+  job: string;
+  days: SyncDay[];
+}
+
+/**
+ * Whether the price data is sound.
+ *
+ * `pricedToday` against `pricedPrintings` is freshness; `pricedPrintings` against
+ * `totalPrintings` is coverage. A sync can be perfectly fresh and badly incomplete, which
+ * is why both are here.
+ */
+export interface PriceHealthReport {
+  mappedPrintings: number;
+  totalPrintings: number;
+  pricedPrintings: number;
+  pricedToday: number;
+  staleOver3Days: number;
+  historyRows: number;
+  oldestPoint: string | null;
+  newestPoint: string | null;
+  lastObserved: string | null;
+}
+
+export interface DatabaseUsage {
+  bytes: number;
+  byteLimit: number;
+  pctUsed: number;
+  pretty: string;
+  limitPretty: string;
+  tables: { name: string; bytes: number; pretty: string }[];
 }

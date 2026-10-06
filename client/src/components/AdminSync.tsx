@@ -1,125 +1,157 @@
 /**
- * Running the price capture, and seeing what it did.
+ * The two jobs an admin can set off by hand.
  *
- * Only an admin sees this. Only an admin can use it either — the Edge Function checks for
- * itself and refuses anyone else, so hiding this is about not showing people controls
- * that are not theirs, not about keeping them out.
+ * Both normally run on a schedule; these buttons exist for the first run, for catching up
+ * after an outage, and for watching the thinning behave before trusting it. The thinning
+ * offers a dry run first, because deleting history is the one action here that cannot be
+ * undone by running it again.
  */
-import { useCallback, useEffect, useState } from 'react';
-import {
-  fetchSyncRuns,
-  runPriceSyncToCompletion,
-  type PriceSyncResult,
-  type SyncRun,
-} from '../lib/adminApi';
+import { useState } from 'react';
+import { runHistoryThinning, runPriceSync, runPriceSyncToCompletion } from '../lib/adminApi';
+import type { PriceSyncResult } from '../lib/adminApi';
+
+type Thinning = Awaited<ReturnType<typeof runHistoryThinning>>;
 
 export function AdminSync() {
-  const [runs, setRuns] = useState<SyncRun[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState<PriceSyncResult | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [priceResult, setPriceResult] = useState<PriceSyncResult | null>(null);
+  const [thinResult, setThinResult] = useState<Thinning | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const reload = useCallback(() => {
-    fetchSyncRuns().then(setRuns).catch((e: Error) => setError(e.message));
-  }, []);
-
-  useEffect(reload, [reload]);
-
-  async function run() {
-    setBusy(true);
+  const run = async (name: string, work: () => Promise<void>) => {
+    setBusy(name);
     setError(null);
-    setProgress(null);
     try {
-      await runPriceSyncToCompletion(setProgress);
+      await work();
     } catch (e) {
-      setError((e as Error).message);
+      setError(e instanceof Error ? e.message : 'Failed');
     } finally {
-      setBusy(false);
-      reload();
+      setBusy(null);
     }
-  }
+  };
 
   return (
     <section className="mt-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold">Price capture</h2>
-          <p className="mt-1 max-w-prose text-sm text-[var(--color-text-muted)]">
-            Fetches today's price for every card anyone owns or wants. One run serves all
-            users — prices are shared, so nobody pays twice for the same card.
-          </p>
-        </div>
+      <h2 className="text-lg font-semibold">Run a job now</h2>
+      <p className="mt-1 text-sm text-[var(--color-text-muted)]">
+        Both of these run on a schedule. Use these for a first run, or to catch up after an
+        outage.
+      </p>
+
+      <div className="mt-4 flex flex-wrap gap-2">
         <button
           type="button"
-          onClick={() => void run()}
-          disabled={busy}
-          className="rounded-md bg-[var(--color-accent)] px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
+          disabled={busy !== null}
+          onClick={() => run('prices', async () => {
+            setThinResult(null);
+            const r = await runPriceSyncToCompletion(setPriceResult);
+            setPriceResult(r);
+          })}
+          className="rounded-lg bg-[var(--color-accent)] px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
         >
-          {busy ? 'Capturing…' : 'Capture prices'}
+          {busy === 'prices' ? 'Capturing…' : 'Capture prices'}
+        </button>
+
+        <button
+          type="button"
+          disabled={busy !== null}
+          onClick={() => run('force', async () => {
+            setThinResult(null);
+            setPriceResult(await runPriceSync({ force: true }));
+          })}
+          className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm disabled:opacity-50"
+          // The source asks that a day's prices be fetched at most once per day, so a repeat
+          // has to be asked for rather than happening by accident.
+          title="Re-fetch today's prices even though they have already been captured"
+        >
+          {busy === 'force' ? 'Re-capturing…' : 'Re-capture today'}
+        </button>
+
+        <button
+          type="button"
+          disabled={busy !== null}
+          onClick={() => run('thin-dry', async () => {
+            setPriceResult(null);
+            setThinResult(await runHistoryThinning(true));
+          })}
+          className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm disabled:opacity-50"
+        >
+          {busy === 'thin-dry' ? 'Checking…' : 'Preview thinning'}
+        </button>
+
+        <button
+          type="button"
+          disabled={busy !== null}
+          onClick={() => run('thin', async () => {
+            setPriceResult(null);
+            setThinResult(await runHistoryThinning(false));
+          })}
+          className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm disabled:opacity-50"
+        >
+          {busy === 'thin' ? 'Thinning…' : 'Thin history'}
         </button>
       </div>
 
-      {progress && (
-        <p className="mt-3 text-sm text-[var(--color-text-muted)]" role="status" aria-live="polite">
-          {progress.note ??
-            `Priced ${progress.priced} of ${progress.cardsSeen}, ${progress.changed} price${
-              progress.changed === 1 ? '' : 's'
-            } moved` +
-              (progress.failed ? `, ${progress.failed} failed` : '') +
-              (progress.remaining ? ` — ${progress.remaining} to go` : '')}
-        </p>
-      )}
       {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
-      <table className="mt-4 w-full text-left text-sm">
-        <thead>
-          <tr className="text-[var(--color-text-muted)]">
-            <th className="pb-2 font-medium">Started</th>
-            <th className="pb-2 font-medium">Cards</th>
-            <th className="pb-2 font-medium">Prices read</th>
-            <th className="pb-2 font-medium">Moved</th>
-            <th className="pb-2 font-medium">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {runs.map((r) => (
-            <tr key={r.id} className="border-t border-[var(--color-border)]">
-              <td className="py-2 text-[var(--color-text-muted)]">
-                {new Date(r.startedAt).toLocaleString()}
-              </td>
-              <td className="py-2 tabular-nums">{r.cardsSeen}</td>
-              <td className="py-2 tabular-nums">{r.pricesRead}</td>
-              {/* Rarely equal to prices read, and that is the point: most prices do not
-                  move from one day to the next, so only the ones that did are stored. */}
-              <td className="py-2 tabular-nums">{r.changed}</td>
-              <td className="py-2">
-                <span
-                  className={
-                    'rounded-full px-2 py-0.5 text-xs font-medium ' +
-                    (r.status === 'success'
-                      ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
-                      : r.status === 'running'
-                        ? 'bg-sky-500/15 text-sky-700 dark:text-sky-400'
-                        : r.status === 'partial'
-                          ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400'
-                          : 'bg-red-500/15 text-red-700 dark:text-red-400')
-                  }
-                  title={r.error ?? undefined}
-                >
-                  {r.status}
-                </span>
-              </td>
-            </tr>
-          ))}
-          {runs.length === 0 && (
-            <tr>
-              <td colSpan={5} className="py-4 text-center text-[var(--color-text-muted)]">
-                No captures yet.
-              </td>
-            </tr>
+      {priceResult && (
+        <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
+          {priceResult.skipped ? (
+            <p className="col-span-full text-[var(--color-text-muted)]">{priceResult.note}</p>
+          ) : (
+            <>
+              <Row label="Sets fetched" value={priceResult.setsFetched} />
+              <Row label="Prices received" value={priceResult.incoming} />
+              <Row label="Matched to cards" value={priceResult.resolved} />
+              <Row label="Changed" value={priceResult.changed} />
+              <Row label="Unchanged" value={priceResult.unchanged} />
+              {/* Not a fault. The source publishes the whole Pokemon category — sealed
+                  product, Japanese printings, cards this catalogue does not carry. */}
+              <Row label="Not in catalogue" value={priceResult.unmapped} />
+              {priceResult.failures > 0 && <Row label="Failed sets" value={priceResult.failures} />}
+              {priceResult.durationMs != null && (
+                <Row label="Took" value={`${(priceResult.durationMs / 1000).toFixed(1)}s`} />
+              )}
+            </>
           )}
-        </tbody>
-      </table>
+        </dl>
+      )}
+
+      {thinResult && (
+        <div className="mt-4 text-sm">
+          <p className="text-[var(--color-text)]">
+            {thinResult.dryRun ? 'Would remove' : 'Removed'}{' '}
+            <strong>{thinResult.removed.toLocaleString()}</strong> of{' '}
+            {thinResult.before.toLocaleString()} points
+            {!thinResult.dryRun && <> — {thinResult.after.toLocaleString()} kept</>}.
+          </p>
+          <table className="mt-2 w-full text-xs">
+            <tbody>
+              {thinResult.bands.map((b) => (
+                <tr key={b.fromAge} className="border-t border-[var(--color-border)]">
+                  <td className="py-1 text-[var(--color-text-muted)]">
+                    {b.toAge > 9000 ? `${b.fromAge}+ days` : `${b.fromAge}–${b.toAge} days`}
+                    {' · keep every '}{b.keepEvery}
+                  </td>
+                  <td className="py-1 text-right tabular-nums">{b.removed.toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </section>
+  );
+}
+
+function Row({ label, value }: { label: string; value: number | string | undefined }) {
+  if (value == null) return null;
+  return (
+    <div className="flex justify-between gap-3">
+      <dt className="text-[var(--color-text-muted)]">{label}</dt>
+      <dd className="tabular-nums text-[var(--color-text)]">
+        {typeof value === 'number' ? value.toLocaleString() : value}
+      </dd>
+    </div>
   );
 }

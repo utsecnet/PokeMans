@@ -255,41 +255,61 @@ export async function fetchCard(cardId: string, signal?: AbortSignal): Promise<C
   return found;
 }
 
-/** Recorded price history, grouped into one chart per service and marketplace. */
+/**
+ * Recorded price history, one chart per marketplace.
+ *
+ * Postgres returns a sparse table made dense: price_point holds a row only where the value
+ * moved, and card_price_history carries the last known value forward across the gaps, so
+ * what arrives here is already a continuous daily series. Nothing in this file has to know
+ * the storage is sparse.
+ */
 export async function fetchCardPriceHistory(
   cardId: string,
+  days = 365,
   signal?: AbortSignal,
 ): Promise<CardPriceHistory> {
-  const [history, printings, display] = await Promise.all([
-    rpc<CardPriceHistory>('card_price_history', { p_card_id: cardId }, signal),
+  const [raw, printings] = await Promise.all([
+    rpc<RawPriceChart[]>('card_price_history', { p_card_id: cardId, p_days: days }, signal),
     fetchCardPrintings(cardId, signal),
-    fetchDisplayCurrency(),
   ]);
 
-  // Charts arrive in marketplace order, which put Cardmarket's euros in front of
-  // TCGplayer's dollars purely because "c" sorts before "t" — so the panel opened on a
-  // currency nobody chose. Lead with the one the reader actually asked for; the rest keep
-  // their order behind it, and nothing is hidden.
-  history.charts.sort((a, b) => {
-    const preferred = (c: { currency: string }) => (c.currency === display.currency ? 0 : 1);
-    return preferred(a) - preferred(b) || a.service.localeCompare(b.service);
-  });
-
-  // Postgres returns each series by printing position; the readable name is built here,
-  // from the same rule the collection view uses. A position with no matching printing
-  // falls back to its number rather than an empty legend entry.
+  // The readable printing name is built here, from the same rule the collection view uses,
+  // so a legend never shows a bare position number.
   const byPosition = new Map(printings.map((p) => [p.position, p.label]));
-  for (const chart of history.charts) {
-    for (const series of chart.series as unknown as Record<string, unknown>[]) {
-      const label = byPosition.get(series.variantPosition as number)
-        ?? `Printing ${series.variantPosition as number}`;
-      series.printingLabel = label;
-      // The marketplace is already the chart's identity, so the legend only has to tell
-      // one printing from another within it.
-      series.label = label;
-    }
-  }
-  return history;
+
+  return {
+    cardId,
+    charts: (raw ?? []).map((chart) => ({
+      service: chart.sourceKey,
+      label: chart.label,
+      currency: chart.currency,
+      series: chart.printings.map((printing) => {
+        const label = byPosition.get(printing.variantPosition) ?? `Printing ${printing.variantPosition}`;
+        return {
+          label,
+          printingLabel: label,
+          marketplace: chart.label,
+          variantPosition: printing.variantPosition,
+          // TCGplayer prices by printing, not by condition, so there is one series per
+          // printing and nothing to fold together.
+          condition: null,
+          points: printing.points.map((pt) => ({
+            date: pt.day,
+            market: pt.market ?? 0,
+            low: pt.low,
+          })),
+        };
+      }),
+    })),
+  };
+}
+
+/** The shape card_price_history returns, before printing names are attached. */
+interface RawPriceChart {
+  sourceKey: string;
+  label: string;
+  currency: string;
+  printings: { variantPosition: number; label: string; points: { day: string; market: number | null; low: number | null }[] }[];
 }
 
 /** A card's printings, with readable names. Shared by the price chart and the card view. */
@@ -305,71 +325,27 @@ async function fetchCardPrintings(cardId: string, signal?: AbortSignal) {
   return withLabels(data ?? []);
 }
 
-/** The currency every price is shown in, and the ones that can be chosen. */
 /**
- * The currencies prices can be shown in, and the one dollars-first default.
+ * Prices are shown in the currency of the marketplace that quoted them.
  *
- * USD leads because the marketplaces price in it: TCGplayer quotes dollars, and it is the
- * larger of the two sources. Someone who wants euros says so once, in settings.
+ * There was a display-currency setting offering six currencies. It is gone, and so is the
+ * fx_rates table behind it, which held zero rows for its whole life -- so the control had
+ * never once converted anything; it only decided which chart was shown first. With a single
+ * USD source there is no second chart to choose between, and a selector that silently does
+ * nothing is worse than no selector.
+ *
+ * Restoring it means a rate feed, not a setting: a daily job writing real rates, and a
+ * conversion applied at read time with the source currency still labelled on the axis.
  */
-export const SUPPORTED_CURRENCIES = ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY'] as const;
+export const PRICE_CURRENCY_NOTE =
+  'Prices are shown as quoted by the marketplace.';
 
-export async function fetchDisplayCurrency(): Promise<{ currency: string; supported: string[] }> {
-  const { data, error } = await supabase
-    .from('user_settings')
-    .select('value')
-    .eq('key', 'display.currency')
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  const stored = data?.value?.toUpperCase();
-  return {
-    // An unrecognised stored value falls back rather than propagating: a currency nothing
-    // can be converted to would leave every price blank with no way to put it right.
-    currency: stored && (SUPPORTED_CURRENCIES as readonly string[]).includes(stored) ? stored : 'USD',
-    supported: [...SUPPORTED_CURRENCIES],
-  };
-}
-
-export async function setDisplayCurrency(
-  currency: string,
-): Promise<{ currency: string; supported: string[] }> {
-  const wanted = currency.toUpperCase();
-  if (!(SUPPORTED_CURRENCIES as readonly string[]).includes(wanted)) {
-    throw new Error(`Unsupported currency. Choose one of: ${SUPPORTED_CURRENCIES.join(', ')}`);
-  }
-  const { error } = await supabase
-    .from('user_settings')
-    .upsert({ key: 'display.currency', value: wanted, updated_at: new Date().toISOString() },
-            { onConflict: 'user_id,key' });
-  if (error) throw new Error(error.message);
-  return { currency: wanted, supported: [...SUPPORTED_CURRENCIES] };
-}
 
 
 
 
 /** Live market prices per print variant. Fetched on demand, so it's never stale. */
 /** Asks the server to fetch today's prices for this card if it doesn't already hold them. */
-/**
- * Captures today's price for one card, so a card nobody owns still shows something.
- *
- * Skipped server-side when today's figures are already held, so re-opening a card costs a
- * database read rather than an upstream request — and because prices are shared, the
- * second person to open it costs nothing at all.
- */
-export async function captureCardPrices(
-  cardId: string,
-  signal?: AbortSignal,
-): Promise<{ captured: number }> {
-  const { data, error } = await supabase.functions.invoke('sync-prices', {
-    body: { cardIds: [cardId] },
-    ...(signal ? { signal } : {}),
-  });
-  // A capture that fails leaves whatever was already stored on screen, so this reports
-  // nothing rather than throwing: the panel has history to show either way.
-  if (error) return { captured: 0 };
-  return { captured: (data as { changed?: number })?.changed ?? 0 };
-}
 
 export function fetchCardPricing(cardId: string, signal?: AbortSignal): Promise<CardPricing> {
   return fetch(`/api/cards/${encodeURIComponent(cardId)}/pricing`, { signal }).then(json<CardPricing>);
