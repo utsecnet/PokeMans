@@ -10,6 +10,11 @@ interface ImportMetaEnv {
   readonly VITE_SUPABASE_URL: string;
   /** The publishable key. Public by design; see the note in lib/supabase.ts. */
   readonly VITE_SUPABASE_ANON_KEY: string;
+  /**
+   * Where card and Pokémon images are served from, with no trailing slash. Empty or
+   * unset means relative paths, answered by whatever is serving the app.
+   */
+  readonly VITE_IMAGE_BASE_URL?: string;
 }
 
 interface ImportMeta {

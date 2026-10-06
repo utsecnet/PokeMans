@@ -1,5 +1,5 @@
 /**
- * Upstream image addresses, rewritten to the copies that ship with the app.
+ * Upstream image addresses, rewritten to our own copies.
  *
  * The server used to do this, and it could check whether each file existed before
  * rewriting, falling back to the original address when a sync had not fetched it. A
@@ -11,6 +11,28 @@
  * gives a broken image, which is visible and fixable; a silent external request is
  * neither.
  */
+
+/**
+ * Where the images are served from.
+ *
+ * Empty today, so every path stays relative and the dev server answers from
+ * client/public — ~23,000 files and 340 MB that live on one machine.
+ *
+ * They will move to object storage, and when they do this is the only thing that changes:
+ * set VITE_IMAGE_BASE_URL to the bucket's address and every image in the app follows. The
+ * folder names and filenames below are therefore fixed, not incidental — the move is a
+ * straight copy of client/public with nothing renamed, and renaming anything afterwards
+ * would mean re-uploading all of it.
+ *
+ * No trailing slash: one is added here, so both "https://img.example.com" and
+ * "https://img.example.com/" behave the same.
+ */
+const BASE = (import.meta.env.VITE_IMAGE_BASE_URL ?? '').replace(/\/+$/, '');
+
+/** A path under the image root, wherever that currently is. */
+function at(folder: string, file: string): string {
+  return `${BASE}/${folder}/${file}`;
+}
 
 /**
  * The filename encoding vendorCards.mjs and the logo sync wrote with: anything outside
@@ -27,32 +49,32 @@ export function safeFileName(value: string | number): string {
 
 /** The 245px card thumbnail that ships with the app. */
 export function localCard(id: string | null | undefined): string | null {
-  return id ? `/cards/${safeFileName(id)}.avif` : null;
+  return id ? at('cards', `${safeFileName(id)}.avif`) : null;
 }
 
 /** The full-size scan, fetched on demand and cached. Null until something warms it. */
 export function localCardLarge(id: string | null | undefined): string | null {
-  return id ? `/cards-hi/${safeFileName(id)}.avif` : null;
+  return id ? at('cards-hi', `${safeFileName(id)}.avif`) : null;
 }
 
 export function localSetSymbol(setId: string | null | undefined): string | null {
-  return setId ? `/logos/set-${safeFileName(setId)}-symbol.avif` : null;
+  return setId ? at('logos', `set-${safeFileName(setId)}-symbol.avif`) : null;
 }
 
 export function localSetLogo(setId: string | null | undefined): string | null {
-  return setId ? `/logos/set-${safeFileName(setId)}-logo.avif` : null;
+  return setId ? at('logos', `set-${safeFileName(setId)}-logo.avif`) : null;
 }
 
 export function localSeriesLogo(series: string | null | undefined): string | null {
-  return series ? `/logos/series-${safeFileName(series)}.avif` : null;
+  return series ? at('logos', `series-${safeFileName(series)}.avif`) : null;
 }
 
 export function localSprite(dexId: number | null | undefined): string | null {
-  return dexId ? `/sprites/${dexId}.webp` : null;
+  return dexId ? at('sprites', `${dexId}.webp`) : null;
 }
 
 export function localArtwork(dexId: number | null | undefined): string | null {
-  return dexId ? `/artwork/${dexId}.avif` : null;
+  return dexId ? at('artwork', `${dexId}.avif`) : null;
 }
 
 /**
