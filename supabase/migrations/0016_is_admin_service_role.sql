@@ -1,0 +1,16 @@
+-- =====================================================================================
+-- PokéMans — let the service role ask is_admin()
+--
+-- 0002 granted execute to `authenticated` alone, which was right for a browser but leaves
+-- out the one caller that most needs it: a scheduled job presents a service key, has no
+-- user, and every Edge Function that gates on is_admin() therefore fails with
+--
+--   permission denied for function is_admin
+--
+-- not "Admins only". A 500 where a 200 belongs, and only on the unattended path.
+--
+-- Granting it changes no decision. The function answers for whoever is asking, and asking
+-- as the service role returns false — there is no user, so no row in user_roles. The
+-- functions that call it recognise a service key separately, by capability.
+-- =====================================================================================
+grant execute on function public.is_admin() to service_role;

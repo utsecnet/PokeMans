@@ -17,6 +17,7 @@ import type {
   SyncStatus,
 } from '../types';
 import { supabase } from './supabase';
+import { withLabels } from './printingLabel';
 import {
   localiseCard,
   localiseCards,
@@ -260,9 +261,43 @@ export async function fetchCard(cardId: string, signal?: AbortSignal): Promise<C
 }
 
 /** Recorded price history, grouped into one chart per service and marketplace. */
-export function fetchCardPriceHistory(cardId: string, signal?: AbortSignal): Promise<CardPriceHistory> {
-  return fetch(`/api/cards/${encodeURIComponent(cardId)}/price-history`, { signal })
-    .then(json<CardPriceHistory>);
+export async function fetchCardPriceHistory(
+  cardId: string,
+  signal?: AbortSignal,
+): Promise<CardPriceHistory> {
+  const [history, printings] = await Promise.all([
+    rpc<CardPriceHistory>('card_price_history', { p_card_id: cardId }, signal),
+    fetchCardPrintings(cardId, signal),
+  ]);
+
+  // Postgres returns each series by printing position; the readable name is built here,
+  // from the same rule the collection view uses. A position with no matching printing
+  // falls back to its number rather than an empty legend entry.
+  const byPosition = new Map(printings.map((p) => [p.position, p.label]));
+  for (const chart of history.charts) {
+    for (const series of chart.series as unknown as Record<string, unknown>[]) {
+      const label = byPosition.get(series.variantPosition as number)
+        ?? `Printing ${series.variantPosition as number}`;
+      series.printingLabel = label;
+      // The marketplace is already the chart's identity, so the legend only has to tell
+      // one printing from another within it.
+      series.label = label;
+    }
+  }
+  return history;
+}
+
+/** A card's printings, with readable names. Shared by the price chart and the card view. */
+async function fetchCardPrintings(cardId: string, signal?: AbortSignal) {
+  let q = supabase
+    .from('tcg_card_variants')
+    .select('position,type,subtype,stamp,size,foil')
+    .eq('card_id', cardId)
+    .order('position');
+  if (signal) q = q.abortSignal(signal);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return withLabels(data ?? []);
 }
 
 /** The currency every price is shown in, and the ones that can be chosen. */
@@ -303,14 +338,25 @@ export function removeLinkedAccount(service: string): Promise<{ providers: Linke
 
 /** Live market prices per print variant. Fetched on demand, so it's never stale. */
 /** Asks the server to fetch today's prices for this card if it doesn't already hold them. */
-export function captureCardPrices(
+/**
+ * Captures today's price for one card, so a card nobody owns still shows something.
+ *
+ * Skipped server-side when today's figures are already held, so re-opening a card costs a
+ * database read rather than an upstream request — and because prices are shared, the
+ * second person to open it costs nothing at all.
+ */
+export async function captureCardPrices(
   cardId: string,
   signal?: AbortSignal,
-): Promise<{ captured: boolean; rows: number; reason: string | null }> {
-  return fetch(`/api/cards/${encodeURIComponent(cardId)}/prices/capture`, {
-    method: 'POST',
-    signal,
-  }).then(json<{ captured: boolean; rows: number; reason: string | null }>);
+): Promise<{ captured: number }> {
+  const { data, error } = await supabase.functions.invoke('sync-prices', {
+    body: { cardIds: [cardId] },
+    ...(signal ? { signal } : {}),
+  });
+  // A capture that fails leaves whatever was already stored on screen, so this reports
+  // nothing rather than throwing: the panel has history to show either way.
+  if (error) return { captured: 0 };
+  return { captured: (data as { changed?: number })?.changed ?? 0 };
 }
 
 export function fetchCardPricing(cardId: string, signal?: AbortSignal): Promise<CardPricing> {

@@ -32,6 +32,8 @@ const CONCURRENCY = 3;
  * it again. Resumability comes free: a card priced today is skipped by the next run.
  */
 const DEFAULT_LIMIT = 400;
+/** A ceiling on a single-card request, so "price these" cannot become "price everything". */
+const MAX_ON_DEMAND = 5;
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -137,8 +139,7 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'POST only' }, 405);
 
   // Authorise as the caller, before anything touches the service role. The anon key alone
-  // proves nothing; the access token is what names a user, and is_admin() answers for
-  // that user under row level security.
+  // proves nothing; the access token is what names a user.
   const authHeader = req.headers.get('Authorization') ?? '';
   if (!authHeader.startsWith('Bearer ')) return json({ error: 'Not signed in' }, 401);
 
@@ -146,31 +147,58 @@ Deno.serve(async (req) => {
     global: { headers: { Authorization: authHeader } },
     auth: { persistSession: false },
   });
-  const { data: isAdmin, error: adminErr } = await asCaller.rpc('is_admin');
-  if (adminErr) return json({ error: `Could not check permissions: ${adminErr.message}` }, 500);
-  if (isAdmin !== true) return json({ error: 'Admins only' }, 403);
+
+  const requested = await req.clone().json().catch(() => ({}));
+  const wanted: string[] = Array.isArray(requested.cardIds)
+    ? requested.cardIds.filter((c: unknown) => typeof c === 'string').slice(0, MAX_ON_DEMAND)
+    : [];
+
+  // Two jobs behind one door.
+  //
+  // Naming cards is the card view asking for the one it is showing, so that a card nobody
+  // owns still has a price when someone looks at it. Any signed-in account may do that: it
+  // is bounded to a handful of cards, it skips anything already priced today, and the
+  // result is shared, so the second person to open that card costs nothing at all.
+  //
+  // Naming none is the whole daily capture, which walks every card anyone holds. That is
+  // the admin's job and stays theirs.
+  if (wanted.length === 0) {
+    const { data: isAdmin, error: adminErr } = await asCaller.rpc('is_admin');
+    if (adminErr) return json({ error: `Could not check permissions: ${adminErr.message}` }, 500);
+    if (isAdmin !== true) return json({ error: 'Admins only' }, 403);
+  } else {
+    // A browsing session cannot trigger outbound requests; an account is the rate limit.
+    const { data: real, error: realErr } = await asCaller.rpc('is_real_account');
+    if (realErr) return json({ error: `Could not check permissions: ${realErr.message}` }, 500);
+    if (real !== true) return json({ error: 'Sign in to price a card' }, 403);
+  }
 
   // From here on the service role is in play: it must write price tables that no user may
   // write, and must read every user's collection to know which cards matter.
   const db = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 
-  const body = await req.json().catch(() => ({}));
+  const body = requested;
   const limit = Math.min(2000, Math.max(1, Number(body.limit) || DEFAULT_LIMIT));
   const capturedOn = new Date().toISOString().slice(0, 10);
 
   const { data: run } = await db.from('sync_run').insert({ status: 'running' }).select().single();
 
   try {
-    // Every card anyone holds or wants. Distinct, because the point is the card, not who
-    // has it — and the price that results is shared by all of them.
-    const [{ data: owned }, { data: wanted }] = await Promise.all([
-      db.from('collection_entries').select('card_id'),
-      db.from('want_list_entries').select('card_id').eq('state', 'want'),
-    ]);
-    const interesting = [...new Set([
-      ...(owned ?? []).map((r) => r.card_id),
-      ...(wanted ?? []).map((r) => r.card_id),
-    ])];
+    // Either the cards that were named, or every card anyone holds or wants. Distinct,
+    // because the point is the card and not who has it — the price that results is shared.
+    let interesting: string[];
+    if (wanted.length > 0) {
+      interesting = [...new Set(wanted)];
+    } else {
+      const [{ data: owned }, { data: onLists }] = await Promise.all([
+        db.from('collection_entries').select('card_id'),
+        db.from('want_list_entries').select('card_id').eq('state', 'want'),
+      ]);
+      interesting = [...new Set([
+        ...(owned ?? []).map((r) => r.card_id),
+        ...(onLists ?? []).map((r) => r.card_id),
+      ])];
+    }
 
     // Already priced today? Skip it. A price is a value for a day, so re-fetching one
     // already held spends a request to learn nothing.

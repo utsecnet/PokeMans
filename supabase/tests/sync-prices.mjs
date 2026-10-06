@@ -6,7 +6,7 @@
  * makes a throwaway admin and runs a real capture against TCGdex.
  */
 import { createClient } from '@supabase/supabase-js';
-import { createTestUser } from './_helpers.mjs';
+import { browsingSession, createTestUser } from './_helpers.mjs';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -34,6 +34,27 @@ const token = owner.session.access_token;
 
 let pass = 0, fail = 0;
 const check = (l, ok, d = '') => { console.log(`   ${ok ? 'PASS' : 'FAIL'}  ${l.padEnd(34)}${d}`); ok ? pass++ : fail++; };
+
+// Who may ask for what. Naming cards is the card view wanting a price for the card it is
+// showing; naming none is the whole daily capture. A service key can do either, because
+// the schedule runs unattended and neither is_admin() nor is_real_account() can speak for
+// something that has no user.
+{
+  const browsing = await browsingSession();
+  const post = (token, body) => fetch(FN, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const cases = [
+    ['a browsing session cannot price a card', await post(browsing.session.access_token, { cardIds: ['base1-4'] }), 403],
+    ['a browsing session cannot run a capture', await post(browsing.session.access_token, {}), 403],
+    ['a signed-in user can price one card', await post(owner.session.access_token, { cardIds: ['base1-4'] }), 200],
+    ['a service key can price named cards', await post(env.SUPABASE_SERVICE_ROLE_KEY, { cardIds: ['base1-2'] }), 200],
+    ['a service key can run the whole capture', await post(env.SUPABASE_SERVICE_ROLE_KEY, {}), 200],
+  ];
+  for (const [label, res, want] of cases) check(label, res.status === want, `HTTP ${res.status}`);
+}
 
 const noAuth = await fetch(FN, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
 check('refuses a caller with no token', noAuth.status === 401, `HTTP ${noAuth.status}`);
