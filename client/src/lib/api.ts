@@ -13,8 +13,6 @@ import type {
   PokemonFilters,
   PokemonListResponse,
   StatKey,
-  SourceState,
-  SyncStatus,
 } from '../types';
 import { supabase } from './supabase';
 import { withLabels } from './printingLabel';
@@ -404,29 +402,10 @@ export function fetchSeries(): Promise<string[]> {
   return rpc<string[]>('meta_series');
 }
 
-export function fetchSyncSources(): Promise<{ sources: SourceState[] }> {
-  return fetch('/api/sync/sources').then(json<{ sources: SourceState[] }>);
-}
 
-export function fetchSyncStatus(): Promise<SyncStatus> {
-  return fetch('/api/sync/status').then(json<SyncStatus>);
-}
 
-export function triggerPokeApiSync(): Promise<{ started: boolean }> {
-  return fetch('/api/sync/pokeapi', { method: 'POST' }).then(json<{ started: boolean }>);
-}
 
-export function triggerTcgSync(): Promise<{ started: boolean }> {
-  return fetch('/api/sync/tcg', { method: 'POST' }).then(json<{ started: boolean }>);
-}
 
-/**
- * Fetches set symbols and logos onto the device. Safe to repeat — anything already stored is
- * skipped, so a second run only picks up sets added since the last one.
- */
-export function triggerLogoSync(): Promise<{ started: boolean }> {
-  return fetch('/api/sync/logos', { method: 'POST' }).then(json<{ started: boolean }>);
-}
 
 /**
  * Asks the server to fetch, convert and keep this card's full-size art.
@@ -441,10 +420,6 @@ export function warmCardHires(cardId: string): Promise<{ url: string | null }> {
   );
 }
 
-/** Refreshes prices for owned cards now, rather than waiting for the daily schedule. */
-export function triggerPriceSync(): Promise<{ started: boolean }> {
-  return fetch('/api/sync/prices', { method: 'POST' }).then(json<{ started: boolean }>);
-}
 
 // Collections moved to collectionApi.ts when they moved to Supabase: the Express versions
 // were a dozen fetch calls, the Supabase ones carry real logic (copy ordering on removal,
