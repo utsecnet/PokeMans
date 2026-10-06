@@ -265,10 +265,20 @@ export async function fetchCardPriceHistory(
   cardId: string,
   signal?: AbortSignal,
 ): Promise<CardPriceHistory> {
-  const [history, printings] = await Promise.all([
+  const [history, printings, display] = await Promise.all([
     rpc<CardPriceHistory>('card_price_history', { p_card_id: cardId }, signal),
     fetchCardPrintings(cardId, signal),
+    fetchDisplayCurrency(),
   ]);
+
+  // Charts arrive in marketplace order, which put Cardmarket's euros in front of
+  // TCGplayer's dollars purely because "c" sorts before "t" — so the panel opened on a
+  // currency nobody chose. Lead with the one the reader actually asked for; the rest keep
+  // their order behind it, and nothing is hidden.
+  history.charts.sort((a, b) => {
+    const preferred = (c: { currency: string }) => (c.currency === display.currency ? 0 : 1);
+    return preferred(a) - preferred(b) || a.service.localeCompare(b.service);
+  });
 
   // Postgres returns each series by printing position; the readable name is built here,
   // from the same rule the collection view uses. A position with no matching printing
@@ -301,16 +311,43 @@ async function fetchCardPrintings(cardId: string, signal?: AbortSignal) {
 }
 
 /** The currency every price is shown in, and the ones that can be chosen. */
-export function fetchDisplayCurrency(): Promise<{ currency: string; supported: string[] }> {
-  return fetch('/api/settings/currency').then(json<{ currency: string; supported: string[] }>);
+/**
+ * The currencies prices can be shown in, and the one dollars-first default.
+ *
+ * USD leads because the marketplaces price in it: TCGplayer quotes dollars, and it is the
+ * larger of the two sources. Someone who wants euros says so once, in settings.
+ */
+export const SUPPORTED_CURRENCIES = ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY'] as const;
+
+export async function fetchDisplayCurrency(): Promise<{ currency: string; supported: string[] }> {
+  const { data, error } = await supabase
+    .from('user_settings')
+    .select('value')
+    .eq('key', 'display.currency')
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  const stored = data?.value?.toUpperCase();
+  return {
+    // An unrecognised stored value falls back rather than propagating: a currency nothing
+    // can be converted to would leave every price blank with no way to put it right.
+    currency: stored && (SUPPORTED_CURRENCIES as readonly string[]).includes(stored) ? stored : 'USD',
+    supported: [...SUPPORTED_CURRENCIES],
+  };
 }
 
-export function setDisplayCurrency(currency: string): Promise<{ currency: string; supported: string[] }> {
-  return fetch('/api/settings/currency', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ currency }),
-  }).then(json<{ currency: string; supported: string[] }>);
+export async function setDisplayCurrency(
+  currency: string,
+): Promise<{ currency: string; supported: string[] }> {
+  const wanted = currency.toUpperCase();
+  if (!(SUPPORTED_CURRENCIES as readonly string[]).includes(wanted)) {
+    throw new Error(`Unsupported currency. Choose one of: ${SUPPORTED_CURRENCIES.join(', ')}`);
+  }
+  const { error } = await supabase
+    .from('user_settings')
+    .upsert({ key: 'display.currency', value: wanted, updated_at: new Date().toISOString() },
+            { onConflict: 'user_id,key' });
+  if (error) throw new Error(error.message);
+  return { currency: wanted, supported: [...SUPPORTED_CURRENCIES] };
 }
 
 /** External services the user can link. Never returns a stored key, only a masked hint. */
