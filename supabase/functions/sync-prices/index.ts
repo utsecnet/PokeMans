@@ -17,6 +17,7 @@
  *   npx supabase functions deploy sync-prices --project-ref xamyixuipbkyzssvxchc
  */
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+import type { SupabaseClient } from 'jsr:@supabase/supabase-js@2';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -56,6 +57,33 @@ interface PriceRow {
   lowPrice: number | null;
 }
 
+/**
+ * Whether this caller may set off a scheduled job: an admin, or the schedule itself.
+ *
+ * The schedule presents the service key, which authenticates as service_role -- a role with
+ * no auth.uid(), so is_admin() quite correctly says no for it. Checking only is_admin()
+ * therefore locks out the very caller the job exists for, and does it at 07:00 where nobody
+ * is watching rather than in a test.
+ *
+ * The service key is recognised by capability, not by comparing strings: a comparison would
+ * mean keeping the key in a second place to compare against, and would accept anything that
+ * merely looked like it. Asking the API to do something only the service role can do is the
+ * question actually being asked. listUsers is read-only and cheap.
+ *
+ * Duplicated in the other scheduled function rather than shared. These are deployed one file
+ * at a time through the dashboard editor, because the CLI needs a personal access token this
+ * machine does not have; a ../_shared import would simply not resolve once deployed.
+ */
+async function callerMayRunJobs(asCaller: SupabaseClient, withToken: SupabaseClient) {
+  const { data: isAdmin, error } = await asCaller.rpc('is_admin');
+  if (!error && isAdmin === true) return { allowed: true, as: 'admin' as const };
+  try {
+    const probe = await withToken.auth.admin.listUsers({ page: 1, perPage: 1 });
+    if (!probe.error) return { allowed: true, as: 'service' as const };
+  } catch { /* not the service key; falls through to refusal */ }
+  return { allowed: false, as: null, error: error?.message };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return json({ error: 'POST only' }, 405);
@@ -72,9 +100,12 @@ Deno.serve(async (req) => {
 
   // Admins and the schedule only. This spends someone else's bandwidth and writes shared
   // data, so it is not something a signed-in browser may set off.
-  const { data: isAdmin, error: adminErr } = await asCaller.rpc('is_admin');
-  if (adminErr) return json({ error: `Could not check permissions: ${adminErr.message}` }, 500);
-  if (isAdmin !== true) return json({ error: 'Admins only' }, 403);
+  const withToken = createClient(SUPABASE_URL, authHeader.slice(7), { auth: { persistSession: false } });
+  const who = await callerMayRunJobs(asCaller, withToken);
+  if (!who.allowed) {
+    return json({ error: who.error ? `Could not check permissions: ${who.error}` : 'Admins only' },
+                who.error ? 500 : 403);
+  }
 
   const db = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 
