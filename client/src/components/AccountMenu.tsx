@@ -8,33 +8,40 @@
  *
  * Signed out there is nothing to put in a menu, so this is the sign-in button instead.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useSession } from '../lib/sessionContext';
 import { signOut } from '../lib/auth';
+import { useAnchoredPopover } from '../lib/useAnchoredPopover';
 import { PokeballIcon } from './PokeballIcon';
+import { PortalPopoverPanel } from './PortalPopoverPanel';
 import { SignIn } from './SignIn';
+
+const MENU_WIDTH = 240;
 
 export function AccountMenu() {
   const { user, anonymous, admin } = useSession();
-  const [open, setOpen] = useState(false);
-  const wrap = useRef<HTMLDivElement>(null);
+
+  // Rendered through a portal rather than inside the header. The header is sticky with a
+  // z-index, which makes it a stacking context — so a menu nested in it cannot paint above
+  // anything the page puts at a higher layer, however large its own z-index. The page has
+  // several: filter popovers at 30, the collection's icon picker at 40, the lightbox at 50.
+  // Raising the header instead would put it over the lightbox and the sign-up dialog,
+  // which are meant to cover everything.
+  //
+  // useAnchoredPopover also brings the outside-click handling and viewport clamping this
+  // had its own copy of.
+  const { open, setOpen, triggerRef, popoverRef, coords } =
+    useAnchoredPopover<HTMLButtonElement>(MENU_WIDTH, 260);
 
   useEffect(() => {
     if (!open) return;
-    const onPointer = (e: PointerEvent) => {
-      if (!wrap.current?.contains(e.target as Node)) setOpen(false);
-    };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false);
     };
-    document.addEventListener('pointerdown', onPointer);
     document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('pointerdown', onPointer);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open, setOpen]);
 
   // Nothing to hang a menu on until there is an account.
   if (!user || anonymous) return <SignIn />;
@@ -48,10 +55,11 @@ export function AccountMenu() {
   const initial = name.trim().charAt(0).toUpperCase() || '?';
 
   return (
-    <div ref={wrap} className="relative">
+    <>
       <button
+        ref={triggerRef}
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen(!open)}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={`Account menu for ${name}`}
@@ -66,11 +74,14 @@ export function AccountMenu() {
         )}
       </button>
 
-      {open && (
-        <div
-          role="menu"
-          className="absolute right-0 z-20 mt-2 w-60 overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-xl"
+      {open && coords && (
+        <PortalPopoverPanel
+          popoverRef={popoverRef}
+          coords={coords}
+          width={MENU_WIDTH}
+          className="overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-xl"
         >
+          <div role="menu">
           {/* The name sits under the avatar rather than beside it in the bar: it is who
               the menu belongs to, not a control, and in the bar it was competing with
               them for width on a narrow screen. */}
@@ -111,9 +122,10 @@ export function AccountMenu() {
               Sign out
             </button>
           </div>
-        </div>
+          </div>
+        </PortalPopoverPanel>
       )}
-    </div>
+    </>
   );
 }
 
