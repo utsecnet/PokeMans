@@ -132,9 +132,34 @@ const pairScore = (mine, theirs) => {
     nameScore(expandEra(mine), expandEra(theirs)),
     nameScore(base(mine), norm(expandEra(theirs))),
   );
-  // One of them is a promo set and the other is not. Never let that win on a tie-break.
-  return promoMismatch(mine, theirs) ? best * 0.45 : best;
+  return best;
 };
+
+/**
+ * How much a promo-against-non-promo pairing should be marked down.
+ *
+ * It ranks, it does not reject. Folded into the name score it was a filter, and a set whose
+ * only candidate is its own promo group -- "McDonald's Collection 2011" against "McDonald's
+ * Promos 2011", same day, same cards -- failed the gate and matched nothing at all. Ten
+ * McDonald's sets, Best of Game and the 151 set were lost that way.
+ *
+ * As a ranking it still does the job it was added for: where a real set and its promo set
+ * both fit, the real one wins.
+ */
+const PROMO_PENALTY = 0.6;
+
+/**
+ * How far apart two release dates may be and still be read as the same set.
+ *
+ * A promo set is dated when its first card appeared while ours is dated by the parent set's
+ * launch, and that drift runs to a couple of months: "XY Black Star Promos" and "XY Promos"
+ * are the same cards 65 days apart. The window only admits a candidate to be ranked; the
+ * score still decides.
+ */
+const DATE_WINDOW = 120;
+
+/** The score a candidate must reach to be accepted rather than reported for review. */
+const ACCEPT_AT = 1.1;
 
 const cardNum = (n) => String(n ?? '').trim().replace(/^0+/, '').toLowerCase();
 const prodNum = (p) => String((p.extendedData ?? []).find((x) => x.name === 'Number')?.value ?? '')
@@ -142,14 +167,52 @@ const prodNum = (p) => String((p.extendedData ?? []).find((x) => x.name === 'Num
 
 const dayGap = (a, b) => (!a || !b) ? Infinity : Math.abs(new Date(a) - new Date(b)) / 86400000;
 
+/**
+ * Words that describe a set's packaging rather than which set it is.
+ *
+ * Every catalogue sprinkles these, and matching on them is how unrelated sets came to look
+ * alike. "XY Black Star Promos" and "SWSH Black Star Promos" both scored as near-identical
+ * to "SM Promos" on the strength of the word "promos", and both took its 333 products --
+ * 665 printings landed in the wrong era, priced and plausible and wrong.
+ */
+const GENERIC_WORDS = new Set([
+  'base', 'set', 'sets', 'promo', 'promos', 'card', 'cards',
+  'collection', 'the', 'and', 'edition', 'series', 'tcg', 'pokemon',
+]);
+
+const allWords = (s) => new Set(s.split(' ').filter(Boolean));
+const distinctiveWords = (s) => new Set([...allWords(s)].filter((w) => !GENERIC_WORDS.has(w)));
+
+/**
+ * How alike two normalised set names are, from 0 to 1.
+ *
+ * Scored on the words that actually distinguish a set, so "XY" and "XY Base Set" agree
+ * completely -- the only real word in either is "xy" -- while "Black Star Promos" and
+ * "Promos" share nothing at all once the packaging words are set aside.
+ *
+ * A name made entirely of generic words, like our "Base", falls back to the full word list
+ * rather than scoring zero against everything. There is no containment bonus: "Scarlet &
+ * Violet" sits inside "SV: Black Bolt" once the era is expanded, and any credit for that was
+ * enough to beat the actual base set.
+ */
 function nameScore(a, b) {
   if (a === b) return 1;
-  if (a.startsWith(b) || b.startsWith(a) || a.endsWith(b) || b.endsWith(a)) return 0.92;
-  const A = new Set(a.split(' ').filter(Boolean));
-  const B = new Set(b.split(' ').filter(Boolean));
+  const dA = distinctiveWords(a);
+  const dB = distinctiveWords(b);
+  const A = dA.size ? dA : allWords(a);
+  const B = dB.size ? dB : allWords(b);
+  if (A.size === 0 || B.size === 0) return 0;
+
   let hit = 0;
   for (const t of A) if (B.has(t)) hit++;
-  return hit / Math.max(A.size, B.size);
+  const overlap = hit / Math.max(A.size, B.size);
+
+  // One name's words wholly inside the other's is strong evidence even when the longer name
+  // adds several of its own. Our set "151" is their "SV: Scarlet & Violet 151": sharing one
+  // word out of three scores 0.33 and never clears the gate, yet every word we have is
+  // there. Ranked below an exact agreement, so a set that matches outright still wins.
+  const whollyInside = hit === A.size || hit === B.size;
+  return whollyInside ? Math.max(overlap, 0.85) : overlap;
 }
 
 /**
@@ -254,10 +317,40 @@ if (!priceDir) {
 
 // ---------------------------------------------------------------- sets
 
+/**
+ * Sets whose names simply do not correspond, mapped by hand.
+ *
+ * Every one of these was checked against the upstream group's contents before being written
+ * down. They are here rather than in the heuristics because each needs a different fiction
+ * to match -- "Wizards Black Star Promos" and "WoTC Promo" share no word at all, and any
+ * rule loose enough to join them would join a great deal else besides. A short explicit list
+ * is honest about being a list; a clever rule that produced it would not be.
+ *
+ * Ours is split where theirs is combined for the Trainer Kits: we hold one set per deck,
+ * they hold one group for the pair. Both of our sets point at their group, and the card
+ * numbers sort out which products belong to which.
+ */
+const GROUP_OVERRIDES = {
+  basep: 1418,   // Wizards Black Star Promos  -> WoTC Promo
+  np: 1423,      // Nintendo Black Star Promos -> Nintendo Promos
+  mcd21: 2782,   // McDonald's Collection 2021 -> McDonald's 25th Anniversary Promos
+  tk1a: 1543,    // EX Trainer Kit Latias      -> EX Trainer Kit 1: Latias & Latios
+  tk1b: 1543,    // EX Trainer Kit Latios      -> same group, both decks
+  tk2a: 1542,    // EX Trainer Kit 2 Plusle    -> EX Trainer Kit 2: Plusle & Minun
+  tk2b: 1542,    // EX Trainer Kit 2 Minun     -> same group, both decks
+  // Pokémon Futsal Collection has no counterpart upstream at all, so it stays unpriced
+  // rather than being pointed at something that merely looks close.
+};
+
 const setToGroup = new Map();
 const setAlternates = new Map();   // set id -> { shadowless: groupId }
 const setsForReview = [];
 for (const s of mySets) {
+  const override = GROUP_OVERRIDES[s.id];
+  if (override && groups.some((g) => g.groupId === override)) {
+    setToGroup.set(s.id, override);
+    continue;
+  }
   let best = null, bestScore = 0;
   for (const g of groups) {
     const ns = pairScore(s.name, g.name);
@@ -265,14 +358,15 @@ for (const s of mySets) {
     // Date is the gate, because name alone cannot tell "Dragon" from "Dragon Majesty". A
     // near-identical name is allowed through without it, which is what rescues the promo
     // sets: they accumulate over years, so their published date never lines up.
-    if (!(gap <= 60 ? ns >= 0.5 : ns >= 0.9)) continue;
+    if (!(gap <= DATE_WINDOW ? ns >= 0.5 : ns >= 0.9)) continue;
     // Name carries more weight than date, because promo sets routinely share their parent
     // set's release date: a 0.3 bonus for landing on the same day was enough to beat an
     // exact name match, which is how a base set lost to its own promo set.
-    const score = ns * 2 + (gap <= 60 ? 0.4 : 0) + (gap <= 7 ? 0.15 : 0);
+    const penalty = promoMismatch(s.name, g.name) ? PROMO_PENALTY : 1;
+    const score = (ns * 2 + (gap <= DATE_WINDOW ? 0.4 : 0) + (gap <= 7 ? 0.15 : 0)) * penalty;
     if (score > bestScore) { bestScore = score; best = g; }
   }
-  if (best && bestScore >= 1.4) {
+  if (best && bestScore >= ACCEPT_AT) {
     setToGroup.set(s.id, best.groupId);
     // TCGplayer keeps the shadowless and first-edition printings of Base Set in a group of
     // their own. Find it here so a variant can be routed to it below.
@@ -392,9 +486,10 @@ if (args.includes('--why')) {
   const scored = groups.map((g) => {
     const ns = pairScore(s.name, g.name);
     const gap = dayGap(s.release_date, g.publishedOn);
-    const passes = gap <= 60 ? ns >= 0.5 : ns >= 0.9;
-    const score = ns * 2 + (gap <= 60 ? 0.4 : 0) + (gap <= 7 ? 0.15 : 0);
-    return { name: g.name, id: g.groupId, ns, gap, passes, score, promo: promoMismatch(s.name, g.name) };
+    const passes = gap <= DATE_WINDOW ? ns >= 0.5 : ns >= 0.9;
+    const promo = promoMismatch(s.name, g.name);
+    const score = (ns * 2 + (gap <= DATE_WINDOW ? 0.4 : 0) + (gap <= 7 ? 0.15 : 0)) * (promo ? PROMO_PENALTY : 1);
+    return { name: g.name, id: g.groupId, ns, gap, passes, score, promo };
   }).sort((a, b) => (b.passes - a.passes) || (b.score - a.score)).slice(0, 6);
   for (const c of scored) {
     console.log(`     ${c.passes ? 'PASS' : 'skip'}  score ${c.score.toFixed(2)}  ns ${c.ns.toFixed(3)}  gap ${String(c.gap).padStart(5)}d  promoMismatch=${c.promo}  ${JSON.stringify(c.name)}`);
