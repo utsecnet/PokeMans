@@ -293,9 +293,13 @@ export async function fetchCardPriceHistory(
           // TCGplayer prices by printing, not by condition, so there is one series per
           // printing and nothing to fold together.
           condition: null,
+          // No `?? 0` here. A missing market price is not a price of nothing, and
+          // coercing it put a line along the bottom of the chart for any printing the
+          // marketplace had no sales for. Postgres now excludes those printings entirely,
+          // so anything arriving here has a real figure.
           points: printing.points.map((pt) => ({
             date: pt.day,
-            market: pt.market ?? 0,
+            market: pt.market as number,
             low: pt.low,
           })),
         };

@@ -100,19 +100,61 @@ function nameScore(a, b) {
 }
 
 /**
- * Our printing vocabulary against theirs, most specific first.
+ * Our printing against theirs, most specific first.
  *
- * Order matters and encodes an era. A plain card is "Normal" in a modern set but the WotC
- * sets have only "1st Edition" and "Unlimited", so those are listed as fallbacks rather than
- * being treated as separate printings we do not track. Taking the first that the product
- * actually publishes keeps both eras working without a special case.
+ * The edition is the hard part, and the two catalogues disagree about where it lives.
+ *
+ * We make it a property of the printing: a Base Set Charizard is four variants, separated by
+ * subtype (unlimited, shadowless, 1999-2000-copyright) and stamp (1st-edition). TCGplayer
+ * splits it two different ways depending on the set. For Base it is a separate *group* --
+ * "Base Set" holds the Unlimited printing, "Base Set (Shadowless)" holds the shadowless and
+ * first-edition ones. For Jungle, Fossil, Team Rocket, Gym and Neo there is one group and
+ * the edition rides on the subtype instead: "1st Edition Holofoil" beside "Unlimited
+ * Holofoil".
+ *
+ * So matching reads the stamp first and the type second, and falls back to the generic name
+ * when a set does not draw the distinction at all. A modern set publishes only "Normal", and
+ * asking for "Unlimited" there simply misses and falls through, which is the intended
+ * behaviour rather than an accident.
+ *
+ * Getting this wrong is expensive in the literal sense: on the day this was written a
+ * Shadowless Charizard was $1,213 against $897 for the Unlimited, and a 1st Edition is a
+ * different order of magnitude again. Before this, all four printings carried the one price.
  */
-const SUBTYPE_PREFERENCE = {
-  normal:  ['Normal', 'Unlimited', '1st Edition'],
-  holo:    ['Holofoil', 'Unlimited Holofoil', '1st Edition Holofoil'],
-  reverse: ['Reverse Holofoil'],
-  metal:   ['Normal'],
-};
+function subtypePreference(variant) {
+  const firstEdition = variant.stamp === '1st-edition';
+  switch (variant.type) {
+    case 'holo':
+      // "Holofoil" is the generic name a set uses when it draws no edition distinction at
+      // all, so both branches may fall back to it. Neither falls back to the *other*
+      // edition: a first edition is never given unlimited money, or the whole exercise is
+      // pointless.
+      return firstEdition
+        ? ['1st Edition Holofoil', 'Holofoil']
+        : ['Unlimited Holofoil', 'Holofoil'];
+    case 'reverse':
+      return ['Reverse Holofoil'];
+    case 'normal':
+    case 'metal':
+      return firstEdition
+        ? ['1st Edition', 'Normal']
+        : ['Unlimited', 'Normal'];
+    default:
+      return ['Normal'];
+  }
+}
+
+/**
+ * Which of a set's groups a printing belongs in.
+ *
+ * Only Base Set is split this way, but the rule is written generally: a shadowless printing
+ * looks for "<set> (Shadowless)" and uses it when it exists, and everything else stays in
+ * the set's main group. A set without the split simply never matches the alternate.
+ */
+function groupForVariant(variant, main, alternates) {
+  if (variant.subtype === 'shadowless' && alternates.shadowless) return alternates.shadowless;
+  return main;
+}
 
 // ---------------------------------------------------------------- load
 
@@ -147,6 +189,7 @@ if (!priceDir) {
 // ---------------------------------------------------------------- sets
 
 const setToGroup = new Map();
+const setAlternates = new Map();   // set id -> { shadowless: groupId }
 const setsForReview = [];
 for (const s of mySets) {
   let best = null, bestScore = 0;
@@ -160,8 +203,16 @@ for (const s of mySets) {
     const score = ns + (gap <= 60 ? 0.5 : 0) + (gap <= 7 ? 0.3 : 0);
     if (score > bestScore) { bestScore = score; best = g; }
   }
-  if (best && bestScore >= 1.0) setToGroup.set(s.id, best.groupId);
-  else setsForReview.push({ id: s.id, name: s.name, released: s.release_date, nearest: best?.name ?? null });
+  if (best && bestScore >= 1.0) {
+    setToGroup.set(s.id, best.groupId);
+    // TCGplayer keeps the shadowless and first-edition printings of Base Set in a group of
+    // their own. Find it here so a variant can be routed to it below.
+    const shadowless = groups.find((g) => norm(g.name) === norm(`${best.name} (Shadowless)`)
+      || base(g.name) === base(`${best.name} (Shadowless)`));
+    if (shadowless) setAlternates.set(s.id, { shadowless: shadowless.groupId });
+  } else {
+    setsForReview.push({ id: s.id, name: s.name, released: s.release_date, nearest: best?.name ?? null });
+  }
 }
 
 // ---------------------------------------------------------------- cards
@@ -183,31 +234,63 @@ for (const c of myCards) {
   cardsBySet.get(c.set_id).push(c);
 }
 
-for (const [setId, cards] of cardsBySet) {
-  const gid = setToGroup.get(setId);
-  if (!gid) { noGroup += cards.length; continue; }
-  const prods = byGroup[gid] ?? [];
+/** Builds number and name indexes over one group's products. */
+function indexGroup(gid) {
   const numIdx = new Map(), nameIdx = new Map();
-  for (const p of prods) {
+  for (const p of byGroup[gid] ?? []) {
     const n = prodNum(p);
     if (n && !numIdx.has(n)) numIdx.set(n, p);
     const nm = norm(p.name);
     if (!nameIdx.has(nm)) nameIdx.set(nm, p);
   }
+  return { numIdx, nameIdx };
+}
+
+for (const [setId, cards] of cardsBySet) {
+  const gid = setToGroup.get(setId);
+  if (!gid) { noGroup += cards.length; continue; }
+
+  const alternates = setAlternates.get(setId) ?? {};
+  // Each group this set's printings might live in gets its own index, built once.
+  const indexes = new Map([[gid, indexGroup(gid)]]);
+  for (const altGid of Object.values(alternates)) {
+    if (!indexes.has(altGid)) indexes.set(altGid, indexGroup(altGid));
+  }
 
   for (const c of cards) {
-    let prod = numIdx.get(cardNum(c.number));
-    let how = 'number';
-    if (!prod) { prod = nameIdx.get(norm(c.name)); how = 'name'; }
-    if (!prod) { unmatchedCards.push(`${c.set_name} #${c.number} ${c.name} (${c.id})`); continue; }
-    how === 'number' ? byNumber++ : byName++;
+    const variants = variantsByCard.get(c.id) ?? [];
+    let matchedThisCard = false;
 
-    const available = subTypesByProduct.get(prod.productId) ?? new Set();
-    for (const v of variantsByCard.get(c.id) ?? []) {
-      const wanted = SUBTYPE_PREFERENCE[v.type] ?? [];
-      const sub = wanted.find((w) => available.has(w));
+    for (const v of variants) {
+      // The group is chosen per printing, not per card: a shadowless Charizard and an
+      // unlimited one are the same card to us and two different products to TCGplayer.
+      const targetGid = groupForVariant(v, gid, alternates);
+      const idx = indexes.get(targetGid) ?? indexes.get(gid);
+
+      let prod = idx.numIdx.get(cardNum(c.number));
+      let how = 'number';
+      if (!prod) { prod = idx.nameIdx.get(norm(c.name)); how = 'name'; }
+      // Deliberately no fallback to the main group for an edition-bearing printing.
+      //
+      // A shadowless card missing from the shadowless group could be given the unlimited
+      // product's price instead, and it would look perfectly reasonable -- which is exactly
+      // the failure being fixed here. A printing with no price draws no line and invites a
+      // question; a printing wearing another edition's money answers that question wrongly
+      // and nobody asks again.
+      if (!prod && targetGid !== gid) continue;
+      if (!prod) continue;
+
+      if (!matchedThisCard) {
+        matchedThisCard = true;
+        how === 'name' ? byName++ : byNumber++;
+      }
+
+      const available = subTypesByProduct.get(prod.productId) ?? new Set();
+      const sub = subtypePreference(v).find((w) => available.has(w));
       if (!sub) {
-        unmatchedPrintings.push(`${c.id} ${v.type} → product ${prod.productId} has [${[...available].join(', ') || 'no prices'}]`);
+        unmatchedPrintings.push(
+          `${c.id} ${v.type}${v.stamp ? '/' + v.stamp : ''}${v.subtype ? '/' + v.subtype : ''}`
+          + ` → product ${prod.productId} has [${[...available].join(', ') || 'no prices'}]`);
         continue;
       }
       rows.push({
@@ -219,6 +302,8 @@ for (const [setId, cards] of cardsBySet) {
         matched_by: how,
       });
     }
+
+    if (!matchedThisCard) unmatchedCards.push(`${c.set_name} #${c.number} ${c.name} (${c.id})`);
   }
 }
 
@@ -247,6 +332,21 @@ console.log('     mapped           ', String(rows.length).padStart(6), pct(rows.
 console.log('     no subtype       ', String(unmatchedPrintings.length).padStart(6), pct(unmatchedPrintings.length, totalPrintings));
 for (const u of unmatchedPrintings.slice(0, 6)) console.log('       ·', u);
 
+// --inspect <cardId> prints what one card would be mapped to, which is the only practical
+// way to check an edition split without writing 28,000 rows first.
+if (args.includes('--inspect')) {
+  const want = args[args.indexOf('--inspect') + 1];
+  const mine = myCards.find((c) => c.id === want);
+  console.log('');
+  console.log(`   ${want}  ${mine?.name ?? '?'}  (${mine?.set_name ?? '?'})`);
+  for (const r of rows.filter((r) => r.card_id === want)) {
+    const v = (variantsByCard.get(want) ?? []).find((v) => v.position === r.variant_position);
+    const label = [v?.type, v?.subtype, v?.stamp].filter(Boolean).join(' / ');
+    const prodName = Object.values(byGroup).flat().find((p) => p.productId === r.external_id)?.name ?? '?';
+    console.log(`     pos ${r.variant_position}  ${label.padEnd(34)} → ${r.external_id} ${JSON.stringify(prodName)} / ${r.sub_type}`);
+  }
+}
+
 if (!APPLY) {
   console.log('');
   console.log('   dry run — nothing written. Re-run with --apply to write price_map.');
@@ -268,3 +368,33 @@ for (let i = 0; i < rows.length; i += SIZE) {
   if (written % 10000 === 0 || written === rows.length) console.log('     ', written.toLocaleString());
 }
 console.log('   done:', written.toLocaleString(), 'printings mapped');
+
+// Rows this run did not produce are left over from an earlier mapping, and a stale row is
+// worse than a missing one: it keeps pointing a printing at a product the current rules
+// rejected, so a price keeps arriving for it and keeps being wrong.
+const keep = new Set(rows.map((r) => `${r.card_id}|${r.variant_position}`));
+const existing = [];
+for (let from = 0; ; from += 1000) {
+  const { data, error } = await db.from('price_map')
+    .select('card_id,variant_position').eq('source_id', SOURCE_ID).range(from, from + 999);
+  if (error) { console.error('   could not list existing rows:', error.message); break; }
+  existing.push(...data);
+  if (data.length < 1000) break;
+}
+const stale = existing.filter((r) => !keep.has(`${r.card_id}|${r.variant_position}`));
+if (stale.length) {
+  console.log(`   removing ${stale.length} rows the current rules no longer produce…`);
+  for (const r of stale) {
+    await db.from('price_map').delete()
+      .eq('source_id', SOURCE_ID).eq('card_id', r.card_id).eq('variant_position', r.variant_position);
+  }
+  // Their prices go too. A printing with no mapping should have no price, and leaving the
+  // old rows behind would keep a wrong-edition figure on the chart with nothing producing it.
+  for (const r of stale) {
+    await db.from('price_latest').delete()
+      .eq('source_id', SOURCE_ID).eq('card_id', r.card_id).eq('variant_position', r.variant_position);
+    await db.from('price_point').delete()
+      .eq('source_id', SOURCE_ID).eq('card_id', r.card_id).eq('variant_position', r.variant_position);
+  }
+}
+console.log(`   price_map now holds ${rows.length.toLocaleString()} rows`);

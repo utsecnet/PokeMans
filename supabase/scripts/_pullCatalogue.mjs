@@ -25,7 +25,9 @@ async function all(table, cols) {
 const OUT = process.argv[2] || '.';
 const sets  = await all('tcg_sets', 'id,name,series,release_date');
 const cards = await all('tcg_cards', 'id,name,number,set_id,set_name');
-const vars  = await all('tcg_card_variants', 'card_id,position,type');
+// subtype and stamp carry the edition -- without them every Base Set printing looks
+// identical and they all match the same product.
+const vars  = await all('tcg_card_variants', 'card_id,position,type,subtype,stamp');
 fs.writeFileSync(path.join(OUT, 'my_sets.json'), JSON.stringify(sets));
 fs.writeFileSync(path.join(OUT, 'my_cards.json'), JSON.stringify(cards));
 fs.writeFileSync(path.join(OUT, 'my_vars.json'), JSON.stringify(vars));
