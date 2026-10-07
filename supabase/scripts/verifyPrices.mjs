@@ -138,8 +138,25 @@ const rand = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffff
 const sample = cards.filter(() => rand() < PCT / 100);
 console.log(`   sampled ${sample.length.toLocaleString()} of ${cards.length.toLocaleString()} cards (${PCT}%)`);
 
-const day = DAY ?? (fs.readdirSync(CACHE).map((f) => f.match(/^(?:x-|prices-)(\d{4}-\d{2}-\d{2})/)?.[1])
-  .filter(Boolean).sort().pop());
+/**
+ * Whether the retention policy keeps a given date, mirroring thin_price_history.
+ *
+ * The newest archive on disk is usually not a date we hold: the policy keeps Mondays and
+ * Thursdays in the middle band, so a Tuesday file has nothing to compare against and the
+ * source check quietly reported zero rows examined. Zero disagreements out of zero
+ * comparisons reads like a pass, which is the worst way for a check to fail.
+ */
+const retained = (iso) => {
+  const d = new Date(iso + 'T00:00:00Z');
+  const age = Math.round((Date.now() - d.getTime()) / 86400000);
+  const isoDow = d.getUTCDay() === 0 ? 7 : d.getUTCDay();
+  return age <= 7 ? true : age <= 30 ? (isoDow === 1 || isoDow === 4) : isoDow === 1;
+};
+
+const cachedDays = fs.readdirSync(CACHE)
+  .map((f) => f.match(/^(?:x-|prices-)(\d{4}-\d{2}-\d{2})/)?.[1])
+  .filter(Boolean).sort();
+const day = DAY ?? cachedDays.filter(retained).pop() ?? cachedDays.pop();
 const source = day ? loadSourceDay(day) : new Map();
 console.log(`   source day: ${day ?? '(none found)'} — ${source.size.toLocaleString()} published prices`);
 
