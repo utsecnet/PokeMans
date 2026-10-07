@@ -19,6 +19,23 @@
  * "Unlimited". A fixed table from our vocabulary to theirs would therefore leave the whole
  * WotC era unpriced, so each printing is matched against the subtypes that product actually
  * publishes, in order of preference.
+ *
+ * KNOWN LIMITATION -- WotC-era editions share one price.
+ *
+ * We model edition as a property of the printing: base1-4 has four variants, differing by
+ * subtype (unlimited, shadowless, 1999-2000-copyright) and stamp (1st-edition). TCGplayer
+ * models it as a property of the *set*: "Base Set" and "Base Set (Shadowless)" are separate
+ * groups holding separate products.
+ *
+ * So all four of our Charizard printings match the one product in the group we picked, and
+ * all four show its price. They are not the same card and not the same money -- the
+ * Shadowless Charizard was $1,213 the day this was written against $897 for the one we
+ * mapped, and a 1st Edition is a different order of magnitude again.
+ *
+ * Fixing it means choosing the group from the variant rather than the set alone: a
+ * shadowless printing should look in "<set> (Shadowless)" first. That is a real change to
+ * the matching rather than a tweak, and it is worth doing before anyone reads a WotC price
+ * as fact. Until then those cards carry one plausible figure for several distinct printings.
  */
 import { createClient } from '@supabase/supabase-js';
 import fs from 'node:fs';
