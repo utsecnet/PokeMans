@@ -1,5 +1,6 @@
 import { AdminSync } from '../components/AdminSync';
 import { SyncCalendar } from '../components/SyncCalendar';
+import { SetCoverage } from '../components/SetCoverage';
 import { DatabaseMeter } from '../components/DatabaseMeter';
 import { PriceHealth } from '../components/PriceHealth';
 import { useSession } from '../lib/sessionContext';
@@ -28,6 +29,7 @@ export function Settings() {
       {admin && (
         <>
           <PriceHealth />
+          <SetCoverage />
           <SyncCalendar />
           <DatabaseMeter />
           <AdminSync />

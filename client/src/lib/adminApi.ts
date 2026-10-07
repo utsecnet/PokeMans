@@ -7,7 +7,7 @@
  * function nor Postgres has any idea what the interface chose to draw.
  */
 import { supabase } from './supabase';
-import type { DatabaseUsage, PriceHealthReport, SyncTrack } from '../types';
+import type { DatabaseUsage, PriceHealthReport, SetCoverageRow, SyncTrack } from '../types';
 
 export interface PriceSyncResult {
   ok: true;
@@ -92,4 +92,11 @@ export async function fetchDatabaseUsage(): Promise<DatabaseUsage> {
   const { data, error } = await supabase.rpc('database_usage');
   if (error) throw new Error(error.message);
   return data as DatabaseUsage;
+}
+
+/** Price coverage per set, worst first. The figure that reveals a whole set going missing. */
+export async function fetchSetCoverage(): Promise<SetCoverageRow[]> {
+  const { data, error } = await supabase.rpc('set_coverage');
+  if (error) throw new Error(error.message);
+  return (data ?? []) as SetCoverageRow[];
 }

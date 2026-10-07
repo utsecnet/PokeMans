@@ -600,3 +600,22 @@ export interface DatabaseUsage {
   limitPretty: string;
   tables: { name: string; bytes: number; pretty: string }[];
 }
+
+/**
+ * One set's price coverage.
+ *
+ * `pct` is null when a set has no printings at all -- that is not zero coverage, it is not a
+ * question, and reporting it as zero would park empty sets permanently at the top of a list
+ * meant for faults.
+ */
+export interface SetCoverageRow {
+  setId: string;
+  name: string;
+  releaseDate: string | null;
+  cards: number;
+  printings: number;
+  mapped: number;
+  priced: number;
+  pct: number | null;
+  lastSeen: string | null;
+}
