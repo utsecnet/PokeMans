@@ -179,7 +179,9 @@ Deno.serve(async (req) => {
   // unchanged on a given day cost nothing but a date update.
   let result: Record<string, number> = {};
   try {
-    const CHUNK = 20000;
+    // Sized so one statement stays well inside the timeout even as price_point grows. At
+    // 20,000 the capture began failing once a year of backfill was loaded.
+    const CHUNK = 6000;
     for (let i = 0; i < collected.length; i += CHUNK) {
       const { data, error } = await db.rpc('record_prices', {
         p_source_id: SOURCE_ID,
