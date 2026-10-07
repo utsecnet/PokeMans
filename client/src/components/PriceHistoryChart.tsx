@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { fetchCardPriceHistory } from '../lib/api';
+import { fetchCardFirstPriced, fetchCardPriceHistory } from '../lib/api';
 import type { CardPriceHistory, PriceChart, PriceSeries } from '../types';
 
 // Plain SVG rather than a charting library: the project carries no chart dependency, and a
@@ -414,10 +414,22 @@ export function PriceHistoryChart({
   const [activeService, setActiveService] = useState<string | null>(null);
   // 90 days to begin with: long enough to show a trend, short enough to show detail.
   const [range, setRange] = useState<number | null>(90);
+  const [firstPriced, setFirstPriced] = useState<string | null>(null);
+
+  // How far back any price exists for this card. Asked once, and separately from the chart,
+  // because a windowed read cannot see past its own window and the caption says "recorded
+  // since".
+  useEffect(() => {
+    const controller = new AbortController();
+    setFirstPriced(null);
+    fetchCardFirstPriced(cardId, controller.signal)
+      .then((d) => { if (!controller.signal.aborted) setFirstPriced(d); })
+      .catch(() => { /* the caption is a courtesy; its absence is not an error */ });
+    return () => controller.abort();
+  }, [cardId]);
 
   useEffect(() => {
     const controller = new AbortController();
-    setHistory(null);
     setError(null);
 
     const show = (h: CardPriceHistory) => {
@@ -428,15 +440,19 @@ export function PriceHistoryChart({
       );
     };
 
-    // One read, no capture. Every card in the catalogue is priced by the daily sync, so
-    // there is nothing to fetch on demand any more — opening a card used to trigger an
-    // outbound request because the old source could only price cards one at a time.
-    // Ten years, so every range in the selector is served by this one read.
-    fetchCardPriceHistory(cardId, 3650, controller.signal)
+    // Fetch the window being shown, not the whole history. Postgres caps a chart at a few
+    // hundred points, and striding the full span meant a seven-day view inherited every
+    // third day of three years -- three points where the retention policy keeps seven.
+    // Asking for the range costs a request when it changes and returns the right resolution.
+    //
+    // No capture here. Every card in the catalogue is priced by the daily sync, so there is
+    // nothing to fetch on demand; opening a card used to trigger an outbound request because
+    // the old source could only price one card at a time.
+    fetchCardPriceHistory(cardId, range ?? 3650, controller.signal)
       .then(show)
       .catch((err) => {
         if (controller.signal.aborted) return;
-        // A capture that fails still leaves whatever was already stored on screen.
+        // A late failure leaves whatever is already drawn on screen.
         if (history) return;
         setError(err instanceof Error ? err.message : 'Could not load price history');
       });
@@ -444,7 +460,7 @@ export function PriceHistoryChart({
     // history is deliberately not a dependency: it is read only to decide whether a late
     // failure should replace a chart that is already drawn.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cardId]);
+  }, [cardId, range]);
 
   const chart = history?.charts.find((c) => c.service === activeService) ?? history?.charts[0] ?? null;
 
@@ -455,29 +471,14 @@ export function PriceHistoryChart({
   // arrives in one read, so switching range is instant and costs nothing -- and the earliest
   // date is known, which is what lets a window longer than the data say so rather than look
   // broken.
-  const earliest = useMemo(() => {
-    let found: string | null = null;
-    for (const c of history?.charts ?? []) {
-      for (const sr of c.series) {
-        const first = sr.points[0]?.date;
-        if (first && (!found || first < found)) found = first;
-      }
-    }
-    return found;
-  }, [history]);
+  // Not derived from the points on screen: those are the chosen window, and this is how far
+  // the record actually goes back.
+  const earliest = firstPriced;
 
-  const windowed = useMemo(() => {
-    if (!chart) return null;
-    if (range === null) return chart;
-    const cutoff = new Date();
-    cutoff.setUTCDate(cutoff.getUTCDate() - range);
-    const from = cutoff.toISOString().slice(0, 10);
-    return {
-      ...chart,
-      series: chart.series.map((sr) => ({ ...sr, points: sr.points.filter((pt) => pt.date >= from) }))
-        .filter((sr) => sr.points.length > 0),
-    };
-  }, [chart, range]);
+  // No trimming here any more. The fetch asks for the selected window, so Postgres strides
+  // that window rather than the whole history -- which is what makes a seven-day view show
+  // seven daily points instead of every third day of three years.
+  const windowed = chart;
 
   if (error) return <p className="text-xs text-[var(--color-text-muted)]">{error}</p>;
   if (!history) return <p className="text-xs text-[var(--color-text-muted)]">Loading price history…</p>;

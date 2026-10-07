@@ -308,6 +308,17 @@ export async function fetchCardPriceHistory(
   };
 }
 
+/**
+ * The first day any price was recorded for a card, whatever window is being shown.
+ *
+ * A windowed read cannot see past its own window, and the caption under the chart says how
+ * far the record goes back -- so this asks the table rather than inferring it from points
+ * that may have been filtered out.
+ */
+export async function fetchCardFirstPriced(cardId: string, signal?: AbortSignal): Promise<string | null> {
+  return rpc<string | null>('card_first_priced', { p_card_id: cardId }, signal);
+}
+
 /** The shape card_price_history returns, before printing names are attached. */
 interface RawPriceChart {
   sourceKey: string;
