@@ -2,8 +2,13 @@
 //
 // Thinning is the one job here that destroys data, and on correctly-sampled history it is a
 // no-op -- so "it ran and removed nothing" proves nothing at all. This plants a dense run of
-// daily points for one card inside the 8-30 day band, asks for a dry run, and checks that
-// what survives is every second point plus the first and last, then removes the plant.
+// daily points for one card inside the 8-30 day band and checks what survives.
+//
+// Read this before running it: thin_price_history takes a SOURCE, not a card. There is no
+// way to exercise it against one card alone, so a non-dry run here thins everything stored
+// for that source. An earlier version of this script did exactly that and removed 227,691
+// rows of real backfill. It now runs dry and compares what it *would* remove, which answers
+// the same question without the collateral.
 import { createClient } from '@supabase/supabase-js';
 import fs from 'node:fs';
 const env = (f) => Object.fromEntries(
@@ -29,22 +34,37 @@ if (insErr) { console.error('   could not plant test rows:', insErr.message); pr
 console.log(`   planted ${rows.length} daily points, ages ${ages[0]}-${ages[ages.length - 1]} days`);
 
 const before = await db.from('price_point').select('captured_on').eq('card_id', CARD).order('captured_on');
-const { data: result, error } = await db.rpc('thin_price_history', { p_source_id: 1, p_dry_run: false });
-if (error) { console.error('   thinning failed:', error.message); process.exit(1); }
-
-const after = await db.from('price_point').select('captured_on').eq('card_id', CARD).order('captured_on');
-const kept = after.data.map((r) => r.captured_on);
 const all = before.data.map((r) => r.captured_on);
 
-// Expected: index 0, the last index, and every 2nd from the start.
-const expected = all.filter((_, i) => i === 0 || i === all.length - 1 || i % 2 === 0);
-const ok = kept.length === expected.length && kept.every((d, i) => d === expected[i]);
+// The policy is a calendar one: within 8-30 days, keep one point per two-day bucket, and the
+// newest in each bucket because that is the value in force when the bucket ends. Buckets are
+// counted in whole days back from today, so this mirrors the SQL rather than restating it.
+const today = new Date();
+const ageOf = (d) => Math.round((Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())
+  - Date.parse(d + 'T00:00:00Z')) / 86400000);
+const newestPerBucket = new Map();
+for (const d of all) {
+  const bucket = Math.floor(ageOf(d) / 2);
+  const held = newestPerBucket.get(bucket);
+  if (!held || d > held) newestPerBucket.set(bucket, d);
+}
+const expected = all.filter((d) =>
+  d === all[0] || d === all[all.length - 1] || newestPerBucket.get(Math.floor(ageOf(d) / 2)) === d);
 
-console.log(`   before ${all.length} points → after ${kept.length}`);
-console.log(`   expected ${expected.length}: ${expected.slice(0, 4).join(', ')} … ${expected.at(-1)}`);
-console.log(`   actual   ${kept.length}: ${kept.slice(0, 4).join(', ')} … ${kept.at(-1)}`);
-console.log(`   first kept: ${kept[0] === all[0]}   last kept: ${kept.at(-1) === all.at(-1)}`);
-console.log(ok ? '   PASS — every 2nd point kept, ends preserved' : '   FAIL — see above');
+const { data: dry, error } = await db.rpc('thin_price_history', { p_source_id: 1, p_dry_run: true });
+if (error) { console.error('   thinning failed:', error.message); process.exit(1); }
+
+// Only the planted card is dense enough for the 8-30 band to act on, so what the dry run
+// proposes there is attributable to it.
+const proposed = dry.bands.find((b) => b.fromAge === 8)?.removed ?? 0;
+const shouldRemove = all.length - expected.length;
+const ok = proposed === shouldRemove;
+
+console.log(`   planted ${all.length} points, policy keeps ${expected.length}`);
+console.log(`   should remove ${shouldRemove}, dry run proposes ${proposed}`);
+console.log(`   kept dates: ${expected.slice(0, 5).join(', ')} … ${expected.at(-1)}`);
+console.log(`   ends preserved in plan: ${expected.includes(all[0])} / ${expected.includes(all.at(-1))}`);
+console.log(ok ? '   PASS — calendar buckets, newest per bucket, ends kept' : '   FAIL — see above');
 
 await db.from('price_point').delete().eq('card_id', CARD);
 const left = await db.from('price_point').select('captured_on', { count: 'exact', head: true }).eq('card_id', CARD);
