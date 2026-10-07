@@ -67,10 +67,50 @@ const CONDITION_RANK: Record<string, number> = {
 
 const SYMBOLS: Record<string, string> = { USD: '$', EUR: '€', GBP: '£', JPY: '¥', CAD: 'CA$', AUD: 'A$' };
 
-/** Axis dates read as mm/dd; the full date stays in the hover tooltip. */
-function shortDate(iso: string) {
-  const [, m, d] = iso.split('-');
-  return `${m}/${d}`;
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/**
+ * Axis labels, written to suit how much time is on screen.
+ *
+ * "10/07" was ambiguous twice over. It reads as 10 July to most of the world and 7 October
+ * to the rest, and it carries no year -- so a chart spanning 2024 to 2026 showed both ends
+ * as "10/07" and looked like it covered a single day.
+ *
+ * A named month removes the first ambiguity outright; no ordering convention can be
+ * misread. The year appears only when the window actually crosses one, because repeating it
+ * on a two-week chart is noise. And on a short window the weekday is what a reader is
+ * actually locating, so it leads.
+ */
+function axisDate(iso: string, spanDays: number) {
+  const d = new Date(iso + 'T00:00:00Z');
+  const day = d.getUTCDate();
+  const mon = MONTHS[d.getUTCMonth()];
+  if (spanDays <= 14) {
+    const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getUTCDay()];
+    return `${wd} ${day}`;
+  }
+  if (spanDays <= 180) return `${day} ${mon}`;
+  if (spanDays <= 400) return mon;
+  return `${mon} ${String(d.getUTCFullYear()).slice(2)}`;
+}
+
+/** The full date, for the tooltip, where there is room to be unambiguous. */
+function longDate(iso: string) {
+  const d = new Date(iso + 'T00:00:00Z');
+  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+
+/**
+ * Evenly spaced positions along the axis to label.
+ *
+ * Only the two ends were labelled, which tells a reader where the line starts and stops and
+ * nothing about what is in between -- on a two-year chart there was no way to tell which
+ * part of it a peak sat in.
+ */
+function tickIndices(count: number, want = 5) {
+  if (count <= 1) return [0];
+  const n = Math.min(want, count);
+  return Array.from({ length: n }, (_, i) => Math.round((i * (count - 1)) / (n - 1)));
 }
 
 function money(value: number, currency: string) {
@@ -207,8 +247,23 @@ function Chart({ chart, maxHeight }: { chart: PriceChart; maxHeight: number | nu
 
   const plotW = WIDTH - PAD.left - PAD.right;
   const plotH = HEIGHT - PAD.top - PAD.bottom;
+  /**
+   * Position by date, not by position in the array.
+   *
+   * Index spacing gives every stored point the same width, which is only ever right when
+   * the points are evenly spaced in time. Retention keeps the last week daily and anything
+   * past a month weekly, so a week of recent detail and a week of year-old history hold the
+   * same number of points -- by index the recent week would be stretched across a seventh
+   * of the chart and a year squeezed into the rest. The line would be the wrong shape,
+   * which on a price chart is the only thing that matters.
+   */
+  const firstMs = Date.parse(dates[0] + 'T00:00:00Z');
+  const lastMs = Date.parse(dates[dates.length - 1] + 'T00:00:00Z');
+  const spanMs = lastMs - firstMs;
+  const spanDays = Math.max(1, Math.round(spanMs / 86400000));
   const x = (date: string) =>
-    PAD.left + (dates.length === 1 ? plotW / 2 : (dates.indexOf(date) / (dates.length - 1)) * plotW);
+    PAD.left + (spanMs <= 0 ? plotW / 2
+      : ((Date.parse(date + 'T00:00:00Z') - firstMs) / spanMs) * plotW);
   const y = (value: number) => PAD.top + plotH - ((value - minY) / (maxY - minY || 1)) * plotH;
 
   const toggle = (key: string) =>
@@ -336,7 +391,7 @@ function Chart({ chart, maxHeight }: { chart: PriceChart; maxHeight: number | nu
               {band.points.length <= HOVER_LIMIT && band.points.map((p) => (
                 <circle key={`hit-${p.date}`} cx={x(p.date)} cy={y(p.hi)} r={5} fill="transparent">
                   <title>
-                    {`${band.label}\n${p.date}\n${
+                    {`${band.label}\n${longDate(p.date)}\n${
                       p.hi === p.lo
                         ? money(p.hi, chart.currency)
                         : `best ${money(p.hi, chart.currency)} · worst ${money(p.lo, chart.currency)}`
@@ -348,21 +403,21 @@ function Chart({ chart, maxHeight }: { chart: PriceChart; maxHeight: number | nu
           );
         })}
 
-        <text x={PAD.left} y={HEIGHT - 5} fontSize="11" fontWeight="500" fill="var(--color-text)">
-          {shortDate(dates[0])}
-        </text>
-        {dates.length > 1 && (
+        {/* Several labels across the axis rather than only the two ends, each anchored so
+            the first and last sit inside the plot instead of overhanging it. */}
+        {tickIndices(dates.length).map((i, n, all) => (
           <text
-            x={WIDTH - PAD.right}
+            key={dates[i]}
+            x={x(dates[i])}
             y={HEIGHT - 5}
             fontSize="11"
-            fontWeight="500"
-            textAnchor="end"
-            fill="var(--color-text)"
+            fontWeight={n === 0 || n === all.length - 1 ? '500' : '400'}
+            textAnchor={n === 0 ? 'start' : n === all.length - 1 ? 'end' : 'middle'}
+            fill={n === 0 || n === all.length - 1 ? 'var(--color-text)' : 'var(--color-text-muted)'}
           >
-            {shortDate(dates[dates.length - 1])}
+            {axisDate(dates[i], spanDays)}
           </text>
-        )}
+        ))}
       </svg>
 
       <div ref={legendRef} className="mt-1 space-y-0.5">
