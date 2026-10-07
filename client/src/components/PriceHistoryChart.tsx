@@ -130,6 +130,62 @@ function toBands(series: PriceSeries[]): Band[] {
   });
 }
 
+
+/**
+ * How many points may carry an invisible hover target.
+ *
+ * Three years of daily prices across several printings is tens of thousands of nodes, and
+ * the browser feels it. Past this the line is still drawn; only the per-day readout goes.
+ */
+const HOVER_LIMIT = 400;
+
+/**
+ * A path through the points with the corners taken off.
+ *
+ * Quadratic segments between the midpoints of consecutive points, which is the cheap
+ * smoothing that cannot overshoot: every curve stays inside the triangle of the three points
+ * that made it, so a smoothed line never dips below a price that was never paid. A spline
+ * with real tension looks better on a gentle curve and invents troughs on a spiky one, which
+ * on a price chart is a lie rather than a flourish.
+ */
+function smoothPath(pts: [number, number][]): string {
+  if (pts.length === 0) return '';
+  if (pts.length === 1) return `M${pts[0][0]},${pts[0][1]}`;
+  if (pts.length === 2) return `M${pts[0][0]},${pts[0][1]} L${pts[1][0]},${pts[1][1]}`;
+
+  const mid = (a: [number, number], b: [number, number]): [number, number] =>
+    [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+
+  let d = `M${pts[0][0]},${pts[0][1]}`;
+  // Straight into the first midpoint, then one quadratic per interior point, using that
+  // point as the control and the next midpoint as the destination.
+  const first = mid(pts[0], pts[1]);
+  d += ` L${first[0]},${first[1]}`;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const m = mid(pts[i], pts[i + 1]);
+    d += ` Q${pts[i][0]},${pts[i][1]} ${m[0]},${m[1]}`;
+  }
+  const lastPt = pts[pts.length - 1];
+  d += ` L${lastPt[0]},${lastPt[1]}`;
+  return d;
+}
+
+/**
+ * The windows offered under the chart.
+ *
+ * `null` means everything held. The rest are ordinary trading-chart spans, and one that
+ * reaches further back than the data simply shows the data -- the caption says where it
+ * starts, so a short line reads as a short history rather than a broken chart.
+ */
+const RANGES: { label: string; days: number | null }[] = [
+  { label: '7D', days: 7 },
+  { label: '30D', days: 30 },
+  { label: '90D', days: 90 },
+  { label: '1Y', days: 365 },
+  { label: '3Y', days: 1095 },
+  { label: 'All', days: null },
+];
+
 function Chart({ chart, maxHeight }: { chart: PriceChart; maxHeight: number | null }) {
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -165,8 +221,7 @@ function Chart({ chart, maxHeight }: { chart: PriceChart; maxHeight: number | nu
 
   const gradientId = (i: number) => `band-${chart.service}-${i}`;
   const firstVisible = bands.findIndex((b) => !hidden.has(b.key) && b.points.some((p) => p.hi !== p.lo));
-  const path = (pts: { date: string; v: number }[]) =>
-    pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(p.date)},${y(p.v)}`).join(' ');
+  const path = (pts: { date: string; v: number }[]) => smoothPath(pts.map((p) => [x(p.date), y(p.v)]));
 
   return (
     <div ref={wrapRef}>
@@ -266,21 +321,28 @@ function Chart({ chart, maxHeight }: { chart: PriceChart; maxHeight: number | nu
                   </text>
                 </>
               )}
-              {band.points.map((p) => (
-                <g key={p.date}>
-                  <circle cx={x(p.date)} cy={y(p.hi)} r={singlePoint ? 3 : 1.8} fill={color}>
-                    <title>
-                      {`${band.label}\n${p.date}\n${
-                        p.hi === p.lo
-                          ? money(p.hi, chart.currency)
-                          : `best ${money(p.hi, chart.currency)} · worst ${money(p.lo, chart.currency)}`
-                      }`}
-                    </title>
-                  </circle>
-                  {isBand && (
-                    <circle cx={x(p.date)} cy={y(p.lo)} r={singlePoint ? 3 : 1.8} fill={color} opacity="0.75" />
-                  )}
-                </g>
+              {/* A marker per day turned a steady price into a bumpy dotted line, and across
+                  a year the dots touched and became a band of their own. The line carries
+                  the shape now. A series of one point still needs a dot, or it would draw
+                  nothing at all. */}
+              {singlePoint && band.points.map((p) => (
+                <circle key={p.date} cx={x(p.date)} cy={y(p.hi)} r={3} fill={color} />
+              ))}
+
+              {/* Hover targets, invisible and larger than the dots were, so the figures for
+                  a given day are still readable. Dropped past a few hundred points: three
+                  years across several printings is tens of thousands of nodes and the
+                  browser feels every one. */}
+              {band.points.length <= HOVER_LIMIT && band.points.map((p) => (
+                <circle key={`hit-${p.date}`} cx={x(p.date)} cy={y(p.hi)} r={5} fill="transparent">
+                  <title>
+                    {`${band.label}\n${p.date}\n${
+                      p.hi === p.lo
+                        ? money(p.hi, chart.currency)
+                        : `best ${money(p.hi, chart.currency)} · worst ${money(p.lo, chart.currency)}`
+                    }`}
+                  </title>
+                </circle>
               ))}
             </g>
           );
@@ -350,6 +412,8 @@ export function PriceHistoryChart({
   const [history, setHistory] = useState<CardPriceHistory | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeService, setActiveService] = useState<string | null>(null);
+  // 90 days to begin with: long enough to show a trend, short enough to show detail.
+  const [range, setRange] = useState<number | null>(90);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -367,7 +431,8 @@ export function PriceHistoryChart({
     // One read, no capture. Every card in the catalogue is priced by the daily sync, so
     // there is nothing to fetch on demand any more — opening a card used to trigger an
     // outbound request because the old source could only price cards one at a time.
-    fetchCardPriceHistory(cardId, 365, controller.signal)
+    // Ten years, so every range in the selector is served by this one read.
+    fetchCardPriceHistory(cardId, 3650, controller.signal)
       .then(show)
       .catch((err) => {
         if (controller.signal.aborted) return;
@@ -381,9 +446,42 @@ export function PriceHistoryChart({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardId]);
 
+  const chart = history?.charts.find((c) => c.service === activeService) ?? history?.charts[0] ?? null;
+
+  // These three sit above the early returns because hooks must run in the same order on
+  // every render, and below them the component may bail out before reaching this point.
+  //
+  // Trimming to the chosen window happens here rather than by refetching. The whole history
+  // arrives in one read, so switching range is instant and costs nothing -- and the earliest
+  // date is known, which is what lets a window longer than the data say so rather than look
+  // broken.
+  const earliest = useMemo(() => {
+    let found: string | null = null;
+    for (const c of history?.charts ?? []) {
+      for (const sr of c.series) {
+        const first = sr.points[0]?.date;
+        if (first && (!found || first < found)) found = first;
+      }
+    }
+    return found;
+  }, [history]);
+
+  const windowed = useMemo(() => {
+    if (!chart) return null;
+    if (range === null) return chart;
+    const cutoff = new Date();
+    cutoff.setUTCDate(cutoff.getUTCDate() - range);
+    const from = cutoff.toISOString().slice(0, 10);
+    return {
+      ...chart,
+      series: chart.series.map((sr) => ({ ...sr, points: sr.points.filter((pt) => pt.date >= from) }))
+        .filter((sr) => sr.points.length > 0),
+    };
+  }, [chart, range]);
+
   if (error) return <p className="text-xs text-[var(--color-text-muted)]">{error}</p>;
   if (!history) return <p className="text-xs text-[var(--color-text-muted)]">Loading price history…</p>;
-  if (history.charts.length === 0) {
+  if (!chart || !windowed || history.charts.length === 0) {
     return (
       <p className="text-xs text-[var(--color-text-muted)]">
         No prices recorded for this card yet.
@@ -391,7 +489,9 @@ export function PriceHistoryChart({
     );
   }
 
-  const chart = history.charts.find((c) => c.service === activeService) ?? history.charts[0];
+  const daysHeld = earliest
+    ? Math.round((Date.now() - Date.parse(earliest + 'T00:00:00Z')) / 86400000)
+    : 0;
 
   return (
     <div>
@@ -419,7 +519,40 @@ export function PriceHistoryChart({
       </div>
 
       <div className="mt-2">
-        <Chart key={chart.service} chart={chart} maxHeight={maxHeight} />
+        <Chart key={`${chart.service}-${range ?? 'all'}`} chart={windowed} maxHeight={maxHeight} />
+      </div>
+
+      {/* Ranges below the plot, as a trading chart puts them. A window reaching further back
+          than the data is not hidden or disabled -- it draws what exists and the note says
+          from when, so a short line reads as a short history rather than a fault. */}
+      <div className="mt-1 flex flex-wrap items-center gap-1">
+        {RANGES.map((r) => {
+          const active = r.days === range;
+          const beyond = r.days !== null && daysHeld > 0 && r.days > daysHeld;
+          return (
+            <button
+              key={r.label}
+              type="button"
+              onClick={() => setRange(r.days)}
+              aria-pressed={active}
+              title={beyond ? `Only ${daysHeld} days recorded so far` : undefined}
+              className={`rounded px-1.5 py-0.5 text-[11px] tabular-nums transition ${
+                active
+                  ? 'bg-[var(--color-accent)] font-medium text-white'
+                  : beyond
+                    ? 'text-[var(--color-text-muted)] opacity-50 hover:opacity-80'
+                    : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+              }`}
+            >
+              {r.label}
+            </button>
+          );
+        })}
+        {earliest && (
+          <span className="ml-auto pr-1 text-[10px] text-[var(--color-text-muted)]">
+            recorded since {earliest}
+          </span>
+        )}
       </div>
     </div>
   );
