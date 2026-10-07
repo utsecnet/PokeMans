@@ -69,6 +69,52 @@ const base = (s) => fold(s).replace(/&/g, ' and ')
 const norm = (s) => base(s).replace(/^(me\d*|sv|swsh|sm|xy|bw|hgss|dp|ex)\s+/, '').trim();
 
 /**
+ * Era names, spelled out on our side and abbreviated on theirs.
+ *
+ * Our "Sun & Moon" is their "SM Base Set" -- not one word in common, so every name rule
+ * scored it zero and the set went unmatched entirely, all 173 cards unpriced. Expanding the
+ * abbreviation before comparing is what lets the two meet.
+ */
+const ERA_ALIASES = {
+  swsh: 'sword and shield',
+  hgss: 'heartgold and soulsilver',
+  sm: 'sun and moon',
+  sv: 'scarlet and violet',
+  bw: 'black and white',
+  dp: 'diamond and pearl',
+  xy: 'xy',
+};
+
+// Longest alternatives first, so "swsh01" is not read as "sw" plus noise. The trailing
+// digits are a release index -- "SV01", "SWSH01" -- and not part of the abbreviation.
+//
+// Written as a literal rather than built from a string: the first attempt assembled it with
+// new RegExp('^' + abbr + '\d*\s+'), where JavaScript quietly drops the backslash in a
+// string literal, leaving the pattern ^svd*s+ which matches nothing at all. It failed
+// silently and took three sets' prices with it.
+const ERA_PATTERN = /^(swsh|hgss|sm|sv|bw|dp|xy)(\d*)\s+/;
+
+/** The same name with a leading era abbreviation spelled out, when it carries one. */
+function expandEra(s) {
+  const t = base(s);
+  const m = t.match(ERA_PATTERN);
+  if (!m) return t;
+  return `${ERA_ALIASES[m[1]]} ${t.slice(m[0].length)}`.trim();
+}
+
+/**
+ * Whether exactly one of the two names calls itself a promo set.
+ *
+ * Promo sets are the single most dangerous near-match here, because they are named after
+ * the set they accompany and usually carry its release date too -- so they beat the real
+ * set on both name and date. "Diamond & Pearl" matched "Diamond and Pearl Promos" and took
+ * 66 promo products instead of 135 real ones, leaving 125 of 130 cards unpriced.
+ */
+const PROMO_WORDS = new Set(["promo", "promos"]);
+const isPromoSet = (name) => base(name).split(" ").some((w) => PROMO_WORDS.has(w));
+const promoMismatch = (a, b) => isPromoSet(a) !== isPromoSet(b);
+
+/**
  * Compares two set names both ways and takes the better reading.
  *
  * Stripping the era is right when ours is the short name and theirs carries the prefix, and
@@ -76,12 +122,19 @@ const norm = (s) => base(s).replace(/^(me\d*|sv|swsh|sm|xy|bw|hgss|dp|ex)\s+/, '
  * stripping leaves nothing to match on. Scoring with and without, then taking the best, lets
  * one rule serve both without a list of exceptions.
  */
-const pairScore = (mine, theirs) => Math.max(
-  nameScore(norm(mine), norm(theirs)),
-  nameScore(base(mine), base(theirs)),
-  nameScore(base(mine), norm(theirs)),
-  nameScore(norm(mine), base(theirs)),
-);
+const pairScore = (mine, theirs) => {
+  const best = Math.max(
+    nameScore(norm(mine), norm(theirs)),
+    nameScore(base(mine), base(theirs)),
+    nameScore(base(mine), norm(theirs)),
+    nameScore(norm(mine), base(theirs)),
+    nameScore(base(mine), expandEra(theirs)),
+    nameScore(expandEra(mine), expandEra(theirs)),
+    nameScore(base(mine), norm(expandEra(theirs))),
+  );
+  // One of them is a promo set and the other is not. Never let that win on a tie-break.
+  return promoMismatch(mine, theirs) ? best * 0.45 : best;
+};
 
 const cardNum = (n) => String(n ?? '').trim().replace(/^0+/, '').toLowerCase();
 const prodNum = (p) => String((p.extendedData ?? []).find((x) => x.name === 'Number')?.value ?? '')
@@ -200,10 +253,13 @@ for (const s of mySets) {
     // near-identical name is allowed through without it, which is what rescues the promo
     // sets: they accumulate over years, so their published date never lines up.
     if (!(gap <= 60 ? ns >= 0.5 : ns >= 0.9)) continue;
-    const score = ns + (gap <= 60 ? 0.5 : 0) + (gap <= 7 ? 0.3 : 0);
+    // Name carries more weight than date, because promo sets routinely share their parent
+    // set's release date: a 0.3 bonus for landing on the same day was enough to beat an
+    // exact name match, which is how a base set lost to its own promo set.
+    const score = ns * 2 + (gap <= 60 ? 0.4 : 0) + (gap <= 7 ? 0.15 : 0);
     if (score > bestScore) { bestScore = score; best = g; }
   }
-  if (best && bestScore >= 1.0) {
+  if (best && bestScore >= 1.4) {
     setToGroup.set(s.id, best.groupId);
     // TCGplayer keeps the shadowless and first-edition printings of Base Set in a group of
     // their own. Find it here so a variant can be routed to it below.
@@ -312,6 +368,40 @@ for (const [setId, cards] of cardsBySet) {
 const totalCards = myCards.length;
 const totalPrintings = myVars.length;
 const pct = (n, d) => (n / d * 100).toFixed(1) + '%';
+
+// --why <setId> shows every candidate group considered for one set, with its score and
+// whether it passed the gate. The only reliable way to see why a set chose what it chose.
+if (args.includes('--why')) {
+  const want = args[args.indexOf('--why') + 1];
+  const s = mySets.find((x) => x.id === want);
+  console.log('');
+  console.log(`   WHY ${want} (${JSON.stringify(s?.name)}, ${s?.release_date})`);
+  const scored = groups.map((g) => {
+    const ns = pairScore(s.name, g.name);
+    const gap = dayGap(s.release_date, g.publishedOn);
+    const passes = gap <= 60 ? ns >= 0.5 : ns >= 0.9;
+    const score = ns * 2 + (gap <= 60 ? 0.4 : 0) + (gap <= 7 ? 0.15 : 0);
+    return { name: g.name, id: g.groupId, ns, gap, passes, score, promo: promoMismatch(s.name, g.name) };
+  }).sort((a, b) => (b.passes - a.passes) || (b.score - a.score)).slice(0, 6);
+  for (const c of scored) {
+    console.log(`     ${c.passes ? 'PASS' : 'skip'}  score ${c.score.toFixed(2)}  ns ${c.ns.toFixed(3)}  gap ${String(c.gap).padStart(5)}d  promoMismatch=${c.promo}  ${JSON.stringify(c.name)}`);
+  }
+}
+
+// --groups prints which tcgcsv group each of our sets was matched to, which is the first
+// thing to check when a whole set comes back unpriced.
+if (args.includes('--groups')) {
+  const want = args[args.indexOf('--groups') + 1];
+  const ids = want && !want.startsWith('--') ? want.split(',') : null;
+  console.log('');
+  console.log('   SET → GROUP');
+  for (const s of mySets) {
+    if (ids && !ids.includes(s.id)) continue;
+    const gid = setToGroup.get(s.id);
+    const g = groups.find((g) => g.groupId === gid);
+    console.log(`     ${s.id.padEnd(10)}${JSON.stringify(s.name).padEnd(34)} → ${g ? JSON.stringify(g.name) + ' (' + gid + ', ' + (byGroup[gid] ?? []).length + ' products)' : 'UNMATCHED'}`);
+  }
+}
 
 console.log('');
 console.log('   SETS');
