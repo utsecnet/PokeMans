@@ -174,8 +174,11 @@ function nameScore(a, b) {
  * Shadowless Charizard was $1,213 against $897 for the Unlimited, and a 1st Edition is a
  * different order of magnitude again. Before this, all four printings carried the one price.
  */
-function subtypePreference(variant) {
+function subtypePreference(variant, siblings = []) {
   const firstEdition = variant.stamp === '1st-edition';
+  // Whether this card is recorded elsewhere as having a holo printing of its own.
+  const hasHoloSibling = siblings.some((v) => v !== variant && v.type === 'holo');
+
   switch (variant.type) {
     case 'holo':
       // "Holofoil" is the generic name a set uses when it draws no edition distinction at
@@ -189,9 +192,19 @@ function subtypePreference(variant) {
       return ['Reverse Holofoil'];
     case 'normal':
     case 'metal':
-      return firstEdition
-        ? ['1st Edition', 'Normal']
-        : ['Unlimited', 'Normal'];
+      if (firstEdition) return ['1st Edition', 'Normal'];
+      // "Holofoil" last, and only when this card has no separate holo printing.
+      //
+      // Our "normal" means the card's standard printing, not an unfoiled finish. A Rare Holo
+      // has exactly one printing and it is foil, so the catalogue records type=normal while
+      // TCGplayer publishes only "Holofoil" -- and every rare in XY went unpriced because the
+      // two never met. Venusaur-EX, M Venusaur-EX, Chesnaught: thirty cards in that set
+      // alone, and they are precisely the ones somebody opens the price panel to look at.
+      //
+      // Guarded on the sibling check so it cannot misfire the other way: where a card really
+      // does have both a plain and a holo printing, the plain one must never reach across
+      // and take the holo's price.
+      return hasHoloSibling ? ['Unlimited', 'Normal'] : ['Unlimited', 'Normal', 'Holofoil'];
     default:
       return ['Normal'];
   }
@@ -342,7 +355,7 @@ for (const [setId, cards] of cardsBySet) {
       }
 
       const available = subTypesByProduct.get(prod.productId) ?? new Set();
-      const sub = subtypePreference(v).find((w) => available.has(w));
+      const sub = subtypePreference(v, variants).find((w) => available.has(w));
       if (!sub) {
         unmatchedPrintings.push(
           `${c.id} ${v.type}${v.stamp ? '/' + v.stamp : ''}${v.subtype ? '/' + v.subtype : ''}`
