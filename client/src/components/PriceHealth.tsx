@@ -39,7 +39,8 @@ export function PriceHealth() {
   const coverage = h && h.totalPrintings
     ? Math.round((h.pricedPrintings / h.totalPrintings) * 100) : 0;
   const freshness = h && h.pricedPrintings
-    ? Math.round((h.pricedToday / h.pricedPrintings) * 100) : 0;
+    ? Math.round((h.coveredByLastRun / h.pricedPrintings) * 100) : 0;
+  const stale = (h?.daysSinceLastRun ?? 0) > 1;
 
   return (
     <section className="mt-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
@@ -60,11 +61,18 @@ export function PriceHealth() {
             hint={`${h.pricedPrintings.toLocaleString()} of ${h.totalPrintings.toLocaleString()} printings`}
             tone={coverage < 70 ? '#d98c1f' : undefined}
           />
+          {/* Two separate facts, deliberately. How complete the last run was, and how long
+              ago it happened -- folding them into one number made a successful run look
+              like a failure for most of every day. */}
           <Figure
-            label="Priced today"
+            label="Last run covered"
             value={`${freshness}%`}
-            hint={h.lastObserved ? `last seen ${h.lastObserved}` : 'never run'}
-            tone={freshness < 90 ? '#d98c1f' : undefined}
+            hint={h.lastRunOn
+              ? h.daysSinceLastRun === 0 ? 'ran today'
+                : h.daysSinceLastRun === 1 ? 'ran yesterday'
+                : `ran ${h.daysSinceLastRun} days ago`
+              : 'never run'}
+            tone={freshness < 90 || stale ? '#d98c1f' : undefined}
           />
           <Figure
             label="Stale over 3 days"

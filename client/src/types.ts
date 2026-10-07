@@ -575,12 +575,21 @@ export interface PriceHealthReport {
   mappedPrintings: number;
   totalPrintings: number;
   pricedPrintings: number;
-  pricedToday: number;
+  /**
+   * How many printings the most recent run covered.
+   *
+   * Measured against that run rather than against today's date. Counting "priced today"
+   * read 0% for most of every day -- the capture runs at 07:00 UTC and stamps that date, so
+   * once UTC rolls over everything looks missed until the next run finishes. A figure that
+   * alarms when nothing is wrong teaches its reader to ignore the colour.
+   */
+  coveredByLastRun: number;
+  lastRunOn: string | null;
+  daysSinceLastRun: number | null;
   staleOver3Days: number;
   historyRows: number;
   oldestPoint: string | null;
   newestPoint: string | null;
-  lastObserved: string | null;
 }
 
 export interface DatabaseUsage {
