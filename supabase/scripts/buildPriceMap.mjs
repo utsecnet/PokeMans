@@ -288,15 +288,31 @@ function subtypePreference(variant, siblings = []) {
   // Whether this card is recorded elsewhere as having a holo printing of its own.
   const hasHoloSibling = siblings.some((v) => v !== variant && v.type === 'holo');
 
+  // Whether this card is recorded elsewhere as having a plain printing of its own.
+  const hasPlainSibling = siblings.some((v) => v !== variant && (v.type === 'normal' || v.type === 'metal'));
+
   switch (variant.type) {
     case 'holo':
       // "Holofoil" is the generic name a set uses when it draws no edition distinction at
       // all, so both branches may fall back to it. Neither falls back to the *other*
       // edition: a first edition is never given unlimited money, or the whole exercise is
       // pointless.
+      //
+      // "Normal" last, and only where this card has no plain printing of its own. This is
+      // the mirror of the fallback below: a promo that exists in one printing, and that
+      // printing foil, is recorded by us as holo while TCGplayer -- having nothing to
+      // distinguish it from -- simply calls its only product "Normal". The whole Pokémon
+      // Futsal Collection is like that, five cards at $43 to $206.
+      //
+      // Guarded on the sibling check so it cannot misfire: where a card really does have
+      // both a plain and a holo printing, the holo must never reach across and take the
+      // plain one's price. "Holofoil" is also tried first either way, so a product that
+      // publishes both is never read as the cheaper one.
       return firstEdition
         ? ['1st Edition Holofoil', 'Holofoil']
-        : ['Unlimited Holofoil', 'Holofoil'];
+        : hasPlainSibling
+          ? ['Unlimited Holofoil', 'Holofoil']
+          : ['Unlimited Holofoil', 'Holofoil', 'Normal'];
     case 'reverse':
       return ['Reverse Holofoil'];
     case 'normal':
@@ -384,8 +400,17 @@ const GROUP_OVERRIDES = {
   tk1b: 1543,    // EX Trainer Kit Latios      -> same group, both decks
   tk2a: 1542,    // EX Trainer Kit 2 Plusle    -> EX Trainer Kit 2: Plusle & Minun
   tk2b: 1542,    // EX Trainer Kit 2 Minun     -> same group, both decks
-  // Pokémon Futsal Collection has no counterpart upstream at all, so it stays unpriced
-  // rather than being pointed at something that merely looks close.
+  fut20: 2374,   // Pokémon Futsal Collection  -> Miscellaneous Cards & Products
+  //
+  // The Futsal cards are the one case where our set has no group of its own and its cards
+  // are filed upstream in a catch-all of 1,526 products. They were written off here as
+  // having "no counterpart upstream at all", which was wrong: all five are there, named
+  // "Pikachu on the Ball - 001/005 (Pokemon Futsal)" and priced, Pikachu at $206.
+  //
+  // Pointing at a catch-all only became safe once a number could name several products.
+  // These carry 001/005 through 005/005, which normalise to 1-5, and 619 products in that
+  // group carry a number -- so before, the first product numbered 1 would have won and the
+  // set would have been given five arbitrary prices instead of none. The name decides now.
 };
 
 const setToGroup = new Map();
