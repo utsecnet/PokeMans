@@ -1,7 +1,13 @@
 /**
  * Loads historical TCGplayer prices from the pokefolio-data mirror.
  *
- *   node supabase/scripts/backfillPrices.mjs [--days 90] [--apply] [--cache <dir>]
+ *   node supabase/scripts/backfillPrices.mjs [--days 90] [--apply] [--cache <dir>] [--new-only]
+ *
+ * --new-only restricts the load to printings that have no history worth the name -- ones
+ * whose mapping arrived late, so they have today's price and nothing before it. Without it
+ * a re-run rewrites two and a half years for all 32,265 printings, and because the change
+ * detection below starts empty it writes a row for every one of them on the first sampled
+ * day whether the value moved or not.
  *
  * tcgcsv used to publish a daily archive going back to 2024-02-08 and has withdrawn it --
  * "temporarily removed due to rising server costs", with no way to appeal. That archive
@@ -27,6 +33,7 @@ import zlib from 'node:zlib';
 
 const args = process.argv.slice(2);
 const APPLY = args.includes('--apply');
+const NEW_ONLY = args.includes('--new-only');
 const DAYS = Number(args.includes('--days') ? args[args.indexOf('--days') + 1] : 90);
 const CACHE = args.includes('--cache') ? args[args.indexOf('--cache') + 1] : os.tmpdir();
 fs.mkdirSync(CACHE, { recursive: true });
@@ -158,6 +165,20 @@ console.log(`   mirror holds ${index.size} files across ${years.join(', ')}`);
 // products are shared across sets. So this is product -> list, not product -> one: keying it
 // one-to-one quietly dropped 3,704 printings, which would have shown up as cards that simply
 // never had a price and no error anywhere to say why.
+// Which printings to load for, when only the late arrivals are wanted. Asked of Postgres,
+// because answering it here would mean paging 2.8 million history rows a thousand at a time.
+let wanted = null;
+if (NEW_ONLY) {
+  const { data, error } = await db.rpc('printings_needing_backfill', { p_source_id: SOURCE_ID });
+  if (error) throw new Error(`printings_needing_backfill: ${error.message}`);
+  wanted = new Set(data.map((r) => `${r.card_ref}|${r.variant_position}`));
+  console.log(`   ${wanted.size.toLocaleString()} printings have no history to speak of`);
+  if (!wanted.size) {
+    console.log('   nothing to backfill.');
+    process.exitCode = 0;
+  }
+}
+
 const map = new Map();
 for (let from = 0; ; from += 1000) {
   const { data, error } = await db.from('price_map')
@@ -165,6 +186,7 @@ for (let from = 0; ; from += 1000) {
     .eq('source_id', SOURCE_ID).range(from, from + 999);
   if (error) throw new Error(error.message);
   for (const m of data) {
+    if (wanted && !wanted.has(`${m.card_ref}|${m.variant_position}`)) continue;
     const k = `${m.external_id}|${m.sub_type}`;
     if (!map.has(k)) map.set(k, []);
     map.get(k).push(m);
@@ -173,6 +195,10 @@ for (let from = 0; ; from += 1000) {
 }
 const mappedPrintings = [...map.values()].reduce((a, v) => a + v.length, 0);
 console.log(`   ${mappedPrintings.toLocaleString()} printings across ${map.size.toLocaleString()} products`);
+if (!mappedPrintings) {
+  console.log('   nothing to load.');
+  process.exit(0);
+}
 
 const lastSeen = new Map();   // card|variant -> "market|low" as last written
 let totalRows = 0, missingDays = 0;
