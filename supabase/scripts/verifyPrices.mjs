@@ -123,13 +123,21 @@ const pageAll = async (client, table, cols, filter = (q) => q) => {
 };
 
 console.log('   loading catalogue and mappings…');
-const cards = await pageAll(service, 'tcg_cards', 'id,name,set_id,set_name');
-const maps = await pageAll(service, 'price_map', 'card_id,variant_position,external_id,sub_type',
+const cards = await pageAll(service, 'tcg_cards', 'id,ref,name,set_id,set_name');
+const maps = await pageAll(service, 'price_map', 'card_ref,variant_position,external_id,sub_type',
   (q) => q.eq('source_id', SOURCE_ID));
+// price_map keys on the integer card reference; the sample and the report both speak the
+// public card id, so the two are joined here rather than in every call below.
+const refById = new Map(cards.map((c) => [c.id, c.ref]));
 const mapByCard = new Map();
+const byRef = new Map();
 for (const m of maps) {
-  if (!mapByCard.has(m.card_id)) mapByCard.set(m.card_id, []);
-  mapByCard.get(m.card_id).push(m);
+  if (!byRef.has(m.card_ref)) byRef.set(m.card_ref, []);
+  byRef.get(m.card_ref).push(m);
+}
+for (const c of cards) {
+  const forCard = byRef.get(c.ref);
+  if (forCard) mapByCard.set(c.id, forCard);
 }
 
 // Deterministic sample, so a rerun inspects the same cards and a fix can be proven.
@@ -177,7 +185,7 @@ for (const c of sample) {
   // STORED: what the database holds for that day, as the service role sees it.
   const { data: stored } = await service.from('price_point')
     .select('variant_position,market,low,captured_on')
-    .eq('card_id', c.id).eq('source_id', SOURCE_ID)
+    .eq('card_ref', refById.get(c.id)).eq('source_id', SOURCE_ID)
     .lte('captured_on', day).order('captured_on', { ascending: false });
 
   if (!stored || stored.length === 0) { counts.noStored++; continue; }

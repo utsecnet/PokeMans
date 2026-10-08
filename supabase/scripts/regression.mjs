@@ -190,7 +190,7 @@ await check('is_admin is false', async () => {
 
 await check('cannot write prices', async () => {
   const { error } = await db.from('price_point')
-    .insert({ card_id: 'base1-4', variant_position: 0, source_id: 1, captured_on: '2020-01-01', market: 1 });
+    .insert({ card_ref: 1, variant_position: 0, source_id: 1, captured_on: '2020-01-01', market: 1 });
   if (!error) throw new Error('an ordinary account was allowed to write prices');
   return 'refused';
 });

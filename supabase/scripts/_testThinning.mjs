@@ -18,23 +18,31 @@ const env = (f) => Object.fromEntries(
 const e = { ...env('client/.env.local'), ...env('supabase/.env') };
 const db = createClient(e.VITE_SUPABASE_URL, e.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 
-const CARD = '__thinning-test__';
+// A real card, with a printing number no card has.
+//
+// price_point has a foreign key to tcg_cards(ref), so an invented card is rejected outright
+// -- which is the constraint doing its job. Borrowing a real one and using variant_position
+// 99 keeps the planted rows in their own partition: the thinning groups by card and
+// printing, so nothing here can touch or be confused with a real price.
+const { data: anyCard } = await db.from('tcg_cards').select('ref').limit(1).single();
+const CARD_REF = anyCard.ref;
+const VARIANT = 99;
 const day = (ago) => { const d = new Date(); d.setUTCDate(d.getUTCDate() - ago); return d.toISOString().slice(0, 10); };
 
 // Days 10..28, one point each: dense enough that the Monday-and-Thursday band must act, and
 // long enough to span several half-weeks.
 const ages = Array.from({ length: 19 }, (_, i) => 10 + i);
 const rows = ages.map((a, i) => ({
-  card_id: CARD, variant_position: 0, source_id: 1,
+  card_ref: CARD_REF, variant_position: VARIANT, source_id: 1,
   captured_on: day(a), market: 10 + i, low: 5 + i,
 }));
 
-await db.from('price_point').delete().eq('card_id', CARD);
+await db.from('price_point').delete().eq('card_ref', CARD_REF).eq('variant_position', VARIANT);
 const { error: insErr } = await db.from('price_point').insert(rows);
 if (insErr) { console.error('   could not plant test rows:', insErr.message); process.exit(1); }
 console.log(`   planted ${rows.length} daily points, ages ${ages[0]}-${ages[ages.length - 1]} days`);
 
-const before = await db.from('price_point').select('captured_on').eq('card_id', CARD).order('captured_on');
+const before = await db.from('price_point').select('captured_on').eq('card_ref', CARD_REF).eq('variant_position', VARIANT).order('captured_on');
 const all = before.data.map((r) => r.captured_on);
 
 // The policy inside 8-30 days keeps one point per half week -- Monday to Wednesday, then
@@ -81,7 +89,7 @@ console.log(`   kept dates: ${expected.slice(0, 5).join(', ')} … ${expected.at
 console.log(`   ends preserved in plan: ${expected.includes(all[0])} / ${expected.includes(all.at(-1))}`);
 console.log(ok ? '   PASS — half-week buckets, newest per bucket, ends kept' : '   FAIL — see above');
 
-await db.from('price_point').delete().eq('card_id', CARD);
-const left = await db.from('price_point').select('captured_on', { count: 'exact', head: true }).eq('card_id', CARD);
+await db.from('price_point').delete().eq('card_ref', CARD_REF).eq('variant_position', VARIANT);
+const left = await db.from('price_point').select('captured_on', { count: 'exact', head: true }).eq('card_ref', CARD_REF).eq('variant_position', VARIANT);
 console.log(`   cleaned up, ${left.count ?? 0} test rows left`);
 process.exit(ok ? 0 : 1);

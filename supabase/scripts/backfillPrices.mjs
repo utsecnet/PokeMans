@@ -161,7 +161,7 @@ console.log(`   mirror holds ${index.size} files across ${years.join(', ')}`);
 const map = new Map();
 for (let from = 0; ; from += 1000) {
   const { data, error } = await db.from('price_map')
-    .select('card_id,variant_position,external_id,sub_type')
+    .select('card_ref,variant_position,external_id,sub_type')
     .eq('source_id', SOURCE_ID).range(from, from + 999);
   if (error) throw new Error(error.message);
   for (const m of data) {
@@ -184,12 +184,12 @@ for (const date of dates) {
   const rows = [];
   for (const [key, value] of prices) {
     for (const m of map.get(key) ?? []) {
-      const id = `${m.card_id}|${m.variant_position}`;
+      const id = `${m.card_ref}|${m.variant_position}`;
       const signature = `${value.market}|${value.low}`;
       if (lastSeen.get(id) === signature) continue;   // unchanged since the last sampled day
       lastSeen.set(id, signature);
       rows.push({
-        card_id: m.card_id,
+        card_ref: m.card_ref,
         variant_position: m.variant_position,
         source_id: SOURCE_ID,
         captured_on: date,
@@ -205,7 +205,7 @@ for (const date of dates) {
   if (APPLY && rows.length) {
     for (let i = 0; i < rows.length; i += 1000) {
       const { error } = await db.from('price_point')
-        .upsert(rows.slice(i, i + 1000), { onConflict: 'card_id,variant_position,source_id,captured_on' });
+        .upsert(rows.slice(i, i + 1000), { onConflict: 'card_ref,variant_position,source_id,captured_on' });
       if (error) { console.error('   failed:', error.message); process.exit(1); }
     }
   }

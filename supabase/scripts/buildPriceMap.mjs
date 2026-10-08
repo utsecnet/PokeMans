@@ -55,6 +55,25 @@ const db = createClient(e.VITE_SUPABASE_URL, e.SUPABASE_SERVICE_ROLE_KEY, { auth
 
 const read = (f) => JSON.parse(fs.readFileSync(path.join(CACHE, f), 'utf8'));
 
+/**
+ * Our cards' small integer names, by public id.
+ *
+ * price_map, price_point and price_latest key on an integer rather than the text card id --
+ * the text was being repeated 2.8 million times and costing about nine bytes a row once the
+ * index was counted. tcg_cards keeps the text id as the public name; this is the translation.
+ */
+async function loadCardRefs(db) {
+  const refs = new Map();
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await db.from('tcg_cards').select('id,ref').order('id').range(from, from + 999);
+    if (error) throw new Error(`tcg_cards: ${error.message}`);
+    for (const r of data) refs.set(r.id, r.ref);
+    if (data.length < 1000) break;
+  }
+  return refs;
+}
+
+
 // ---------------------------------------------------------------- normalising
 
 // Diacritics are folded before anything else strips them. "Pokémon GO" and "Pokemon GO" are
@@ -457,7 +476,7 @@ for (const [setId, cards] of cardsBySet) {
         continue;
       }
       rows.push({
-        card_id: c.id,
+        cardId: c.id,                       // kept for the report; translated before writing
         variant_position: v.position,
         source_id: SOURCE_ID,
         external_id: prod.productId,
@@ -554,45 +573,53 @@ if (!APPLY) {
 // ---------------------------------------------------------------- write
 
 console.log('');
-console.log('   writing', rows.length.toLocaleString(), 'rows…');
+const cardRefs = await loadCardRefs(db);
+const missingRef = rows.filter((r) => !cardRefs.has(r.cardId));
+if (missingRef.length) {
+  console.error(`   ${missingRef.length} rows name a card with no ref; refusing to write a partial map`);
+  process.exit(1);
+}
+const writable = rows.map(({ cardId, ...rest }) => ({ card_ref: cardRefs.get(cardId), ...rest }));
+
+console.log('   writing', writable.length.toLocaleString(), 'rows…');
 const SIZE = 1000;
 let written = 0;
-for (let i = 0; i < rows.length; i += SIZE) {
-  const chunk = rows.slice(i, i + SIZE);
+for (let i = 0; i < writable.length; i += SIZE) {
+  const chunk = writable.slice(i, i + SIZE);
   const { error } = await db.from('price_map')
-    .upsert(chunk, { onConflict: 'card_id,variant_position,source_id' });
+    .upsert(chunk, { onConflict: 'card_ref,variant_position,source_id' });
   if (error) { console.error('   failed at row', i, '-', error.message); process.exit(1); }
   written += chunk.length;
-  if (written % 10000 === 0 || written === rows.length) console.log('     ', written.toLocaleString());
+  if (written % 10000 === 0 || written === writable.length) console.log('     ', written.toLocaleString());
 }
 console.log('   done:', written.toLocaleString(), 'printings mapped');
 
 // Rows this run did not produce are left over from an earlier mapping, and a stale row is
 // worse than a missing one: it keeps pointing a printing at a product the current rules
 // rejected, so a price keeps arriving for it and keeps being wrong.
-const keep = new Set(rows.map((r) => `${r.card_id}|${r.variant_position}`));
+const keep = new Set(writable.map((r) => `${r.card_ref}|${r.variant_position}`));
 const existing = [];
 for (let from = 0; ; from += 1000) {
   const { data, error } = await db.from('price_map')
-    .select('card_id,variant_position').eq('source_id', SOURCE_ID).range(from, from + 999);
+    .select('card_ref,variant_position').eq('source_id', SOURCE_ID).range(from, from + 999);
   if (error) { console.error('   could not list existing rows:', error.message); break; }
   existing.push(...data);
   if (data.length < 1000) break;
 }
-const stale = existing.filter((r) => !keep.has(`${r.card_id}|${r.variant_position}`));
+const stale = existing.filter((r) => !keep.has(`${r.card_ref}|${r.variant_position}`));
 if (stale.length) {
   console.log(`   removing ${stale.length} rows the current rules no longer produce…`);
   for (const r of stale) {
     await db.from('price_map').delete()
-      .eq('source_id', SOURCE_ID).eq('card_id', r.card_id).eq('variant_position', r.variant_position);
+      .eq('source_id', SOURCE_ID).eq('card_ref', r.card_ref).eq('variant_position', r.variant_position);
   }
   // Their prices go too. A printing with no mapping should have no price, and leaving the
   // old rows behind would keep a wrong-edition figure on the chart with nothing producing it.
   for (const r of stale) {
     await db.from('price_latest').delete()
-      .eq('source_id', SOURCE_ID).eq('card_id', r.card_id).eq('variant_position', r.variant_position);
+      .eq('source_id', SOURCE_ID).eq('card_ref', r.card_ref).eq('variant_position', r.variant_position);
     await db.from('price_point').delete()
-      .eq('source_id', SOURCE_ID).eq('card_id', r.card_id).eq('variant_position', r.variant_position);
+      .eq('source_id', SOURCE_ID).eq('card_ref', r.card_ref).eq('variant_position', r.variant_position);
   }
 }
-console.log(`   price_map now holds ${rows.length.toLocaleString()} rows`);
+console.log(`   price_map now holds ${writable.length.toLocaleString()} rows`);
