@@ -291,9 +291,8 @@ export async function fetchCardPriceHistory(
         const positions = printing.variantPositions?.length
           ? printing.variantPositions
           : [printing.variantPosition];
-        const label = positions
-          .map((pos) => byPosition.get(pos) ?? `Printing ${pos}`)
-          .join(' / ');
+        const label = mergedPrintingLabel(
+          positions.map((pos) => byPosition.get(pos) ?? `Printing ${pos}`));
         return {
           label,
           printingLabel: label,
@@ -326,6 +325,27 @@ export async function fetchCardPriceHistory(
  */
 export async function fetchCardFirstPriced(cardId: string, signal?: AbortSignal): Promise<string | null> {
   return rpc<string | null>('card_first_priced', { p_card_id: cardId }, signal);
+}
+
+/**
+ * One label for several printings that share a price.
+ *
+ * Joining them whole repeated whatever they have in common: three printings of one card
+ * became "Normal · Unlimited / Normal · 1999-2000 Copyright / Normal · Pikachu", where the
+ * only words that distinguish them are the last of each. The shared opening is said once
+ * and the differences follow it.
+ */
+function mergedPrintingLabel(labels: string[]): string {
+  if (labels.length <= 1) return labels[0] ?? '';
+  const parts = labels.map((l) => l.split(' · '));
+  let shared = 0;
+  while (
+    shared < parts[0].length - 1 &&
+    parts.every((p) => p.length > shared + 1 && p[shared] === parts[0][shared])
+  ) shared++;
+  const prefix = parts[0].slice(0, shared).join(' · ');
+  const tails = parts.map((p) => p.slice(shared).join(' · '));
+  return prefix ? `${prefix} · ${tails.join(' / ')}` : tails.join(' / ');
 }
 
 /** The shape card_price_history returns, before printing names are attached. */
