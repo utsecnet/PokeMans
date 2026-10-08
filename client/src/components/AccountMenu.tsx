@@ -8,7 +8,7 @@
  *
  * Signed out there is nothing to put in a menu, so this is the sign-in button instead.
  */
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useSession } from '../lib/sessionContext';
 import { signOut } from '../lib/auth';
@@ -21,6 +21,7 @@ const MENU_WIDTH = 240;
 
 export function AccountMenu() {
   const { user, anonymous, admin } = useSession();
+  const [avatarFailed, setAvatarFailed] = useState(false);
 
   // Rendered through a portal rather than inside the header. The header is sticky with a
   // z-index, which makes it a stacking context — so a menu nested in it cannot paint above
@@ -65,8 +66,15 @@ export function AccountMenu() {
         aria-label={`Account menu for ${name}`}
         className="flex items-center rounded-full ring-1 ring-[var(--color-border)] transition hover:ring-[var(--color-accent)]"
       >
-        {avatar ? (
-          <img src={avatar} alt="" className="size-8 rounded-full" />
+        {avatar && !avatarFailed ? (
+          // Google's avatar URLs expire and are sometimes refused outright, and an <img>
+          // that fails leaves a broken circle where a face was. The initial is the floor.
+          <img
+            src={avatar}
+            alt=""
+            className="size-8 rounded-full"
+            onError={() => setAvatarFailed(true)}
+          />
         ) : (
           <span className="flex size-8 items-center justify-center rounded-full bg-[var(--color-accent)] text-sm font-semibold text-white">
             {initial}

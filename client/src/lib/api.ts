@@ -2,11 +2,11 @@ import type {
   CardFilters,
   CardListItem,
   CardPriceHistory,
-  CardPricing,
   CardListResponse,
   Expansion,
   MetaRanges,
   PokemonDetail,
+  EvolutionNode,
   PokemonFilters,
   PokemonListResponse,
   StatKey,
@@ -21,19 +21,6 @@ import {
   localArtwork,
 } from './localImages';
 
-async function json<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    let message = `Request failed: ${res.status} ${res.statusText}`;
-    try {
-      const body = await res.json();
-      if (body?.error) message = body.error;
-    } catch {
-      // response wasn't JSON
-    }
-    throw new Error(message);
-  }
-  return res.json() as Promise<T>;
-}
 
 /**
  * Calls a Postgres function and returns its result, or throws.
@@ -127,8 +114,42 @@ export async function fetchPokemonList({
   return res;
 }
 
-export function fetchPokemonDetail(id: number | string): Promise<PokemonDetail> {
-  return fetch(`/api/pokemon/${id}`).then(json<PokemonDetail>);
+/**
+ * Everything the detail page shows for one Pokémon.
+ *
+ * Postgres returns no image paths. It returns ids, and every sprite, artwork and card image
+ * is named from one here -- the same rule the list follows, and the reason there is one
+ * place in the app that knows where image files live. A URL baked into a query would be a
+ * second place, and the one that gets forgotten when the files move.
+ *
+ * The walk is recursive because the shape is: an evolution node has children, and each of
+ * the other forms carries a chain of its own.
+ */
+export async function fetchPokemonDetail(
+  id: number | string,
+  signal?: AbortSignal,
+): Promise<PokemonDetail> {
+  const detail = await rpc<PokemonDetail | null>('pokemon_detail', { p_id: Number(id) }, signal);
+  if (!detail) throw new Error('Pokémon not found');
+
+  const dressNode = (node: EvolutionNode | null): EvolutionNode | null => {
+    if (!node) return null;
+    node.spriteUrl = localSprite(node.id);
+    node.artworkUrl = localArtwork(node.id);
+    node.children = (node.children ?? []).map(dressNode).filter((n): n is EvolutionNode => n !== null);
+    return node;
+  };
+
+  detail.spriteUrl = localSprite(detail.id);
+  detail.artworkUrl = localArtwork(detail.id);
+  detail.evolutionChain = dressNode(detail.evolutionChain);
+  for (const v of detail.variants ?? []) {
+    v.spriteUrl = localSprite(v.id);
+    v.artworkUrl = localArtwork(v.id);
+    v.evolutionChain = dressNode(v.evolutionChain);
+  }
+  localiseCards(detail.tcgCards as unknown as Record<string, unknown>[]);
+  return detail;
 }
 
 export function fetchTypes(): Promise<string[]> {
@@ -391,37 +412,8 @@ async function fetchCardPrintings(cardId: string, signal?: AbortSignal) {
 export const PRICE_CURRENCY_NOTE =
   'Prices are shown as quoted by the marketplace.';
 
-
-
-
-
-/** Live market prices per print variant. Fetched on demand, so it's never stale. */
-/** Asks the server to fetch today's prices for this card if it doesn't already hold them. */
-
-export function fetchCardPricing(cardId: string, signal?: AbortSignal): Promise<CardPricing> {
-  return fetch(`/api/cards/${encodeURIComponent(cardId)}/pricing`, { signal }).then(json<CardPricing>);
-}
-
 export function fetchSeries(): Promise<string[]> {
   return rpc<string[]>('meta_series');
-}
-
-
-
-
-
-
-/**
- * Asks the server to fetch, convert and keep this card's full-size art.
- *
- * Resolves to { url: null } when no source could be reached rather than rejecting: the card
- * view has already painted the shipped 245px copy, so a failure here is a view that stays as
- * it is, not an error anyone needs to see.
- */
-export function warmCardHires(cardId: string): Promise<{ url: string | null }> {
-  return fetch(`/api/cards/${encodeURIComponent(cardId)}/hires`, { method: 'POST' }).then(
-    json<{ url: string | null }>,
-  );
 }
 
 
