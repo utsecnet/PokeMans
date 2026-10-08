@@ -1,14 +1,17 @@
 /**
  * Applies the retention bands to stored price history.
  *
- *     0-7 days      every day
- *     8-30 days     every 2nd day
- *     31-365 days   every 3rd day
- *     365+ days     every 7th day
+ *     0-7 days    every day
+ *     8-30 days   Mondays and Thursdays
+ *     31+ days    Mondays
  *
- * All the thinking lives in the thin_price_history function; this is the door the schedule
- * knocks on. The work is a handful of deletes over indexed ranges, so it finishes in well
- * under the time limit and needs no batching.
+ * All the thinking lives in the thin_price_history function, which is also where those
+ * bands are defined -- this is only the door the schedule knocks on, and it deliberately
+ * knows nothing about the policy beyond reporting what the function says it did.
+ *
+ * The work is a handful of deletes over indexed ranges. It runs with a raised statement
+ * timeout because the history is now millions of rows, but still finishes well inside the
+ * time an Edge Function is given.
  *
  * Deploy:
  *   npx supabase functions deploy thin-price-history --project-ref xamyixuipbkyzssvxchc

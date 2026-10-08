@@ -21,7 +21,8 @@ const db = createClient(e.VITE_SUPABASE_URL, e.SUPABASE_SERVICE_ROLE_KEY, { auth
 const CARD = '__thinning-test__';
 const day = (ago) => { const d = new Date(); d.setUTCDate(d.getUTCDate() - ago); return d.toISOString().slice(0, 10); };
 
-// Days 10..28, one point each: dense enough that the "every 2nd day" band must act.
+// Days 10..28, one point each: dense enough that the Monday-and-Thursday band must act, and
+// long enough to span several half-weeks.
 const ages = Array.from({ length: 19 }, (_, i) => 10 + i);
 const rows = ages.map((a, i) => ({
   card_id: CARD, variant_position: 0, source_id: 1,
@@ -36,27 +37,41 @@ console.log(`   planted ${rows.length} daily points, ages ${ages[0]}-${ages[ages
 const before = await db.from('price_point').select('captured_on').eq('card_id', CARD).order('captured_on');
 const all = before.data.map((r) => r.captured_on);
 
-// The policy is a calendar one: within 8-30 days, keep one point per two-day bucket, and the
-// newest in each bucket because that is the value in force when the bucket ends. Buckets are
-// counted in whole days back from today, so this mirrors the SQL rather than restating it.
-const today = new Date();
-const ageOf = (d) => Math.round((Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())
-  - Date.parse(d + 'T00:00:00Z')) / 86400000);
+// The policy inside 8-30 days keeps one point per half week -- Monday to Wednesday, then
+// Thursday to Sunday -- so a Monday and a Thursday both survive. The newest in each bucket
+// is kept, because that is the price in force when the bucket ends and the reader carries
+// values forward from it.
+//
+// Worked out here in the same terms the SQL uses, so the two can disagree and be noticed.
+const mondayOf = (iso) => {
+  const d = new Date(iso + 'T00:00:00Z');
+  const isoDow = d.getUTCDay() === 0 ? 7 : d.getUTCDay();   // 1 Monday … 7 Sunday
+  d.setUTCDate(d.getUTCDate() - (isoDow - 1));
+  return d;
+};
+const bucketOf = (iso) => {
+  const d = new Date(iso + 'T00:00:00Z');
+  const isoDow = d.getUTCDay() === 0 ? 7 : d.getUTCDay();
+  const start = mondayOf(iso);
+  if (isoDow >= 4) start.setUTCDate(start.getUTCDate() + 3);   // the Thursday-to-Sunday half
+  return start.toISOString().slice(0, 10);
+};
+
 const newestPerBucket = new Map();
 for (const d of all) {
-  const bucket = Math.floor(ageOf(d) / 2);
-  const held = newestPerBucket.get(bucket);
-  if (!held || d > held) newestPerBucket.set(bucket, d);
+  const b = bucketOf(d);
+  const held = newestPerBucket.get(b);
+  if (!held || d > held) newestPerBucket.set(b, d);
 }
 const expected = all.filter((d) =>
-  d === all[0] || d === all[all.length - 1] || newestPerBucket.get(Math.floor(ageOf(d) / 2)) === d);
+  d === all[0] || d === all[all.length - 1] || newestPerBucket.get(bucketOf(d)) === d);
 
 const { data: dry, error } = await db.rpc('thin_price_history', { p_source_id: 1, p_dry_run: true });
 if (error) { console.error('   thinning failed:', error.message); process.exit(1); }
 
 // Only the planted card is dense enough for the 8-30 band to act on, so what the dry run
 // proposes there is attributable to it.
-const proposed = dry.bands.find((b) => b.fromAge === 8)?.removed ?? 0;
+const proposed = dry.bands.find((b) => b.band === '8-30 days')?.removed ?? 0;
 const shouldRemove = all.length - expected.length;
 const ok = proposed === shouldRemove;
 
@@ -64,7 +79,7 @@ console.log(`   planted ${all.length} points, policy keeps ${expected.length}`);
 console.log(`   should remove ${shouldRemove}, dry run proposes ${proposed}`);
 console.log(`   kept dates: ${expected.slice(0, 5).join(', ')} … ${expected.at(-1)}`);
 console.log(`   ends preserved in plan: ${expected.includes(all[0])} / ${expected.includes(all.at(-1))}`);
-console.log(ok ? '   PASS — calendar buckets, newest per bucket, ends kept' : '   FAIL — see above');
+console.log(ok ? '   PASS — half-week buckets, newest per bucket, ends kept' : '   FAIL — see above');
 
 await db.from('price_point').delete().eq('card_id', CARD);
 const left = await db.from('price_point').select('captured_on', { count: 'exact', head: true }).eq('card_id', CARD);

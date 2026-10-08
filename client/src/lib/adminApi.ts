@@ -69,7 +69,11 @@ export async function runHistoryThinning(dryRun = false) {
   if (error) return detailed(error);
   return data as {
     ok: true; dryRun: boolean; before: number; after: number; removed: number;
-    bands: { fromAge: number; toAge: number; keepEvery: number; removed: number }[];
+    // Described by the function rather than reconstructed here: it owns the policy, and a
+    // second copy of the band definitions in the client is a second thing to forget to
+    // change. The previous shape -- fromAge, toAge, keepEvery -- survived a policy rewrite
+    // and rendered "undefined-undefined days, keep every undefined".
+    bands: { band: string; keep: string; removed: number }[];
   };
 }
 

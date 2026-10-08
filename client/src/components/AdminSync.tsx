@@ -128,10 +128,9 @@ export function AdminSync() {
           <table className="mt-2 w-full text-xs">
             <tbody>
               {thinResult.bands.map((b) => (
-                <tr key={b.fromAge} className="border-t border-[var(--color-border)]">
+                <tr key={b.band} className="border-t border-[var(--color-border)]">
                   <td className="py-1 text-[var(--color-text-muted)]">
-                    {b.toAge > 9000 ? `${b.fromAge}+ days` : `${b.fromAge}–${b.toAge} days`}
-                    {' · keep every '}{b.keepEvery}
+                    {b.band} · keep {b.keep}
                   </td>
                   <td className="py-1 text-right tabular-nums">{b.removed.toLocaleString()}</td>
                 </tr>
