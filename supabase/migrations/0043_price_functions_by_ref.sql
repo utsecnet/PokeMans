@@ -61,8 +61,8 @@ as $$
   bounds as (
     select
       greatest(
-        coalesce((select min(captured_on) from public.price_point, card
-                   where price_point.card_ref = card.ref),
+        coalesce((select min(captured_on) from public.price_point
+                   where card_ref = (select ref from card)),
                  public.app_today()),
         public.app_today() - (least(greatest(p_days, 1), 1825) || ' days')::interval
       )::date as from_day,
@@ -83,12 +83,14 @@ as $$
       pp.source_id,
       coalesce(pm.external_id::text || '~' || coalesce(pm.sub_type, ''),
                'unmapped~' || pp.variant_position) as price_key
-    from public.price_point pp, card
+    from public.price_point pp
     left join public.price_map pm
       on pm.card_ref = pp.card_ref
      and pm.variant_position = pp.variant_position
      and pm.source_id = pp.source_id
-    where pp.card_ref = card.ref
+    -- A scalar subquery rather than a join to `card`: mixing a comma-join with a LEFT JOIN
+    -- binds the join to the last table named and puts pp out of scope for its ON clause.
+    where pp.card_ref = (select ref from card)
       and exists (
         select 1 from public.price_point q
         where q.card_ref = pp.card_ref
@@ -110,8 +112,8 @@ as $$
     cross join days d
     left join lateral (
       select pp.market, pp.low
-      from public.price_point pp, card
-      where pp.card_ref = card.ref
+      from public.price_point pp
+      where pp.card_ref = (select ref from card)
         and pp.variant_position = g.read_from
         and pp.source_id = g.source_id
         and pp.captured_on <= d.day
