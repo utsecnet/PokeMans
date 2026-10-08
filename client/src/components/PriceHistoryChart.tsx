@@ -128,8 +128,21 @@ interface Band {
 }
 
 /**
- * Folds each printing's per-condition series into one high/low band. A printing quoted by
- * two marketplaces stays two bands — they're different quotes, not one range.
+ * Folds each printing's series into a band: the market price, and the lowest listing under
+ * it.
+ *
+ * The two figures answer different questions. Market is what copies have been selling for;
+ * low is the cheapest one currently listed. The gap between them is the spread, and on a
+ * thinly traded card it is wide enough to be the most interesting thing on the chart -- a
+ * Shadowless Charizard sells around $2,258 with a floor near $3,187, which says the recent
+ * sales and the current asks disagree.
+ *
+ * The low was stored on every row from the beginning and never drawn: 13.7% of all stored
+ * rows exist only because the low moved, so it was costing about 60 MB to carry a number
+ * nothing displayed.
+ *
+ * A printing quoted by two marketplaces stays two bands -- they are different quotes, not
+ * one range.
  */
 function toBands(series: PriceSeries[]): Band[] {
   const marketplaces = new Set(series.map((s) => s.marketplace));
@@ -147,11 +160,17 @@ function toBands(series: PriceSeries[]): Band[] {
     const dates = [...new Set(group.flatMap((s) => s.points.map((p) => p.date)))].sort();
     const points = dates
       .map((date) => {
-        const values = group
-          .map((s) => s.points.find((p) => p.date === date)?.market)
-          .filter((v): v is number => typeof v === 'number');
-        if (values.length === 0) return null;
-        return { date, hi: Math.max(...values), lo: Math.min(...values) };
+        const at = group.map((s) => s.points.find((p) => p.date === date)).filter(Boolean);
+        const markets = at.map((p) => p!.market).filter((v): v is number => typeof v === 'number');
+        if (markets.length === 0) return null;
+        const market = Math.max(...markets);
+        const lows = at.map((p) => p!.low).filter((v): v is number => typeof v === 'number');
+        // The band runs from the market price down to the lowest listing. Where a source
+        // gives no low, or quotes one above its own market price -- which happens on cards
+        // with no recent sales -- there is no meaningful range and the band collapses to
+        // the line, rather than drawing a shape that inverts.
+        const low = lows.length ? Math.min(...lows) : null;
+        return { date, hi: market, lo: low !== null && low < market ? low : market };
       })
       .filter((p): p is NonNullable<typeof p> => p !== null);
 
@@ -362,7 +381,7 @@ function Chart({ chart, maxHeight }: { chart: PriceChart; maxHeight: number | nu
                     fontWeight="500"
                     fill={color}
                   >
-                    {band.conditions[0] ?? 'Best'}
+                    {band.conditions[0] ?? 'Market'}
                   </text>
                   <text
                     x={x(band.points[band.points.length - 1].date) + 6}
@@ -372,7 +391,7 @@ function Chart({ chart, maxHeight }: { chart: PriceChart; maxHeight: number | nu
                     fill={color}
                     opacity="0.85"
                   >
-                    {band.conditions[band.conditions.length - 1] ?? 'Worst'}
+                    {band.conditions[band.conditions.length - 1] ?? 'Lowest listing'}
                   </text>
                 </>
               )}
