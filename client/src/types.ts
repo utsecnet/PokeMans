@@ -318,6 +318,14 @@ export interface PriceChart {
   /** What to show a reader, e.g. "TCGplayer". Comes from the database, not a lookup here. */
   label: string;
   currency: string;
+  /**
+   * Which condition the figures are for, e.g. "Near Mint".
+   *
+   * Worth stating. TCGplayer's own product page lands on the cheapest listing, which is
+   * often a damaged copy at a fraction of the price -- so the same card, the same day and
+   * the same source can read $181 there and $928 here with nothing wrong.
+   */
+  basis: string | null;
   series: PriceSeries[];
 }
 

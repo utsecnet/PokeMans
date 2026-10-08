@@ -283,8 +283,17 @@ export async function fetchCardPriceHistory(
       service: chart.sourceKey,
       label: chart.label,
       currency: chart.currency,
+      basis: chart.basis ?? null,
       series: chart.printings.map((printing) => {
-        const label = byPosition.get(printing.variantPosition) ?? `Printing ${printing.variantPosition}`;
+        // One price can cover several printings, because TCGdex splits print runs that
+        // TCGplayer sells as a single product. Naming all of them keeps the chart honest
+        // about what is being priced and still lets someone find the printing they own.
+        const positions = printing.variantPositions?.length
+          ? printing.variantPositions
+          : [printing.variantPosition];
+        const label = positions
+          .map((pos) => byPosition.get(pos) ?? `Printing ${pos}`)
+          .join(' / ');
         return {
           label,
           printingLabel: label,
@@ -324,7 +333,14 @@ interface RawPriceChart {
   sourceKey: string;
   label: string;
   currency: string;
-  printings: { variantPosition: number; label: string; points: { day: string; market: number | null; low: number | null }[] }[];
+  /** Which condition the figures are for, e.g. "Near Mint". */
+  basis: string | null;
+  printings: {
+    variantPosition: number;
+    /** Every printing this one price covers; usually one, sometimes several. */
+    variantPositions: number[];
+    points: { day: string; market: number | null; low: number | null }[];
+  }[];
 }
 
 /** A card's printings, with readable names. Shared by the price chart and the card view. */

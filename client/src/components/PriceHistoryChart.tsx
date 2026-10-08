@@ -571,6 +571,7 @@ export function PriceHistoryChart({
             in different money and a figure read off the wrong one is wrong silently. */}
         <span className="ml-auto pr-1 text-[10px] text-[var(--color-text-muted)]">
           {chart.label} · {chart.currency}
+          {chart.basis && <> · {chart.basis}</>}
         </span>
       </div>
 
