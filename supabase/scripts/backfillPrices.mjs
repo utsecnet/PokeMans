@@ -57,10 +57,23 @@ const db = createClient(e.VITE_SUPABASE_URL, e.SUPABASE_SERVICE_ROLE_KEY, { auth
  * where counting began, so the same date could be kept this month and dropped the next,
  * while a Monday is a Monday whatever came before it.
  */
+const APP_TIMEZONE = 'America/Denver';
+
+/** Today where the collection is, matching app_today() in Postgres. */
+function localToday() {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: APP_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date());
+}
+
 function sampledDates(days) {
   const out = [];
+  // Counted back from the local day, not the UTC one. The thinning works in local days, and
+  // a loader counting in UTC would sample a different set for six hours of every day --
+  // writing rows the nightly job would then delete.
+  const today = new Date(localToday() + 'T00:00:00Z');
   for (let age = 1; age <= days; age++) {
-    const d = new Date();
+    const d = new Date(today);
     d.setUTCDate(d.getUTCDate() - age);
     const isoDow = d.getUTCDay() === 0 ? 7 : d.getUTCDay();   // 1 Monday … 7 Sunday
     const keep = age <= 7 ? true

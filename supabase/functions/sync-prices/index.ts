@@ -41,6 +41,24 @@ const CONCURRENCY = 4;
  */
 const DEFAULT_LIMIT = 260;
 
+/**
+ * Today, where the collection is.
+ *
+ * Not UTC. The database runs in UTC and so does this runtime, so "today" rolled over at 6pm
+ * Mountain -- an evening capture was stamped tomorrow, and the chart's last point read a day
+ * ahead all evening. Postgres answers the same question with app_today(); the two must agree
+ * or the nightly thinning and this job would disagree about where a day ends, and start
+ * deleting each other's rows.
+ */
+const APP_TIMEZONE = 'America/Denver';
+
+function localToday(): string {
+  // en-CA formats as YYYY-MM-DD, which is the shape a date column wants.
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: APP_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date());
+}
+
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -109,7 +127,7 @@ Deno.serve(async (req) => {
 
   const db = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 
-  const capturedOn = new Date().toISOString().slice(0, 10);
+  const capturedOn = localToday();
   const limit = Math.min(260, Math.max(1, Number(body.limit) || DEFAULT_LIMIT));
   const force = body.force === true;
   const started = Date.now();
