@@ -20,22 +20,25 @@
  * WotC era unpriced, so each printing is matched against the subtypes that product actually
  * publishes, in order of preference.
  *
- * KNOWN LIMITATION -- WotC-era editions share one price.
+ * WotC-era editions, which the two catalogues disagree about.
  *
- * We model edition as a property of the printing: base1-4 has four variants, differing by
+ * We model edition as a property of the printing: base1-4 is four variants differing by
  * subtype (unlimited, shadowless, 1999-2000-copyright) and stamp (1st-edition). TCGplayer
- * models it as a property of the *set*: "Base Set" and "Base Set (Shadowless)" are separate
- * groups holding separate products.
+ * splits it two ways depending on the set. For Base it is a separate *group* -- "Base Set"
+ * holds the unlimited printing and "Base Set (Shadowless)" holds the shadowless and
+ * first-edition ones. For Jungle, Fossil, Team Rocket, Gym and Neo there is one group and
+ * the edition rides on the subtype: "1st Edition Holofoil" beside "Unlimited Holofoil".
  *
- * So all four of our Charizard printings match the one product in the group we picked, and
- * all four show its price. They are not the same card and not the same money -- the
- * Shadowless Charizard was $1,213 the day this was written against $897 for the one we
- * mapped, and a 1st Edition is a different order of magnitude again.
+ * Both are handled, by choosing the group per printing rather than per card
+ * (groupForVariant) and then the subtype within it (subtypePreference). A shadowless
+ * Charizard now reads $2,257 against $928 for the unlimited one, where before all four
+ * printings carried the same figure.
  *
- * Fixing it means choosing the group from the variant rather than the set alone: a
- * shadowless printing should look in "<set> (Shadowless)" first. That is a real change to
- * the matching rather than a tweak, and it is worth doing before anyone reads a WotC price
- * as fact. Until then those cards carry one plausible figure for several distinct printings.
+ * What is still shared: a printing our catalogue separates but TCGplayer does not. The
+ * 1999-2000 copyright Charizard takes the unlimited price because upstream has no distinct
+ * product for it, and a glossy promo takes the plain one for the same reason. Those are the
+ * honest best available rather than an oversight -- but they are one figure standing for
+ * two printings, and worth knowing before reading a WotC price as fact.
  */
 import { createClient } from '@supabase/supabase-js';
 import fs from 'node:fs';
@@ -179,6 +182,30 @@ const DATE_WINDOW = 120;
 
 /** The score a candidate must reach to be accepted rather than reported for review. */
 const ACCEPT_AT = 1.1;
+
+/**
+ * How well one of their groups fits one of our sets, and whether it is eligible at all.
+ *
+ * One function rather than two. The matcher and --why each had their own copy of this
+ * arithmetic, and --why exists for exactly one purpose: to say why a set chose what it
+ * chose. A second copy of the formula is a second answer waiting to disagree with the first,
+ * in the one place built to be trusted when the matching looks wrong.
+ */
+function candidateScore(mySet, group) {
+  const ns = pairScore(mySet.name, group.name);
+  const gap = dayGap(mySet.release_date, group.publishedOn);
+  // Date is the gate, because name alone cannot tell "Dragon" from "Dragon Majesty". A
+  // near-identical name is allowed through without it, which is what rescues the promo
+  // sets: they accumulate over years, so their published date never lines up.
+  const passes = gap <= DATE_WINDOW ? ns >= 0.5 : ns >= 0.9;
+  // Name carries more weight than date, because promo sets routinely share their parent
+  // set's release date: a 0.3 bonus for landing on the same day was enough to beat an exact
+  // name match, which is how a base set lost to its own promo set.
+  const promo = promoMismatch(mySet.name, group.name);
+  const score = (ns * 2 + (gap <= DATE_WINDOW ? 0.4 : 0) + (gap <= 7 ? 0.15 : 0))
+    * (promo ? PROMO_PENALTY : 1);
+  return { ns, gap, passes, promo, score };
+}
 
 const cardNum = (n) => String(n ?? '').trim().replace(/^0+/, '').toLowerCase();
 const prodNum = (p) => String((p.extendedData ?? []).find((x) => x.name === 'Number')?.value ?? '')
@@ -366,24 +393,21 @@ const setAlternates = new Map();   // set id -> { shadowless: groupId }
 const setsForReview = [];
 for (const s of mySets) {
   const override = GROUP_OVERRIDES[s.id];
-  if (override && groups.some((g) => g.groupId === override)) {
-    setToGroup.set(s.id, override);
-    continue;
+  if (override) {
+    // A hand-written group id that upstream no longer publishes used to fall through to the
+    // heuristics without a word, so a set would quietly go back to being matched by name --
+    // the opposite of why it was given an override.
+    if (groups.some((g) => g.groupId === override)) {
+      setToGroup.set(s.id, override);
+      continue;
+    }
+    console.error(`   override for ${s.id} names group ${override}, which upstream no longer has`);
   }
   let best = null, bestScore = 0;
   for (const g of groups) {
-    const ns = pairScore(s.name, g.name);
-    const gap = dayGap(s.release_date, g.publishedOn);
-    // Date is the gate, because name alone cannot tell "Dragon" from "Dragon Majesty". A
-    // near-identical name is allowed through without it, which is what rescues the promo
-    // sets: they accumulate over years, so their published date never lines up.
-    if (!(gap <= DATE_WINDOW ? ns >= 0.5 : ns >= 0.9)) continue;
-    // Name carries more weight than date, because promo sets routinely share their parent
-    // set's release date: a 0.3 bonus for landing on the same day was enough to beat an
-    // exact name match, which is how a base set lost to its own promo set.
-    const penalty = promoMismatch(s.name, g.name) ? PROMO_PENALTY : 1;
-    const score = (ns * 2 + (gap <= DATE_WINDOW ? 0.4 : 0) + (gap <= 7 ? 0.15 : 0)) * penalty;
-    if (score > bestScore) { bestScore = score; best = g; }
+    const c = candidateScore(s, g);
+    if (!c.passes) continue;
+    if (c.score > bestScore) { bestScore = c.score; best = g; }
   }
   if (best && bestScore >= ACCEPT_AT) {
     setToGroup.set(s.id, best.groupId);
@@ -416,16 +440,108 @@ for (const c of myCards) {
   cardsBySet.get(c.set_id).push(c);
 }
 
-/** Builds number and name indexes over one group's products. */
+/**
+ * Builds number and name indexes over one group's products.
+ *
+ * A number can name several products, so the index keeps all of them. It used to keep only
+ * the first and that was wrong in both directions. Upstream, one group really does hold two
+ * cards numbered 1/10 -- the Trainer Kits ship two decks in one group and each deck numbers
+ * its own cards from one. On our side, the two decks are two sets that both point at that
+ * group. Keeping the first product meant every card in the second deck resolved to the first
+ * deck's product of the same number: Bagon and Electrike, different Pokemon, one price
+ * between them, and no sign on the page that anything was wrong.
+ */
 function indexGroup(gid) {
   const numIdx = new Map(), nameIdx = new Map();
   for (const p of byGroup[gid] ?? []) {
     const n = prodNum(p);
-    if (n && !numIdx.has(n)) numIdx.set(n, p);
+    if (n) {
+      if (!numIdx.has(n)) numIdx.set(n, []);
+      numIdx.get(n).push(p);
+    }
     const nm = norm(p.name);
     if (!nameIdx.has(nm)) nameIdx.set(nm, p);
   }
   return { numIdx, nameIdx };
+}
+
+/**
+ * A product's name with its qualifiers stripped off.
+ *
+ * "Charizard (Black Dot Error)", "Altaria - BW48 (Prerelease) [Staff]" and
+ * "Celebi - 3/102 (Non-Holo Movie Exclusive)" are all qualifying one card. Comparing the
+ * stripped name is how a group holding several printings of one card is told apart from a
+ * group holding two different cards on the same number.
+ *
+ * The dash rule needs the spaces: "Porygon-Z" is a name, " - BW48" is a qualifier.
+ */
+const coreName = (s) => norm(String(s ?? '')
+  .replace(/\([^)]*\)/g, ' ')
+  .replace(/\[[^\]]*\]/g, ' ')
+  .replace(/\s-\s.*$/, ' '));
+
+/** Whether a product's name carries a distinctive word from the set we are matching. */
+function setHinted(candidates, setName) {
+  const setWords = distinctiveWords(base(setName ?? ''));
+  if (!setWords.size) return [];
+  return candidates.filter((p) => {
+    const words = allWords(base(p.name));
+    for (const w of setWords) if (words.has(w)) return true;
+    return false;
+  });
+}
+
+/**
+ * Which product a card means, when its number alone does not say.
+ *
+ * A number naming several products is ordinary -- 1,908 of them across 65 groups -- and
+ * nearly always several printings of one card, where the plain one is the card itself and
+ * the rest are its oddities. Taking the first happened to pick the plain one often, because
+ * a qualifier sorts after the name it qualifies, which is why this went unnoticed.
+ *
+ * It is wrong where the products are genuinely different cards. The Trainer Kits ship two
+ * decks in one upstream group, each numbering its own cards from one, and our catalogue
+ * splits them into two sets that both point at that group. Taking the first gave every card
+ * in the second deck the first deck's product: Bagon and Electrike, one price between them.
+ *
+ * So: an outright name match wins. Failing that, printings of a single card collapse to the
+ * plainest. Failing that, the deck decides, because a group holding both decks names the
+ * overlapping cards "Energy Search (Latias)" and "Energy Search (Latios)" and our set is
+ * "EX Trainer Kit Latias". Only when none of that separates two genuinely different cards
+ * does this give up, leaving the printing unmapped and reported -- a card with no price
+ * invites a question, where a card wearing the wrong price answers it wrongly.
+ */
+function pickByNumber(candidates, card, setName) {
+  if (candidates.length <= 1) return candidates[0] ?? null;
+  const mine = norm(card.name);
+
+  const exact = candidates.filter((p) => norm(p.name) === mine);
+  if (exact.length === 1) return exact[0];
+
+  // Narrow to the products that are this card at all. A promo group aggregates cards from
+  // many sources, each numbered by its own source, so #1 can be Pikachu, Clefable and
+  // Aerodactyl at once -- and the Pikachu we want sits beside "Pikachu (1) (Misprint)".
+  const sameCard = candidates.filter((p) => coreName(p.name) === mine);
+  const pool = exact.length ? exact : (sameCard.length ? sameCard : candidates);
+
+  // Printings of one card: the plainest is the card rather than one of its oddities. Where
+  // two are equally plain the deck decides, which is how "Energy Search (Latias)" and
+  // "(Latios)" are told apart.
+  if (new Set(pool.map((p) => coreName(p.name))).size === 1) {
+    const shortest = Math.min(...pool.map((p) => base(p.name).length));
+    const tied = pool.filter((p) => base(p.name).length === shortest);
+    if (tied.length === 1) return tied[0];
+    const hinted = setHinted(tied, setName);
+    return hinted.length === 1 ? hinted[0] : tied[0];
+  }
+
+  // Genuinely different cards sharing a number. Only the deck can say which is ours.
+  const hinted = setHinted(pool, setName);
+  if (hinted.length === 1) return hinted[0];
+
+  const ranked = pool.map((p) => ({ p, ns: nameScore(norm(p.name), mine) })).sort((a, b) => b.ns - a.ns);
+  if (ranked.length > 1 && ranked[0].ns === ranked[1].ns) return null;
+  return ranked[0].p;
 }
 
 for (const [setId, cards] of cardsBySet) {
@@ -449,17 +565,13 @@ for (const [setId, cards] of cardsBySet) {
       const targetGid = groupForVariant(v, gid, alternates);
       const idx = indexes.get(targetGid) ?? indexes.get(gid);
 
-      let prod = idx.numIdx.get(cardNum(c.number));
+      let prod = pickByNumber(idx.numIdx.get(cardNum(c.number)) ?? [], c, c.set_name);
       let how = 'number';
       if (!prod) { prod = idx.nameIdx.get(norm(c.name)); how = 'name'; }
-      // Deliberately no fallback to the main group for an edition-bearing printing.
-      //
-      // A shadowless card missing from the shadowless group could be given the unlimited
-      // product's price instead, and it would look perfectly reasonable -- which is exactly
-      // the failure being fixed here. A printing with no price draws no line and invites a
-      // question; a printing wearing another edition's money answers that question wrongly
-      // and nobody asks again.
-      if (!prod && targetGid !== gid) continue;
+      // Nothing found, and deliberately no fallback to the main group for an edition-bearing
+      // printing. A shadowless card missing from the shadowless group could be given the
+      // unlimited product's price instead, and it would look perfectly reasonable -- which is
+      // exactly the failure groupForVariant exists to fix.
       if (!prod) continue;
 
       if (!matchedThisCard) {
@@ -502,16 +614,12 @@ if (args.includes('--why')) {
   const s = mySets.find((x) => x.id === want);
   console.log('');
   console.log(`   WHY ${want} (${JSON.stringify(s?.name)}, ${s?.release_date})`);
-  const scored = groups.map((g) => {
-    const ns = pairScore(s.name, g.name);
-    const gap = dayGap(s.release_date, g.publishedOn);
-    const passes = gap <= DATE_WINDOW ? ns >= 0.5 : ns >= 0.9;
-    const promo = promoMismatch(s.name, g.name);
-    const score = (ns * 2 + (gap <= DATE_WINDOW ? 0.4 : 0) + (gap <= 7 ? 0.15 : 0)) * (promo ? PROMO_PENALTY : 1);
-    return { name: g.name, id: g.groupId, ns, gap, passes, score, promo };
-  }).sort((a, b) => (b.passes - a.passes) || (b.score - a.score)).slice(0, 6);
+  const scored = groups
+    .map((g) => ({ name: g.name, id: g.groupId, ...candidateScore(s, g) }))
+    .sort((a, b) => (b.passes - a.passes) || (b.score - a.score)).slice(0, 6);
   for (const c of scored) {
-    console.log(`     ${c.passes ? 'PASS' : 'skip'}  score ${c.score.toFixed(2)}  ns ${c.ns.toFixed(3)}  gap ${String(c.gap).padStart(5)}d  promoMismatch=${c.promo}  ${JSON.stringify(c.name)}`);
+    const gap = Number.isFinite(c.gap) ? Math.round(c.gap) : '-';
+    console.log(`     ${c.passes ? 'PASS' : 'skip'}  score ${c.score.toFixed(2)}  ns ${c.ns.toFixed(3)}  gap ${String(gap).padStart(6)}d  promoMismatch=${c.promo}  ${JSON.stringify(c.name)}`);
   }
 }
 
@@ -556,7 +664,7 @@ if (args.includes('--inspect')) {
   const mine = myCards.find((c) => c.id === want);
   console.log('');
   console.log(`   ${want}  ${mine?.name ?? '?'}  (${mine?.set_name ?? '?'})`);
-  for (const r of rows.filter((r) => r.card_id === want)) {
+  for (const r of rows.filter((r) => r.cardId === want)) {
     const v = (variantsByCard.get(want) ?? []).find((v) => v.position === r.variant_position);
     const label = [v?.type, v?.subtype, v?.stamp].filter(Boolean).join(' / ');
     const prodName = Object.values(byGroup).flat().find((p) => p.productId === r.external_id)?.name ?? '?';
