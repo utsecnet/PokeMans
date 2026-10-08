@@ -7,7 +7,13 @@
  * function nor Postgres has any idea what the interface chose to draw.
  */
 import { supabase } from './supabase';
-import type { DatabaseUsage, PriceHealthReport, SetCoverageRow, SyncTrack } from '../types';
+import type {
+  DatabaseUsage,
+  PriceHealthReport,
+  PriceProvenance,
+  SetCoverageRow,
+  SyncTrack,
+} from '../types';
 
 export interface PriceSyncResult {
   ok: true;
@@ -96,6 +102,30 @@ export async function fetchDatabaseUsage(): Promise<DatabaseUsage> {
   const { data, error } = await supabase.rpc('database_usage');
   if (error) throw new Error(error.message);
   return data as DatabaseUsage;
+}
+
+/**
+ * Whose prices these are, and who we actually fetch them from.
+ *
+ * Read straight from price_source rather than an RPC: it is four rows of reference data that
+ * any signed-in account may already read, and wrapping it would add a function to maintain
+ * for no gain.
+ */
+export async function fetchPriceProvenance(): Promise<PriceProvenance[]> {
+  const { data, error } = await supabase
+    .from('price_source')
+    .select('key,label,currency,price_basis,feed_label,feed_url,feed_note')
+    .order('id');
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((r) => ({
+    key: r.key,
+    label: r.label,
+    currency: r.currency,
+    priceBasis: r.price_basis,
+    feedLabel: r.feed_label,
+    feedUrl: r.feed_url,
+    feedNote: r.feed_note,
+  }));
 }
 
 /** Price coverage per set, worst first. The figure that reveals a whole set going missing. */

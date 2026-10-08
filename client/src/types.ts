@@ -565,6 +565,23 @@ export interface SyncDay {
 }
 
 /** One job's year of days, for one source. */
+/**
+ * Where a price came from, which is two parties rather than one.
+ *
+ * `label` is whose price it is -- the marketplace whose market the figure describes.
+ * `feedLabel` is who we fetched it from, which is not the same: TCGplayer's own API needs a
+ * key we do not have, so the numbers reach us through a mirror.
+ */
+export interface PriceProvenance {
+  key: string;
+  label: string;
+  currency: string;
+  priceBasis: string | null;
+  feedLabel: string | null;
+  feedUrl: string | null;
+  feedNote: string | null;
+}
+
 export interface SyncTrack {
   sourceKey: string;
   label: string;

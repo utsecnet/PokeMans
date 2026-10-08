@@ -3,6 +3,7 @@ import { SyncCalendar } from '../components/SyncCalendar';
 import { SetCoverage } from '../components/SetCoverage';
 import { DatabaseMeter } from '../components/DatabaseMeter';
 import { PriceHealth } from '../components/PriceHealth';
+import { PriceProvenance } from '../components/PriceProvenance';
 import { useSession } from '../lib/sessionContext';
 
 export function Settings() {
@@ -31,6 +32,7 @@ export function Settings() {
           <PriceHealth />
           <SetCoverage />
           <SyncCalendar />
+          <PriceProvenance />
           <DatabaseMeter />
           <AdminSync />
 
