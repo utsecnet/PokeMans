@@ -3,22 +3,22 @@
   "private": true,
   "version": "1.0.0",
   "workspaces": [
-    "server",
     "client"
   ],
   "scripts": {
-    "dev": "concurrently -n server,client -c blue,green \"npm run dev -w server\" \"npm run dev -w client\"",
-    "sync": "npm run sync -w server",
+    "dev": "npm run dev -w client",
+    "catalogue": "node supabase/scripts/catalogue/sync.mjs",
+    "prices:map": "node supabase/scripts/buildPriceMap.mjs",
+    "health": "node supabase/scripts/health.mjs",
+    "test:regression": "node supabase/scripts/regression.mjs",
     "test:rls": "node supabase/tests/rls.mjs",
-    "test:meta": "node supabase/tests/meta-parity.mjs",
-    "test:supabase": "npm run test:rls && npm run test:meta && npm run test:cards && npm run test:pokemon && npm run test:collection && npm run test:wants && npm run test:sync && npm run test:merge && npm run test:sweep",
-    "test:cards": "node supabase/tests/cards-parity.mjs",
-    "test:pokemon": "node supabase/tests/pokemon-parity.mjs",
     "test:collection": "node supabase/tests/collection.mjs",
     "test:wants": "node supabase/tests/wants.mjs",
     "test:sync": "node supabase/tests/sync-prices.mjs",
     "test:merge": "node supabase/tests/merge-anonymous.mjs",
-    "test:sweep": "node supabase/tests/sweep-anonymous.mjs"
+    "test:sweep": "node supabase/tests/sweep-anonymous.mjs",
+    "test:supabase": "npm run test:regression && npm run test:rls && npm run test:collection && npm run test:wants && npm run test:sync && npm run test:merge && npm run test:sweep",
+    "test": "npm test -w client && npm run test:supabase"
   },
   "devDependencies": {
     "concurrently": "^9.1.0"
