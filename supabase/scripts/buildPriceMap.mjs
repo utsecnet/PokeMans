@@ -546,7 +546,13 @@ function pickByNumber(candidates, card, setName) {
   // Narrow to the products that are this card at all. A promo group aggregates cards from
   // many sources, each numbered by its own source, so #1 can be Pikachu, Clefable and
   // Aerodactyl at once -- and the Pikachu we want sits beside "Pikachu (1) (Misprint)".
-  const sameCard = candidates.filter((p) => coreName(p.name) === mine);
+  // Compared both stripped, because the stripping has to be symmetric. 71 of our cards are
+  // the Unown letters -- "Unown [K]" -- so a one-sided comparison pitted "unown k" against a
+  // product stripped to "unown" and never matched. No Unown currently lands in a group with
+  // a duplicated number, so this was latent rather than live, but it would have handed one
+  // letter another letter's price the first time one did.
+  const myCore = coreName(card.name);
+  const sameCard = candidates.filter((p) => coreName(p.name) === mine || coreName(p.name) === myCore);
   const pool = exact.length ? exact : (sameCard.length ? sameCard : candidates);
 
   // Printings of one card: the plainest is the card rather than one of its oddities. Where
