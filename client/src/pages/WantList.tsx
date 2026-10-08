@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { CardImage } from '../components/CardImage';
 import { Link, useParams } from 'react-router-dom';
 import { fetchWantList, refreshWantList, removeFromWantList, updateWantList } from '../lib/api';
@@ -35,13 +35,26 @@ export function WantListPage() {
 
   // `silent` reloads without blanking the grid, so acquiring a card or toggling live
   // doesn't flash the whole page — the same pattern the collection box uses.
+  // Which load is the current one, so a reply arriving after a newer request started is
+  // dropped rather than overwriting it -- switching lists, or a silent refresh overlapping
+  // the load it was meant to follow.
+  //
+  // A sequence number rather than the AbortController the detail pages use, because load()
+  // is also called imperatively after every mutation, where there is no effect cleanup to
+  // hang an abort on. One counter covers both callers.
+  const loadSeq = useRef(0);
+
   const load = useCallback(
     async (silent = false) => {
+      const seq = ++loadSeq.current;
       if (!silent) setList(null);
       try {
-        setList(await fetchWantList(id));
+        const data = await fetchWantList(id);
+        if (seq !== loadSeq.current) return;
+        setList(data);
         setError(null);
       } catch (err) {
+        if (seq !== loadSeq.current) return;
         setError(err instanceof Error ? err.message : 'Failed to load want list');
       }
     },

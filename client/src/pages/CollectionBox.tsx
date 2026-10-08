@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CardImage } from '../components/CardImage';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
@@ -69,17 +69,30 @@ export function CollectionBoxPage() {
    * a move or a printing change: the page already holds a perfectly good render, and blanking
    * it to rebuild the identical thing a moment later reads as the interface flickering.
    */
+  // Which load is the current one, so a reply arriving after a newer request started is
+  // dropped rather than overwriting it. Two ways in: switching boxes before the first has
+  // answered, and a silent refresh overlapping the load it was meant to follow.
+  //
+  // A sequence number rather than the AbortController the detail pages use, because load()
+  // is also called imperatively after every mutation, where there is no effect cleanup to
+  // hang an abort on. One counter covers both callers.
+  const loadSeq = useRef(0);
+
   const load = (silent = false) => {
     if (!boxId) return;
+    const seq = ++loadSeq.current;
     if (!silent) setLoading(true);
     fetchCollectionBox(Number(boxId))
       .then((data) => {
+        if (seq !== loadSeq.current) return;
         setBox(data);
         setNameInput(data.name);
       })
-      .catch((err) => console.error('Failed to load collection:', err))
+      .catch((err) => {
+        if (seq === loadSeq.current) console.error('Failed to load collection:', err);
+      })
       .finally(() => {
-        if (!silent) setLoading(false);
+        if (!silent && seq === loadSeq.current) setLoading(false);
       });
   };
 

@@ -133,18 +133,31 @@ export function PokemonDetail() {
     activeBoxName,
   } = useBoxTapMode();
 
+  // Clicking through an evolution chain starts a second request before the first has
+  // answered, and nothing guarantees they come back in order: a slow Charizard landing after
+  // a quick Squirtle left the URL saying one Pokémon and the page showing another. Aborting
+  // on the way out both drops the stale reply and stops the request, the same way the
+  // lightbox and the price chart already do it.
   useEffect(() => {
     if (!id) return;
+    const controller = new AbortController();
     setLoading(true);
     setPokemon(null);
     setShowAllCards(false);
     setCardSetFilter('');
     setCardSort('release-asc');
     resetBoxTapMode();
-    fetchPokemonDetail(id)
-      .then(setPokemon)
-      .catch((err) => console.error('Failed to load Pokémon detail:', err))
-      .finally(() => setLoading(false));
+    fetchPokemonDetail(id, controller.signal)
+      .then((data) => {
+        if (!controller.signal.aborted) setPokemon(data);
+      })
+      .catch((err) => {
+        if (!controller.signal.aborted) console.error('Failed to load Pokémon detail:', err);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
   }, [id]);
 
   const updateCardCollection = (cardId: string, inBoxes: CollectionBoxRef[]) => {

@@ -661,8 +661,6 @@ export const COLLECTION_ICONS: CollectionIconDef[] = [
   },
 ];
 
-export const COLLECTION_ICON_IDS = new Set(COLLECTION_ICONS.map((i) => i.id));
-
 export function iconById(id: string | null | undefined): CollectionIconDef | null {
   if (!id) return null;
   return COLLECTION_ICONS.find((i) => i.id === id) ?? null;

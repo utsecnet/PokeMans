@@ -409,9 +409,6 @@ async function fetchCardPrintings(cardId: string, signal?: AbortSignal) {
  * Restoring it means a rate feed, not a setting: a daily job writing real rates, and a
  * conversion applied at read time with the source currency still labelled on the axis.
  */
-export const PRICE_CURRENCY_NOTE =
-  'Prices are shown as quoted by the marketplace.';
-
 export function fetchSeries(): Promise<string[]> {
   return rpc<string[]>('meta_series');
 }

@@ -199,7 +199,7 @@ Deno.serve(async (req) => {
   // Postgres decides what is new. record_prices writes a history row only where the value
   // actually moved and bumps observed_on for everything else, so the ~77% of series that are
   // unchanged on a given day cost nothing but a date update.
-  let result: Record<string, number> = {};
+  const result: Record<string, number> = {};
   try {
     // Sized so one statement stays well inside the timeout even as price_point grows. At
     // 20,000 the capture began failing once a year of backfill was loaded.
@@ -225,11 +225,15 @@ Deno.serve(async (req) => {
   }
 
   const remaining = groups.length - batch.length;
-  // A handful of unreachable set files is a warning, not a failure: the rest of the
-  // catalogue priced fine and tomorrow will fill them in. Nothing written at all is an error
-  // however green the individual requests looked.
-  const status = (failures > 0 || remaining > 0) ? 'warn'
-    : (result.changed ?? 0) === 0 && (result.unchanged ?? 0) === 0 ? 'error' : 'ok';
+  // Nothing written at all is an error, and that test comes first. A handful of unreachable
+  // set files is only a warning -- the rest of the catalogue priced fine and tomorrow fills
+  // them in -- but the two conditions were the other way round, so a run where every single
+  // set file was unreachable reported amber rather than red, because it had failures and the
+  // failure branch answered first. A total outage is the one case that most needs to look
+  // like one.
+  const wroteNothing = (result.changed ?? 0) === 0 && (result.unchanged ?? 0) === 0;
+  const status = wroteNothing ? 'error'
+    : (failures > 0 || remaining > 0) ? 'warn' : 'ok';
 
   const ms = Date.now() - started;
   await db.rpc('record_sync_day', {

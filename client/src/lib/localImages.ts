@@ -40,7 +40,7 @@ function at(folder: string, file: string): string {
  * with server/src/lib/artwork.js — "Black & White" is stored as Black_20_26_20White, and
  * a mismatch here produces a 404 rather than an error anyone would notice.
  */
-export function safeFileName(value: string | number): string {
+function safeFileName(value: string | number): string {
   return String(value).replace(
     /[^a-zA-Z0-9.-]/g,
     (c) => '_' + c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0'),
@@ -61,11 +61,11 @@ export function localSetSymbol(setId: string | null | undefined): string | null 
   return setId ? at('logos', `set-${safeFileName(setId)}-symbol.avif`) : null;
 }
 
-export function localSetLogo(setId: string | null | undefined): string | null {
+function localSetLogo(setId: string | null | undefined): string | null {
   return setId ? at('logos', `set-${safeFileName(setId)}-logo.avif`) : null;
 }
 
-export function localSeriesLogo(series: string | null | undefined): string | null {
+function localSeriesLogo(series: string | null | undefined): string | null {
   return series ? at('logos', `series-${safeFileName(series)}.avif`) : null;
 }
 
