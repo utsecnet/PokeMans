@@ -219,4 +219,10 @@ await service.auth.admin.deleteUser(made.user.id);
 console.log('');
 console.log(`   ${pass} passed, ${failures.length} failed`);
 for (const f of failures) console.log(`     - ${f}`);
-process.exit(failures.length ? 1 : 0);
+
+// exitCode rather than exit(). Tearing the process down while a socket is still closing
+// trips a libuv assertion on Windows, and the process then dies with 127 instead of the
+// code set here -- which invoke.mjs was doing, turning a clean run into an apparent
+// failure. This one happens to drain in time, but npm run test:supabase chains on its exit
+// code and that should not rest on timing.
+process.exitCode = failures.length ? 1 : 0;

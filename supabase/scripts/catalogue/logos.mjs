@@ -84,14 +84,3 @@ export async function syncLogos({ onProgress } = {}) {
   return { total: targets.length, written, skipped, failed, bytes };
 }
 
-/** How many of the logos the catalogue knows about are actually on disk. */
-export async function logoStats() {
-  const total = (await logoTargets()).length;
-  let stored = 0;
-  try {
-    stored = readdirSync(OUT).filter((f) => f.endsWith('.avif')).length;
-  } catch {
-    stored = 0;
-  }
-  return { total, stored };
-}
