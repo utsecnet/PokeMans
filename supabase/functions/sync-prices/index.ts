@@ -123,7 +123,11 @@ Deno.serve(async (req) => {
       .select('status, rows_written')
       .eq('source_id', SOURCE_ID).eq('job', 'prices').eq('ran_on', capturedOn)
       .maybeSingle();
-    if (already && already.status !== 'error') {
+    // Only a clean run counts as done. A run that ended 'warn' left something behind --
+    // sets it could not reach, or sets it never got to because the batch filled -- and
+    // treating that as finished meant the 08:00 catch-up skipped the very work it exists
+    // for, while the dashboard showed an amber square and nothing ever cleared it.
+    if (already && already.status === 'ok') {
       return json({
         ok: true, skipped: true,
         note: `Prices for ${capturedOn} were already captured. Pass force to repeat.`,
