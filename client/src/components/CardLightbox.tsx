@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { fetchCard, warmCardHires } from '../lib/api';
+import { fetchCard } from '../lib/api';
 import type { CardListItem } from '../types';
 import { TypeBadge } from './TypeBadge';
 import { CardLocationBadge } from './CardLocationBadge';
@@ -65,51 +65,34 @@ export function CardLightbox({
     return () => observer.disconnect();
   }, [card]);
 
-  // Upgrade the art in the background.
+  // Upgrade the art, but only once the upgrade has proved it exists.
   //
-  // The view paints immediately from the 245px copy that ships with the app, then asks the
-  // server to fetch and convert the full-size one. The swap happens only after the new file
-  // has decoded, so the card never blinks through an empty frame — and if nothing can be
-  // reached, the effect simply never sets anything and the thumbnail stands. That is what
-  // makes this work offline: the floor is local, and this is only ever an improvement.
-  const upgradeId = card && !card.imageLarge ? card.id : null;
+  // localCardLarge builds a /cards-hi/ path for every card, because a browser cannot stat a
+  // file. That is right for the thumbnails, where all 20,444 are vendored, and wrong here:
+  // only cards someone has already opened have a full-size copy, 28 of them today. The view
+  // trusted that path and showed a broken frame for every other card -- the dev server
+  // answers a missing file with index.html, which an <img> cannot decode.
+  //
+  // So the large copy is decoded off-screen first and swapped in only if it really arrives.
+  // The thumbnail is the floor and stands until then, which is what makes this work offline
+  // and what will let it work unchanged when these files move to object storage.
+  //
+  // A call used to sit here asking the server to fetch and convert the scan on demand. It
+  // needed sharp and a filesystem, so it could never run hosted -- and it had already
+  // stopped running at all, gated on `!card.imageLarge`, which is never false now that the
+  // path is always built.
+  const largeUrl = card?.imageLarge ?? null;
+  const largeFor = card?.id ?? null;
   useEffect(() => {
-    if (!upgradeId) return;
+    setHires(null);
+    if (!largeFor || !largeUrl) return;
     let cancelled = false;
-
-    // Decode it before showing it, and retry briefly if it is not there yet.
-    //
-    // The server writes the file before it answers, so by the time we have a url the bytes are
-    // on disk — but the dev server indexes its static directory from a watcher, and for a
-    // filename it has never seen there is a short window where the request 404s anyway. One
-    // attempt lands in that window often enough to matter. Retrying a few times costs nothing
-    // and means the upgrade is not silently skipped for the rest of the session.
-    const load = (url: string, attempt = 0): Promise<boolean> =>
-      new Promise((resolve) => {
-        const pre = new Image();
-        pre.onload = () => resolve(true);
-        pre.onerror = () => {
-          if (cancelled || attempt >= 5) return resolve(false);
-          setTimeout(() => resolve(load(url, attempt + 1)), 300);
-        };
-        pre.src = url;
-      });
-
-    warmCardHires(upgradeId)
-      .then(async ({ url }) => {
-        if (cancelled || !url) return;
-        if (await load(url)) {
-          if (!cancelled) setHires({ cardId: upgradeId, url });
-        }
-      })
-      .catch(() => {
-        // Offline, or the sources are gone. The thumbnail is already on screen.
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [upgradeId]);
+    const pre = new Image();
+    pre.onload = () => { if (!cancelled) setHires({ cardId: largeFor, url: largeUrl }); };
+    pre.onerror = () => { /* no full-size copy for this card; the thumbnail stands */ };
+    pre.src = largeUrl;
+    return () => { cancelled = true; };
+  }, [largeFor, largeUrl]);
 
   useEffect(() => {
     if (provided) return;
@@ -144,10 +127,10 @@ export function CardLightbox({
     );
   }
 
-  // The full-size art, once it has arrived this session. card.imageLarge is the copy already
-  // cached on disk from a previous open; hires is the one fetched for this open.
+  // The full-size art, but only if it decoded. Falling through to the thumbnail is the
+  // normal case rather than the error case: most cards have no full-size copy.
   const upgraded = hires?.cardId === card.id ? hires.url : null;
-  const image = upgraded ?? card.imageLarge ?? card.imageSmall;
+  const image = upgraded ?? card.imageSmall;
 
   return (
     <>
