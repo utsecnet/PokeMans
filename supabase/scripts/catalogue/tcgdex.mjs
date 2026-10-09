@@ -152,17 +152,17 @@ export async function syncTcgdexEnrichment({ onProgress } = {}) {
       // Guard against a number collision landing on a different card entirely.
       if (normName(theirCard.name) !== normName(ours.name)) continue;
 
-      // TCGdex reports the image base itself, and reports null when it holds no artwork --
-      // whole sets are like that, the Trainer Gallery subsets among them. Building the URL
-      // from set and number regardless stored a link that 404s, and because the card query
-      // prefers image_webp over image_small, that dead link then hid a perfectly good
-      // thumbnail. Cleared rather than left behind, so a card that loses its artwork upstream
-      // falls back instead of staying broken.
+      // Their id, which is what the printing data below is keyed on and what price capture
+      // ultimately depends on. The artwork URL that used to be recorded beside it is gone:
+      // card images are vendored onto the device and named from our own card id, so a
+      // stored address was being shipped to the browser and discarded on arrival.
+      //
+      // The two were once the same fact -- the id was read back out of the image URL -- and
+      // a card whose artwork went missing upstream silently withdrew from price capture as
+      // a result. Keeping the id separate is what fixed that, and is why it survives the
+      // URL being dropped.
       const webp = theirCard.image ? `${theirCard.image}/low.webp` : null;
-      // Their id is recorded alongside, and separately from, the artwork. The two used to be
-      // the same fact -- the id was read back out of the URL -- so clearing a dead image link
-      // also silently withdrew the card from price capture.
-      cardUpdates.push({ id: ours.id, image_webp: webp, tcgdex_id: theirCard.id });
+      cardUpdates.push({ id: ours.id, tcgdex_id: theirCard.id });
       if (webp) imagesSet++;
 
       const printings = variantsById.get(theirCard.id);

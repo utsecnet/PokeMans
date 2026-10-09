@@ -35,6 +35,10 @@ const normalizeCardName = (name) => (name ?? '')
 /**
  * Drops artwork hosted by Scrydex.
  *
+ * Only set symbols now. Card artwork is no longer stored as a URL at all -- the images are
+ * vendored onto the device and the client names them from the card id -- so the only thing
+ * left to screen is the symbol on a set.
+ *
  * Scrydex is the one image source in this pipeline with binding terms, and they prohibit
  * redistributing or mirroring, as well as use as a wholesale data source -- which is exactly
  * what caching art onto a device amounts to. The other hosts are silent or, in PokéAPI's
@@ -128,8 +132,6 @@ export async function syncTcgCards({ onProgress } = {}) {
         series: card.set?.series ?? set.series,
         rarity: card.rarity ?? null,
         release_date: card.set?.releaseDate ?? set.releaseDate,
-        image_small: usableImage(card.images?.small),
-        image_large: usableImage(card.images?.large),
         supertype: card.supertype ?? null,
         illustrator: card.artist ?? null,
       });
