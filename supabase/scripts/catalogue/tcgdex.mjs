@@ -16,16 +16,52 @@
 import { fetchJson, sleep } from './_http.mjs';
 import { upsertAll, selectAll, reconcile } from './_db.mjs';
 
+// Nothing is written when this is set. The matching runs in full and reports what it would
+// change, which is the only safe way to alter this file: price_map keys on
+// (card_ref, variant_position), so a printing that moves position or disappears silently
+// strands the price mapping for that card.
+const DRY_RUN = process.argv.includes('--dry-run');
+
 const API = 'https://api.tcgdex.net/v2/en';
 const GRAPHQL = 'https://api.tcgdex.net/v2/graphql';
 const REQUEST_DELAY_MS = 30;
 const CONCURRENCY = 4;
 
-// Sets whose names differ enough between the two catalogues that normalising cannot bridge
-// them. Keyed by our set id.
-const SET_ALIASES = { svp: 'svp' };
+/**
+ * Sets whose names differ enough between the two catalogues that normalising cannot bridge
+ * them. Keyed by our set id, valued by theirs.
+ *
+ * Each was checked against the upstream set's contents before being written down. Three were
+ * added after 71 cards turned out to have no printings at all, which meant no price could
+ * ever be mapped to them:
+ *
+ *   cel25c  "Celebrations: Classic Collection" vs "Celebrations Classic Collection" --
+ *           these do normalise to the same string, so the set matched; the cards did not,
+ *           because the two catalogues number this set differently (see below).
+ *   me55c   "30th Celebration: Classic Collection" vs "30th Classic Collection" -- no
+ *           shared normalisation, and it was falling through to the date, where it
+ *           collided with the 158-card "30th Celebration" released the same day.
+ *   sve     "Scarlet & Violet Energies" vs "Scarlet & Violet Energy" -- plural against
+ *           singular. Their id happens to match ours.
+ */
+const SET_ALIASES = {
+  svp: 'svp',
+  cel25c: 'cel25cc',
+  me55c: '30th-c',
+  sve: 'sve',
+};
 
 const normName = (s) => (s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+/**
+ * The same, with the word the two catalogues disagree about removed.
+ *
+ * We call the basic energies "Basic Grass Energy"; TCGdex calls them "Grass Energy". All 16
+ * cards in Scarlet & Violet Energies matched on number and were then thrown out by the name
+ * guard below, so the whole set had no printings and no price could ever reach it. Only the
+ * leading word is dropped, so this cannot collapse two genuinely different cards.
+ */
+const normCardName = (s) => normName(s).replace(/^basic/, '');
 // "001" and "1" are the same card; any letter prefix (TG01, SV01) stays intact.
 const normNumber = (s) => String(s ?? '').toUpperCase().replace(/^0+(?=\d)/, '');
 
@@ -118,13 +154,32 @@ export async function syncTcgdexEnrichment({ onProgress } = {}) {
     }
   }));
 
+  // Indexed three ways, and the date index refuses to answer when it cannot be sure.
+  //
+  // It used to be a plain Map, so the last set processed with a given release date won. Sets
+  // ship together: "30th Celebration" (158 cards) and "30th Classic Collection" (30) were
+  // both released 2026-09-16, so whichever arrived last became the answer for both. A wrong
+  // set match is worse than none -- it attaches one set's printings to another's cards, and
+  // the price mapping follows the printings.
   const byName = new Map();
-  const byDate = new Map();
   const byId = new Map();
+  const datesSeen = new Map();
   for (const d of details) {
     byName.set(normName(d.name), d);
     byId.set(d.id, d);
-    if (d.releaseDate) byDate.set(d.releaseDate, d);
+    if (d.releaseDate) {
+      if (!datesSeen.has(d.releaseDate)) datesSeen.set(d.releaseDate, []);
+      datesSeen.get(d.releaseDate).push(d);
+    }
+  }
+  const byDate = new Map();
+  let ambiguousDates = 0;
+  for (const [date, sets] of datesSeen) {
+    if (sets.length === 1) byDate.set(date, sets[0]);
+    else ambiguousDates++;
+  }
+  if (ambiguousDates) {
+    console.log(`   ${ambiguousDates} release dates are shared by more than one set; those will not match by date`);
   }
 
   const cardUpdates = [];
@@ -146,11 +201,30 @@ export async function syncTcgdexEnrichment({ onProgress } = {}) {
     const theirs = new Map();
     for (const c of match.cards ?? []) theirs.set(normNumber(c.localId), c);
 
+    // Their cards indexed by name too, for the sets the two catalogues number differently.
+    // Only names that are unique within the set are usable -- a set with two cards of the
+    // same name cannot be matched this way without risking the wrong one.
+    const byCardName = new Map();
+    for (const c of match.cards ?? []) {
+      const k = normCardName(c.name);
+      byCardName.set(k, byCardName.has(k) ? null : c);   // null marks a duplicate
+    }
+
     for (const ours of cardsBySet.get(ourSet.id) ?? []) {
-      const theirCard = theirs.get(normNumber(ours.number));
+      let theirCard = theirs.get(normNumber(ours.number));
+
+      // Number first, then name. Celebrations: Classic Collection carries each card's
+      // original number -- Donphan is 107 -- while TCGdex numbers the set CC001 to CC025, so
+      // nothing matched and all 25 cards ended up with no printings. The name is only
+      // trusted when exactly one card in the set has it.
+      if (!theirCard) {
+        const byName = byCardName.get(normCardName(ours.name));
+        if (byName) theirCard = byName;
+      }
+
       if (!theirCard) continue;
       // Guard against a number collision landing on a different card entirely.
-      if (normName(theirCard.name) !== normName(ours.name)) continue;
+      if (normCardName(theirCard.name) !== normCardName(ours.name)) continue;
 
       // Their id, which is what the printing data below is keyed on and what price capture
       // ultimately depends on. The artwork URL that used to be recorded beside it is gone:
@@ -179,6 +253,24 @@ export async function syncTcgdexEnrichment({ onProgress } = {}) {
         foil: v.foil ?? null,
       }));
     }
+  }
+
+  if (DRY_RUN) {
+    console.log('');
+    console.log('   DRY RUN -- nothing written');
+    console.log(`   would set tcgdex_id on ${cardUpdates.length.toLocaleString()} cards`);
+    console.log(`   would write ${variantRows.length.toLocaleString()} printings`);
+    return {
+      dryRun: true,
+      synced: imagesSet,
+      setsMatched,
+      setsTotal: ourSets.size,
+      imagesSet,
+      variantRows: variantRows.length,
+      cardsTotal: ourCards.length,
+      proposed: variantRows,
+      proposedCards: cardUpdates,
+    };
   }
 
   // An upsert, not an insert: these cards already exist and only two columns change.

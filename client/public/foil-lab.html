@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Foil Lab</title>
+
+<!--
+  DISPOSABLE. A scratch page for looking at the card foils side by side while tuning them.
+  Delete client/public/foil-lab.html when done; nothing links to it and nothing imports it.
+
+  It loads the app's real stylesheet through Vite rather than copying the rules, so what is
+  on screen here is exactly what the lightbox draws. ?direct makes Vite serve the transformed
+  CSS as a stylesheet instead of the JS module it hands to an import.
+
+  The rules and counts below are read from the catalogue, not written from memory.
+-->
+<link rel="stylesheet" href="/src/index.css?direct" />
+
+<style>
+  :root {
+    color-scheme: dark;
+    --cosmos:  #7fd4ff;
+    --stars:   #ffd166;
+    --etch:    #9ae6b4;
+    --sparkle: #f08bd0;
+    --ink:     #ece9e4;
+    --dim:     #9b958b;
+  }
+  body {
+    margin: 0;
+    background: #121117;
+    color: var(--ink);
+    font: 16px/1.6 Inter, system-ui, sans-serif;
+    padding: 24px 24px 80px;
+  }
+  h1 { font-size: 24px; margin: 0 0 6px; }
+  .sub { color: var(--dim); margin: 0 0 22px; font-size: 15px; max-width: 76ch; }
+
+  .controls {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; flex-wrap: wrap; gap: 18px; align-items: center;
+    background: #1a1920ee; backdrop-filter: blur(8px);
+    border: 1px solid #2e2c36; border-radius: 10px;
+    padding: 13px 18px; margin-bottom: 26px;
+  }
+  .controls label { display: flex; align-items: center; gap: 9px; font-size: 14px; color: #c3bdb3; }
+  .controls input[type=range] { width: 130px; }
+  .controls output { font-variant-numeric: tabular-nums; color: var(--ink); min-width: 50px; font-size: 14px; }
+  button {
+    background: #2a2832; color: var(--ink); border: 1px solid #3b3945;
+    border-radius: 7px; padding: 7px 14px; font: inherit; font-size: 14px; cursor: pointer;
+  }
+  button[aria-pressed="true"] { background: #d6394a; border-color: #d6394a; }
+  .hint { color: #6f6a63; font-size: 14px; margin-left: auto; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(430px, 1fr)); gap: 28px; }
+  .cell { min-width: 0; display: grid; grid-template-columns: 230px 1fr; gap: 18px; align-items: start; }
+
+  /* The cards filled a ~355px column before; 230 is the middle ground that still leaves
+     the rules readable beside them. */
+  .cell .tilt { padding: 0; display: block; width: 230px; cursor: crosshair; }
+  .cell .tilt-inner { width: 100%; }
+  .cell .tilt-image { width: 100%; display: block; }
+
+  .cap { font-weight: 700; font-size: 18px; margin-bottom: 2px; }
+  .what { color: var(--dim); font-size: 14px; margin-bottom: 10px; }
+  .rule-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: #6f6a63; margin-bottom: 3px; }
+  .rule { font-size: 14px; margin-bottom: 9px; }
+  .rule code {
+    font: 13px/1.5 ui-monospace, Consolas, monospace;
+    background: #211f29; border: 1px solid #312f3b; border-radius: 4px; padding: 1px 5px;
+  }
+  .count { font-size: 14px; font-variant-numeric: tabular-nums; }
+
+  .cosmos  .cap, .cosmos  .count b { color: var(--cosmos); }
+  .stars   .cap, .stars   .count b { color: var(--stars); }
+  .etch    .cap, .etch    .count b { color: var(--etch); }
+  .sparkle .cap, .sparkle .count b { color: var(--sparkle); }
+  .none    .cap, .none    .count b { color: var(--dim); }
+
+  hr { border: 0; border-top: 1px solid #2e2c36; margin: 34px 0 24px; }
+  h2 { font-size: 18px; margin: 0 0 4px; }
+</style>
+</head>
+<body>
+
+<h1>Foil Lab</h1>
+<p class="sub">
+  The real stylesheet, the real vendored card art, and the real pointer handling. Move the
+  mouse over a card to turn it under the fixed light, or drag on a touchscreen. The sliders
+  drive every card at once, which is how to compare them at an identical angle.
+</p>
+
+<div class="controls">
+  <label>lean X <input id="rx" type="range" min="-12" max="12" step="0.5" value="4" /><output id="rxo"></output></label>
+  <label>lean Y <input id="ry" type="range" min="-12" max="12" step="0.5" value="-6" /><output id="ryo"></output></label>
+  <label>lit <input id="lit" type="range" min="0" max="1" step="0.05" value="1" /><output id="lito"></output></label>
+  <button id="sweep" aria-pressed="false">sweep all</button>
+  <button id="reset">flat</button>
+  <label><input id="showAll" type="checkbox" checked /> clearcoat · glare · sheen</label>
+  <span class="hint">hover a card to drive it alone</span>
+</div>
+
+<h2>The four materials, one card</h2>
+<p class="sub" style="margin-bottom:18px">Same Charizard throughout, so the only thing changing is the foil.</p>
+<div class="grid" id="sameCard"></div>
+
+<hr />
+<h2>Real cards of the rarity that gets each one</h2>
+<p class="sub" style="margin-bottom:18px">All vendored locally; nothing is fetched while you look.</p>
+<div class="grid" id="realCards"></div>
+
+<script type="module">
+// What qualifies a card, read off foilFor() in RarityIcon.tsx. The rarity lists are every
+// matching string actually present in the catalogue, not every string the regex could match.
+const KINDS = {
+  cosmos: {
+    what: 'WotC galaxy foil, illustration window only',
+    test: 'rarity matches /rare/ AND released before 2003-07-01',
+    why: 'The rarity string is the same "Rare Holo" either side of the handover, so only the date separates them. Nintendo took the licence in mid-2003 and the stock changed.',
+    rarities: 'Rare Holo, Rare Shining, Rare Holo Star, …',
+    count: 651,
+  },
+  stars: {
+    what: 'modern stamped foil, whole face',
+    test: 'rarity matches /rare/ AND released 2003-07-01 or later',
+    why: 'The default for anything the catalogue marks with a single star.',
+    rarities: 'Rare, Rare Holo, Holo Rare V / VMAX / VSTAR, Radiant Rare, Amazing Rare, ACE SPEC Rare, +22 more',
+    count: 5156,
+  },
+  etch: {
+    what: 'fine parallel lines, whole face',
+    test: 'rarity matches /double|ultra|illustration|special/',
+    why: 'Drawn with a double star in the sidebar. Their foil is etched in lines rather than stamped in shapes.',
+    rarities: 'Double Rare, Illustration Rare, Special Illustration Rare, Rare Ultra, Ultra Rare, Shiny Ultra Rare',
+    count: 2239,
+  },
+  sparkle: {
+    what: 'dense glitter, edge to edge',
+    test: 'rarity matches /hyper|secret|rainbow|crown/',
+    why: 'Drawn with a crown. The whole card is foil, border included, not just the art.',
+    rarities: 'Hyper Rare, Mega Hyper Rare, Rare Rainbow, Rare Secret',
+    count: 733,
+  },
+};
+
+const ORDER = ['cosmos', 'stars', 'etch', 'sparkle'];
+
+// Real cards, names and rarities read out of the catalogue rather than typed from memory --
+// two of them were wrong when I did type them.
+const REAL = [
+  { id: 'base1-1',   kind: 'cosmos',  name: 'Alakazam',        meta: 'Base · Rare Holo · 1999' },
+  { id: 'swsh12-66', kind: 'stars',   name: 'Unown VSTAR',     meta: 'Silver Tempest · Rare Holo VSTAR · 2022' },
+  { id: 'me5-16',    kind: 'etch',    name: 'Wailord ex',      meta: 'Pitch Black · Double Rare · 2026' },
+  { id: 'me5-120',   kind: 'sparkle', name: 'Mega Darkrai ex', meta: 'Pitch Black · Mega Hyper Rare · 2026' },
+];
+
+const CARD = '/cards-hi/base1-4.avif';
+
+const cell = (src, kind, cap, sub, detail) => `
+  <div class="cell ${kind}">
+    <span class="tilt" data-tilt data-settling="true">
+      <span class="tilt-inner">
+        <img class="tilt-image" src="${src}" alt="" draggable="false" />
+        <span class="tilt-clearcoat"></span>
+        <span class="tilt-glare"></span>
+        <span class="tilt-sheen"></span>
+        <span class="tilt-foil tilt-foil-${kind}"><span class="tilt-foil-prism"></span></span>
+        <span class="tilt-rim"></span>
+      </span>
+    </span>
+    <div>
+      <div class="cap">${cap}</div>
+      <div class="what">${sub}</div>
+      ${detail}
+    </div>
+  </div>`;
+
+document.getElementById('sameCard').innerHTML = ORDER.map((k) => {
+  const d = KINDS[k];
+  return cell(CARD, k, k, d.what, `
+    <div class="rule-label">qualifies when</div>
+    <div class="rule"><code>${d.test}</code></div>
+    <div class="rule-label">rarities in your catalogue</div>
+    <div class="rule">${d.rarities}</div>
+    <div class="what">${d.why}</div>
+    <div class="count"><b>${d.count.toLocaleString()}</b> cards of 20,635</div>`);
+}).join('');
+
+document.getElementById('realCards').innerHTML = REAL.map((r) =>
+  cell(`/cards-hi/${r.id}.avif`, r.kind, r.name, r.meta, `
+    <div class="rule-label">gets</div>
+    <div class="rule" style="font-weight:600">${r.kind}</div>
+    <div class="what">${KINDS[r.kind].what}</div>`)).join('');
+
+// ---------------------------------------------------------------- the light
+//
+// The same arithmetic TiltCard does, kept here rather than imported because this page is
+// deliberately standalone: it should keep working if the component is mid-rewrite.
+const MAX = 12;
+const TRAVEL_X = 1.35;
+const TRAVEL_Y = TRAVEL_X * (2.5 / 3.5);
+const REST_Y = 34;
+const SPREAD = 26;
+const SIZE = 52;
+const THROW = 18;
+
+function light(el, x, y, l) {
+  const leanX = y / MAX, leanY = x / MAX;
+  el.style.setProperty('--tilt-x', `${x.toFixed(2)}deg`);
+  el.style.setProperty('--tilt-y', `${y.toFixed(2)}deg`);
+  el.style.setProperty('--light-x', `${(50 - leanX * TRAVEL_X * 50).toFixed(1)}%`);
+  el.style.setProperty('--light-y', `${(REST_Y + leanY * TRAVEL_Y * 50).toFixed(1)}%`);
+  el.style.setProperty('--light-w', `${(SIZE + Math.abs(leanX) * SPREAD).toFixed(1)}%`);
+  el.style.setProperty('--light-h', `${(SIZE + Math.abs(leanY) * SPREAD).toFixed(1)}%`);
+  el.style.setProperty('--lit', String(l));
+  el.style.setProperty('--shadow-x', `${(-y / MAX * THROW).toFixed(1)}px`);
+  el.style.setProperty('--shadow-y', `${(x / MAX * THROW + 12).toFixed(1)}px`);
+}
+
+// Each card follows the pointer on its own, the same way the lightbox does: the pointer sets
+// the angle and the reflection goes wherever that angle sends it.
+const cards = [...document.querySelectorAll('[data-tilt]')];
+let owned = null;   // the card under the pointer, which the sliders leave alone
+
+for (const el of cards) {
+  let frame = 0, next = null;
+  const flush = () => { frame = 0; if (next) light(el, next.x, next.y, next.l); };
+  const schedule = (x, y, l) => { next = { x, y, l }; if (!frame) frame = requestAnimationFrame(flush); };
+
+  const track = (clientX, clientY) => {
+    const r = el.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    const cx = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+    const cy = Math.min(1, Math.max(0, (clientY - r.top) / r.height));
+    el.dataset.settling = 'false';
+    schedule(-(cy - 0.5) * 2 * MAX, (cx - 0.5) * 2 * MAX, 1);
+  };
+
+  let dragging = false;
+  el.addEventListener('pointerdown', (e) => {
+    dragging = true;
+    try { el.setPointerCapture(e.pointerId); } catch {}
+    owned = el; track(e.clientX, e.clientY);
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (e.pointerType === 'mouse' || dragging) { owned = el; track(e.clientX, e.clientY); }
+  });
+  el.addEventListener('pointerup', (e) => {
+    dragging = false;
+    if (e.pointerType !== 'mouse') { el.dataset.settling = 'true'; owned = null; applyAll(); }
+  });
+  el.addEventListener('pointerleave', () => {
+    if (dragging) return;
+    el.dataset.settling = 'true';
+    if (owned === el) owned = null;
+    applyAll();
+  });
+}
+
+const rx = document.getElementById('rx');
+const ry = document.getElementById('ry');
+const lit = document.getElementById('lit');
+const showAll = document.getElementById('showAll');
+
+function applyAll() {
+  const x = Number(rx.value), y = Number(ry.value), l = Number(lit.value);
+  document.getElementById('rxo').textContent = `${x}°`;
+  document.getElementById('ryo').textContent = `${y}°`;
+  document.getElementById('lito').textContent = l.toFixed(2);
+  for (const el of cards) {
+    if (el === owned) continue;   // the pointer wins on the card it is over
+    light(el, x, y, l);
+  }
+  for (const el of document.querySelectorAll('.tilt-clearcoat, .tilt-glare, .tilt-sheen')) {
+    el.style.display = showAll.checked ? '' : 'none';
+  }
+}
+
+[rx, ry, lit, showAll].forEach((c) => c.addEventListener('input', applyAll));
+document.getElementById('reset').onclick = () => { rx.value = 0; ry.value = 0; applyAll(); };
+
+// A slow circle, because a foil only shows what it is while the light is moving across it.
+let sweeping = false, t = 0, frame = 0;
+document.getElementById('sweep').onclick = (ev) => {
+  sweeping = !sweeping;
+  ev.target.setAttribute('aria-pressed', String(sweeping));
+  if (!sweeping) { cancelAnimationFrame(frame); return; }
+  const step = () => {
+    t += 0.012;
+    rx.value = (Math.sin(t) * 10).toFixed(1);
+    ry.value = (Math.cos(t * 0.8) * 11).toFixed(1);
+    applyAll();
+    frame = requestAnimationFrame(step);
+  };
+  step();
+};
+
+applyAll();
+</script>
+</body>
+</html>
