@@ -22,12 +22,37 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 
 const args = process.argv.slice(2);
+
+/**
+ * A flag's value, refusing a missing one rather than swallowing the next flag.
+ *
+ * `--pct abc` gave NaN, and `rand() < NaN` is always false, so the sample came out empty and
+ * the run reported no discrepancies having examined nothing. In a verifier that is the
+ * worst possible failure: a typo produces a clean bill of health.
+ */
 const arg = (name, fallback) => {
   const i = args.indexOf(name);
-  return i >= 0 ? args[i + 1] : fallback;
+  if (i === -1) return fallback;
+  const value = args[i + 1];
+  if (value === undefined || value.startsWith('--')) {
+    console.error(`   ${name} needs a value.`);
+    process.exit(2);
+  }
+  return value;
 };
+
 const PCT = Number(arg('--pct', 10));
+if (!(PCT > 0 && PCT <= 100)) {
+  console.error(`   --pct wants a percentage between 0 and 100, not ${JSON.stringify(arg('--pct', 10))}.`);
+  process.exit(2);
+}
+
 const DAY = arg('--day', null);
+if (DAY !== null && !/^\d{4}-\d{2}-\d{2}$/.test(DAY)) {
+  console.error(`   --day wants a date as YYYY-MM-DD, not ${JSON.stringify(DAY)}.`);
+  process.exit(2);
+}
+
 const CACHE = arg('--cache', '.');
 const SOURCE_ID = 1;
 
@@ -165,8 +190,20 @@ const cachedDays = fs.readdirSync(CACHE)
   .map((f) => f.match(/^(?:x-|prices-)(\d{4}-\d{2}-\d{2})/)?.[1])
   .filter(Boolean).sort();
 const day = DAY ?? cachedDays.filter(retained).pop() ?? cachedDays.pop();
-const source = day ? loadSourceDay(day) : new Map();
-console.log(`   source day: ${day ?? '(none found)'} — ${source.size.toLocaleString()} published prices`);
+if (!day) {
+  // Without a day there is nothing to compare stored prices against, and the stored query
+  // below would filter on `captured_on <= undefined`. Better to say so than to run two
+  // thirds of a check and present it as a whole one.
+  console.error(`   no price archive found in ${path.resolve(CACHE)}.`);
+  console.error('   point --cache at a directory holding prices-YYYY-MM-DD.tar.gz, or pass --day.');
+  process.exit(2);
+}
+const source = loadSourceDay(day);
+console.log(`   source day: ${day} — ${source.size.toLocaleString()} published prices`);
+if (source.size === 0) {
+  console.error(`   that archive yielded no prices; the comparison against source would be empty.`);
+  process.exit(2);
+}
 
 const { client: reader, cleanup } = await asSignedInUser();
 console.log('   reading as an ordinary signed-in account');
@@ -201,11 +238,23 @@ for (const c of sample) {
     continue;
   }
 
+  // Indexed by every position a line covers, not just the first one.
+  //
+  // card_price_history merges printings that resolve to the same upstream product: Base Set
+  // Charizard's unlimited and 1999-2000 copyright printings are one product and draw one
+  // line, reported as variantPosition 0 with variantPositions [0, 3]. Reading only the
+  // first meant position 3 was looked up, not found, and reported as "stored but nothing
+  // shown" -- when it is on the screen, under the line it shares.
+  //
+  // 45 of 682 printings in a 2% sample were flagged that way and every one was drawn. A
+  // check that cries wolf at 6.6% is worse than no check: a real failure arrives looking
+  // exactly like the noise it is buried in.
   const shown = new Map();
   for (const chart of charts ?? []) {
     for (const p of chart.printings ?? []) {
       const onDay = p.points.find((pt) => pt.day === day);
-      if (onDay) shown.set(p.variantPosition, onDay);
+      if (!onDay) continue;
+      for (const pos of p.variantPositions ?? [p.variantPosition]) shown.set(pos, onDay);
     }
   }
 
@@ -268,3 +317,10 @@ if (problems.length) {
   console.log('');
   console.log('   no discrepancies');
 }
+
+// A verifier that always exits 0 cannot be chained onto anything, and its result has to be
+// read by a person every time to mean anything. exitCode rather than exit() so the open
+// socket finishes closing first -- calling exit() here dies with 127 on Windows and reports
+// neither answer.
+const failed = counts.mismatchShown + counts.mismatchSource + counts.shownMissing;
+process.exitCode = failed > 0 ? 1 : 0;
