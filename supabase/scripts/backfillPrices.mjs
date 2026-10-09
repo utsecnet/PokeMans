@@ -34,8 +34,37 @@ import zlib from 'node:zlib';
 const args = process.argv.slice(2);
 const APPLY = args.includes('--apply');
 const NEW_ONLY = args.includes('--new-only');
-const DAYS = Number(args.includes('--days') ? args[args.indexOf('--days') + 1] : 90);
-const CACHE = args.includes('--cache') ? args[args.indexOf('--cache') + 1] : os.tmpdir();
+
+/**
+ * A flag's value, refusing the two ways this quietly went wrong.
+ *
+ * `--days abc` made Number() return NaN, and `age <= NaN` is false, so the loader sampled
+ * zero dates, did all its setup, announced "0 rows would be written" and exited 0. A typo
+ * looked exactly like a finished run. `--days` with nothing after it was worse: it swallowed
+ * the next flag as its value and did the same thing.
+ *
+ * This is a script that exists to be run once, before a mirror that is already withdrawn
+ * disappears for good. A silent no-op is the most expensive bug it could have.
+ */
+function flagValue(name) {
+  const i = args.indexOf(name);
+  if (i === -1) return null;
+  const value = args[i + 1];
+  if (value === undefined || value.startsWith('--')) {
+    console.error(`   ${name} needs a value.`);
+    process.exit(2);
+  }
+  return value;
+}
+
+const rawDays = flagValue('--days');
+const DAYS = rawDays === null ? 90 : Number(rawDays);
+if (!Number.isInteger(DAYS) || DAYS < 1) {
+  console.error(`   --days wants a whole number of days, not ${JSON.stringify(rawDays)}.`);
+  process.exit(2);
+}
+
+const CACHE = flagValue('--cache') ?? os.tmpdir();
 fs.mkdirSync(CACHE, { recursive: true });
 const SOURCE_ID = 1;
 const REPO = 'landonrroy/pokefolio-data';
@@ -111,40 +140,90 @@ function* readTarGz(gz) {
   }
 }
 
+/**
+ * One year of the mirror's files.
+ *
+ * Throws rather than returning nothing. An unauthenticated GitHub allows 60 requests an
+ * hour, and a refusal used to come back as an empty list -- indistinguishable from a year
+ * the mirror does not hold. Every date then read as "not in the mirror" and the run finished
+ * successfully having loaded nothing, which is the same silent success the day validation
+ * above exists to prevent.
+ */
 async function listArchive(year) {
   const res = await fetch(`https://api.github.com/repos/${REPO}/contents/data/${year}`, { headers: UA });
-  if (!res.ok) return [];
+  if (res.status === 404) return [];                 // a year the mirror genuinely lacks
+  if (!res.ok) {
+    const hint = res.status === 403 || res.status === 429
+      ? ' (GitHub allows 60 requests an hour unauthenticated; try again later)'
+      : '';
+    throw new Error(`could not list ${year} in the mirror: HTTP ${res.status}${hint}`);
+  }
   const body = await res.json();
   return Array.isArray(body) ? body : [];
 }
 
 /** Pulls one day's tarball and returns productId|subType -> {market, low}. */
+async function fetchDay(file, local, index) {
+  const entry = index.get(file);
+  if (!entry) return false;
+  const res = await fetch(entry.download_url, { headers: UA });
+  if (!res.ok) return false;
+  // Written to a neighbouring name and moved into place, so an interrupted download cannot
+  // leave a half file wearing the name of a whole one.
+  const partial = `${local}.part`;
+  fs.writeFileSync(partial, Buffer.from(await res.arrayBuffer()));
+  fs.renameSync(partial, local);
+  return true;
+}
+
+/**
+ * Pulls one day's tarball and returns productId|subType -> {market, low}.
+ *
+ * A cached archive that is not readable is deleted and fetched once more rather than
+ * throwing. A download interrupted partway used to leave a truncated file in the cache, and
+ * because the cache is only ever checked for existence, that file was then read on every
+ * later run: gunzip threw Z_BUF_ERROR from inside a generator, outside any try, and killed
+ * the whole backfill at the same date every time. The only way out was knowing to delete a
+ * file in a temp directory.
+ */
 async function loadDay(date, index) {
   const file = `prices-${date}.tar.gz`;
   const local = path.join(CACHE, file);
-  if (!fs.existsSync(local)) {
-    const entry = index.get(file);
-    if (!entry) return null;
-    const res = await fetch(entry.download_url, { headers: UA });
-    if (!res.ok) return null;
-    fs.writeFileSync(local, Buffer.from(await res.arrayBuffer()));
-  }
+  if (!fs.existsSync(local) && !(await fetchDay(file, local, index))) return null;
+
   // Read in memory rather than shelling out to tar. The system tar differs between
   // platforms -- the Windows one rejected these paths outright -- and a day's archive is a
   // megabyte, so there is nothing to gain from touching the disk twice.
-  const prices = new Map();
-  for (const entry of readTarGz(fs.readFileSync(local))) {
-    if (!entry.name.endsWith('/prices')) continue;
+  const readEntries = () => {
+    const prices = new Map();
+    for (const entry of readTarGz(fs.readFileSync(local))) {
+      if (!entry.name.endsWith('/prices')) continue;
+      try {
+        for (const r of JSON.parse(entry.data.toString('utf8')).results ?? []) {
+          if (r.marketPrice == null && r.lowPrice == null) continue;
+          prices.set(`${r.productId}|${r.subTypeName}`, {
+            market: r.marketPrice ?? null, low: r.lowPrice ?? null,
+          });
+        }
+      } catch { /* one bad group file loses that set for that day, not the run */ }
+    }
+    return prices;
+  };
+
+  try {
+    return readEntries();
+  } catch (err) {
+    console.log(`   ${date}  cached copy unreadable (${err.code ?? err.message}); fetching again`);
+    fs.rmSync(local, { force: true });
+    if (!(await fetchDay(file, local, index))) return null;
     try {
-      for (const r of JSON.parse(entry.data.toString('utf8')).results ?? []) {
-        if (r.marketPrice == null && r.lowPrice == null) continue;
-        prices.set(`${r.productId}|${r.subTypeName}`, {
-          market: r.marketPrice ?? null, low: r.lowPrice ?? null,
-        });
-      }
-    } catch { /* one bad group file loses that set for that day, not the run */ }
+      return readEntries();
+    } catch (second) {
+      console.error(`   ${date}  still unreadable after a fresh download: ${second.message}`);
+      fs.rmSync(local, { force: true });
+      return null;
+    }
   }
-  return prices;
 }
 
 // ---------------------------------------------------------------- run
@@ -158,13 +237,6 @@ const index = new Map();
 for (const y of years) for (const f of await listArchive(y)) index.set(f.name, f);
 console.log(`   mirror holds ${index.size} files across ${years.join(', ')}`);
 
-// The mapping, so only cards we carry are loaded at all.
-//
-// One upstream product can serve several of our printings -- a card whose only published
-// price is "Normal" is the match for both its normal and its metal printing, and a few
-// products are shared across sets. So this is product -> list, not product -> one: keying it
-// one-to-one quietly dropped 3,704 printings, which would have shown up as cards that simply
-// never had a price and no error anywhere to say why.
 // Which printings to load for, when only the late arrivals are wanted. Asked of Postgres,
 // because answering it here would mean paging 2.8 million history rows a thousand at a time.
 let wanted = null;
@@ -175,10 +247,17 @@ if (NEW_ONLY) {
   console.log(`   ${wanted.size.toLocaleString()} printings have no history to speak of`);
   if (!wanted.size) {
     console.log('   nothing to backfill.');
-    process.exitCode = 0;
+    process.exit(0);
   }
 }
 
+// The mapping, so only cards we carry are loaded at all.
+//
+// One upstream product can serve several of our printings -- a card whose only published
+// price is "Normal" is the match for both its normal and its metal printing, and a few
+// products are shared across sets. So this is product -> list, not product -> one: keying it
+// one-to-one quietly dropped 3,704 printings, which would have shown up as cards that simply
+// never had a price and no error anywhere to say why.
 const map = new Map();
 for (let from = 0; ; from += 1000) {
   const { data, error } = await db.from('price_map')
