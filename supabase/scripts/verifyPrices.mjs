@@ -183,7 +183,10 @@ const retained = (iso) => {
   const d = new Date(iso + 'T00:00:00Z');
   const age = Math.round((Date.now() - d.getTime()) / 86400000);
   const isoDow = d.getUTCDay() === 0 ? 7 : d.getUTCDay();
-  return age <= 7 ? true : age <= 30 ? (isoDow === 1 || isoDow === 4) : isoDow === 1;
+  return age <= 7 ? true
+    : age <= 30 ? (isoDow === 1 || isoDow === 4)
+    : age <= 365 ? isoDow === 1
+    : isoDow === 1 && d.getUTCDate() <= 7;
 };
 
 const cachedDays = fs.readdirSync(CACHE)

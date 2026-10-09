@@ -1,9 +1,10 @@
 /**
  * Applies the retention bands to stored price history.
  *
- *     0-7 days    every day
- *     8-30 days   Mondays and Thursdays
- *     31+ days    Mondays
+ *     0-7 days      every day
+ *     8-30 days     Mondays and Thursdays
+ *     31-365 days   Mondays
+ *     366+ days     one a month
  *
  * All the thinking lives in the thin_price_history function, which is also where those
  * bands are defined -- this is only the door the schedule knocks on, and it deliberately

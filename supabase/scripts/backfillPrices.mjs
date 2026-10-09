@@ -80,9 +80,10 @@ const db = createClient(e.VITE_SUPABASE_URL, e.SUPABASE_SERVICE_ROLE_KEY, { auth
 /**
  * Which dates to load, following the retention policy.
  *
- *     0-7 days    every day
- *     8-30 days   Mondays and Thursdays
- *     31+ days    Mondays
+ *     0-7 days      every day
+ *     8-30 days     Mondays and Thursdays
+ *     31-365 days   Mondays
+ *     366+ days     one a month
  *
  * Sampling as we load rather than loading everything and thinning afterwards is the
  * difference between writing millions of rows to delete most of them and writing only what
@@ -112,9 +113,14 @@ function sampledDates(days) {
     const d = new Date(today);
     d.setUTCDate(d.getUTCDate() - age);
     const isoDow = d.getUTCDay() === 0 ? 7 : d.getUTCDay();   // 1 Monday … 7 Sunday
+    // Beyond a year, the first Monday of each month. Postgres keeps the newest point in each
+    // calendar month, and over a long run of Mondays that is the last one; the loader cannot
+    // know which Monday will end up last, so it takes the first and lets the nightly job
+    // settle it. Either way one point per month survives, which is what both agree on.
     const keep = age <= 7 ? true
       : age <= 30 ? (isoDow === 1 || isoDow === 4)
-      : isoDow === 1;
+      : age <= 365 ? isoDow === 1
+      : isoDow === 1 && d.getUTCDate() <= 7;
     if (keep) out.push(d.toISOString().slice(0, 10));
   }
   return out.reverse();   // oldest first: "changed since last time" needs chronological order
