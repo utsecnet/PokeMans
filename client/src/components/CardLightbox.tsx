@@ -83,16 +83,41 @@ export function CardLightbox({
   // path is always built.
   const largeUrl = card?.imageLarge ?? null;
   const largeFor = card?.id ?? null;
+
+  // Where the scan lives upstream, used only when we do not hold it.
+  //
+  // This is a deliberate exception to the rule that the app fetches nothing from another
+  // site while someone is using it, taken knowingly until the artwork is vendored to object
+  // storage. 126 cards of 20,635 have a local copy; the rest would show a thumbnail for
+  // ever. When the bucket is filled the local path will hit for every card and this branch
+  // will stop being reached without anything having to be removed.
+  //
+  // Built from the set and number because the stored URL columns were dropped once nothing
+  // rendered them. Only the full-size scan is ever fetched this way -- the thumbnail the
+  // grid draws is always local.
+  const upstreamUrl = card?.setId && card?.number
+    ? `https://images.pokemontcg.io/${card.setId}/${encodeURIComponent(card.number)}_hires.png`
+    : null;
+
   useEffect(() => {
     setHires(null);
-    if (!largeFor || !largeUrl) return;
+    if (!largeFor) return;
     let cancelled = false;
-    const pre = new Image();
-    pre.onload = () => { if (!cancelled) setHires({ cardId: largeFor, url: largeUrl }); };
-    pre.onerror = () => { /* no full-size copy for this card; the thumbnail stands */ };
-    pre.src = largeUrl;
+
+    // Local first, upstream second. TiltCard cross-fades whatever finally arrives, so the
+    // only job here is to decode it off-screen and never hand over a URL that fails.
+    const sources = [largeUrl, upstreamUrl].filter((u): u is string => !!u);
+    const attempt = (i: number) => {
+      if (cancelled || i >= sources.length) return;
+      const pre = new Image();
+      pre.onload = () => { if (!cancelled) setHires({ cardId: largeFor, url: sources[i] }); };
+      pre.onerror = () => attempt(i + 1);
+      pre.src = sources[i];
+    };
+    attempt(0);
+
     return () => { cancelled = true; };
-  }, [largeFor, largeUrl]);
+  }, [largeFor, largeUrl, upstreamUrl]);
 
   useEffect(() => {
     if (provided) return;
