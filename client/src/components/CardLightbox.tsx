@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { fetchCard } from '../lib/api';
+import { fetchCard, fetchTcgplayerProductId } from '../lib/api';
 import type { CardListItem } from '../types';
 import { TypeBadge } from './TypeBadge';
 import { CardLocationBadge } from './CardLocationBadge';
@@ -122,30 +122,44 @@ export function CardLightbox({
         }
       }
 
-      // Upstream second, and this one has to be fetched rather than loaded.
+      // Upstream second, and these have to be fetched rather than loaded.
       //
       // images.pokemontcg.io answers a card it does not hold with 404 and a picture of the
-      // back of a card -- a real 186KB png, not an error page. An <img> does not look at the
-      // status, only at whether the bytes decode, so onload fires and the back is shown as
-      // though it were the card. Whole recent sets are missing that way: every card in
-      // Pitch Black came back as a card back.
+      // back of a card -- a real 640x892 png, not an error page. An <img> does not look at
+      // the status, only at whether the bytes decode, so onload fires and the back is shown
+      // as though it were the card. So the status is checked first, and the bytes already in
+      // hand are handed to the <img> as a blob rather than downloaded a second time.
       //
-      // So the status is checked first and the bytes already in hand are handed to the
-      // <img> as a blob, which also means the picture is not downloaded twice.
-      if (!upstreamUrl) return;
-      try {
-        const res = await fetch(upstreamUrl);
-        if (cancelled || !res.ok) return;
-        const blob = await res.blob();
-        if (cancelled || !blob.type.startsWith('image/')) return;
-        objectUrl = URL.createObjectURL(blob);
-        setHires({ cardId: largeFor, url: objectUrl });
-      } catch {
-        // Offline, rate limited, or the host is down. Going through fetch rather than an
-        // <img> means a transient failure costs the upgrade where a plain load might have
-        // got it -- the trade for being able to see the status at all. The thumbnail stands,
-        // which is the floor this whole path is built on.
-      }
+      // TCGplayer last, because its ceiling is 400px wide against pokemontcg.io's 600 to 756
+      // -- every other size on their CDN answers 403. It is there because pokemontcg.io has
+      // not caught up with the newest sets, and that is exactly where it is strongest:
+      // across 80 cards spanning the catalogue, all three pokemontcg.io misses were 2020 or
+      // later and TCGplayer had every one of them.
+      const tryUrl = async (url: string) => {
+        try {
+          const res = await fetch(url);
+          if (cancelled || !res.ok) return false;
+          const blob = await res.blob();
+          if (cancelled || !blob.type.startsWith('image/')) return false;
+          objectUrl = URL.createObjectURL(blob);
+          setHires({ cardId: largeFor, url: objectUrl });
+          return true;
+        } catch {
+          // Offline, rate limited, or the host is down. Going through fetch rather than an
+          // <img> means a transient failure costs the upgrade where a plain load might have
+          // got it -- the trade for being able to see the status at all.
+          return false;
+        }
+      };
+
+      if (upstreamUrl && (await tryUrl(upstreamUrl))) return;
+      if (cancelled) return;
+
+      // The product id is only looked up once the free options are exhausted, so the common
+      // card costs no extra query.
+      const productId = await fetchTcgplayerProductId(largeFor);
+      if (cancelled || !productId) return;
+      await tryUrl(`https://tcgplayer-cdn.tcgplayer.com/product/${productId}_400w.jpg`);
     })();
 
     return () => {

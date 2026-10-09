@@ -409,6 +409,24 @@ async function fetchCardPrintings(cardId: string, signal?: AbortSignal) {
  * Restoring it means a rate feed, not a setting: a daily job writing real rates, and a
  * conversion applied at read time with the source currency still labelled on the axis.
  */
+/**
+ * The TCGplayer product id for a card, for the one case that needs it.
+ *
+ * Asked for only when both local art and images.pokemontcg.io have failed, which is a
+ * handful of the newest sets -- so it is a query on a rare path rather than another column
+ * on every card read. price_map already holds one per printing; any of them will do,
+ * because every printing of a card shares its artwork.
+ */
+export async function fetchTcgplayerProductId(cardId: string): Promise<number | null> {
+  const { data, error } = await supabase
+    .from('price_map')
+    .select('external_id,tcg_cards!inner(id)')
+    .eq('tcg_cards.id', cardId)
+    .limit(1);
+  if (error || !data?.length) return null;
+  return (data[0] as { external_id: number }).external_id ?? null;
+}
+
 export function fetchSeries(): Promise<string[]> {
   return rpc<string[]>('meta_series');
 }

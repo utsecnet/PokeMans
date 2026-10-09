@@ -73,22 +73,48 @@ const CONCURRENCY = 4;
 const safeFileName = (s) => String(s).replace(/[^a-zA-Z0-9._-]/g, '');
 
 /**
- * Where the artwork lives upstream.
+ * Where the artwork lives upstream, best source first.
  *
- * Built from the set and the card number rather than read from a column. The URLs used to
- * be stored on tcg_cards and were dropped once nothing rendered them -- the client names
- * every image from the card id -- and this is the one place that still needs the upstream
- * address, so it derives it rather than keeping three columns alive for one script.
+ * Measured across 80 cards spread over the whole catalogue, oldest to newest:
+ *
+ *     era        pokemontcg.io      tcgplayer
+ *     WotC        7/7  @ 600px      7/7  @ 371px
+ *     2003-10    15/15 @ 605px     14/15 @ 400px
+ *     2011-19    27/27 @ 734px     27/27 @ 393px
+ *     2020+      28/31 @ 756px     31/31 @ 395px
+ *
+ * pokemontcg.io is roughly double the resolution and is the right first choice, but it has
+ * not caught up with the newest sets -- every one of its misses was 2020 or later, Pitch
+ * Black among them, where it answers 404 with a picture of the back of a card. TCGplayer
+ * has those, capped at 400px wide: short of the 408 the lightbox draws at, and still far
+ * better than a thumbnail or a card back.
+ *
+ * Their CDN serves only _200w and _400w; every other size answers 403, so 400 is the
+ * ceiling rather than a choice.
+ *
+ * pokemontcg.io addresses are built from the set and number rather than read from a column,
+ * because the stored URLs were dropped once nothing rendered them. TCGplayer's need the
+ * product id, which price_map already holds for 32,265 printings.
  */
-const sourceUrl = (card, hires) =>
-  `https://images.pokemontcg.io/${card.set_id}/${card.number}${hires ? '_hires' : ''}.png`;
+const sourceUrls = (card, productId) => [
+  `https://images.pokemontcg.io/${card.set_id}/${encodeURIComponent(card.number)}_hires.png`,
+  `https://images.pokemontcg.io/${card.set_id}/${encodeURIComponent(card.number)}.png`,
+  productId ? `https://tcgplayer-cdn.tcgplayer.com/product/${productId}_400w.jpg` : null,
+].filter(Boolean);
 
 async function main() {
-  const cards = await selectAll('tcg_cards', 'id,set_id,number',
+  const cards = await selectAll('tcg_cards', 'id,ref,set_id,number',
     (q) => (ONE_SET ? q.eq('set_id', ONE_SET) : q));
   if (!cards.length) {
     console.error(ONE_SET ? `   no cards in set ${ONE_SET}.` : '   no cards in the catalogue.');
     process.exit(2);
+  }
+
+  // TCGplayer product ids, for the cards pokemontcg.io does not hold. One per card is
+  // enough: every printing of a card shares its artwork.
+  const productFor = new Map();
+  for (const m of await selectAll('price_map', 'card_ref,external_id')) {
+    if (!productFor.has(m.card_ref)) productFor.set(m.card_ref, m.external_id);
   }
 
   let wanted = cards;
@@ -131,11 +157,23 @@ async function main() {
       try {
         // One download, both sizes. Asking for the thumbnail separately would double the
         // requests on a run that already makes twenty thousand.
-        let res = await fetch(sourceUrl(card, true));
-        // A handful of cards have no _hires on the CDN; the plain one still beats nothing.
-        if (!res.ok) res = await fetch(sourceUrl(card, false));
-        if (!res.ok) { failed++; missing.push(card.id); continue; }
-        const source = Buffer.from(await res.arrayBuffer());
+        // Each source in turn, taking the first that answers properly.
+        //
+        // res.ok matters more than it looks: images.pokemontcg.io replies to a card it does
+        // not hold with 404 and a real 640x892 png of the back of a card, so anything that
+        // only asks "did bytes arrive" accepts the back as the artwork.
+        let source = null;
+        for (const url of sourceUrls(card, productFor.get(card.ref))) {
+          try {
+            const res = await fetch(url);
+            if (!res.ok) continue;
+            source = Buffer.from(await res.arrayBuffer());
+            break;
+          } catch {
+            // Rate limited or unreachable; try the next source rather than give up on the card.
+          }
+        }
+        if (!source) { failed++; missing.push(card.id); continue; }
 
         const full = await sharp(source)
           .resize({ width: FULL_MAX_WIDTH, withoutEnlargement: true })
