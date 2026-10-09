@@ -216,50 +216,6 @@ export interface CardPrinting {
   label: string;
 }
 
-export interface CardPriceBucket {
-  marketPrice?: number | null;
-  lowPrice?: number | null;
-  midPrice?: number | null;
-  highPrice?: number | null;
-}
-
-export interface CardVariantPricing {
-  position: number;
-  type: string;
-  label: string;
-  tcgplayer: (Record<string, CardPriceBucket> & { unit?: string; updated?: string }) | null;
-}
-
-export interface CardPricing {
-  cardId: string;
-  updated: string | null;
-  variants: CardVariantPricing[];
-  /**
-   * False when the price rows couldn't be lined up with the stored printings, in which case
-   * labels fall back to the bare finish rather than risk naming the wrong printing.
-   */
-  aligned?: boolean;
-  unavailable?: string;
-}
-
-/** An external service the user can link with their own API key. */
-export interface LinkedAccount {
-  id: string;
-  name: string;
-  site: string;
-  signupUrl: string;
-  summary: string | null;
-  keyLabel: string;
-  keyPlaceholder: string;
-  linked: boolean;
-  /** Masked fragment of the stored key — the key itself is never returned. */
-  keyHint: string | null;
-  linkedAt: string | null;
-  lastVerifiedAt: string | null;
-  /** Last observed API allowance, for providers that report one. Null until one is seen. */
-  quota: ApiQuota | null;
-}
-
 /**
  * An API allowance as the provider last reported it.
  *
