@@ -107,10 +107,10 @@ function longDate(iso: string) {
  * nothing about what is in between -- on a two-year chart there was no way to tell which
  * part of it a peak sat in.
  */
-function tickIndices(count: number, want = 5) {
-  if (count <= 1) return [0];
-  const n = Math.min(want, count);
-  return Array.from({ length: n }, (_, i) => Math.round((i * (count - 1)) / (n - 1)));
+function axisTicks(firstMs: number, lastMs: number, want = 5) {
+  if (!(lastMs > firstMs)) return [firstMs];
+  return Array.from({ length: want }, (_, i) =>
+    Math.round(firstMs + ((lastMs - firstMs) * i) / (want - 1)));
 }
 
 function money(value: number, currency: string) {
@@ -245,7 +245,12 @@ const RANGES: { label: string; days: number | null }[] = [
   { label: 'All', days: null },
 ];
 
-function Chart({ chart, maxHeight }: { chart: PriceChart; maxHeight: number | null }) {
+function Chart({ chart, maxHeight, windowDays }: {
+  chart: PriceChart;
+  maxHeight: number | null;
+  /** The chosen range in days, or null for everything held. Sets the axis, not the data. */
+  windowDays: number | null;
+}) {
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const wrapRef = useRef<HTMLDivElement>(null);
   const legendRef = useRef<HTMLDivElement>(null);
@@ -276,8 +281,23 @@ function Chart({ chart, maxHeight }: { chart: PriceChart; maxHeight: number | nu
    * of the chart and a year squeezed into the rest. The line would be the wrong shape,
    * which on a price chart is the only thing that matters.
    */
-  const firstMs = Date.parse(dates[0] + 'T00:00:00Z');
-  const lastMs = Date.parse(dates[dates.length - 1] + 'T00:00:00Z');
+  // The axis spans the range that was asked for, not the data that came back.
+  //
+  // Taking the ends from the data meant a card with three weeks of history drew those three
+  // weeks across the full width of a three-year view, and the same button on two cards
+  // covered different amounts of time. One pixel has to mean the same thing on every card
+  // or the ranges are not comparable, and a short line filling the frame reads as a long
+  // one. A card younger than the window now occupies its own corner of it, with the empty
+  // stretch before it saying plainly that nothing was recorded then.
+  //
+  // "All" is the exception and keeps the data's own extent, because there the data is the
+  // range: it means everything held, and for most cards that is the same span anyway.
+  const dataFirstMs = Date.parse(dates[0] + 'T00:00:00Z');
+  const dataLastMs = Date.parse(dates[dates.length - 1] + 'T00:00:00Z');
+  const lastMs = dataLastMs;
+  const firstMs = windowDays === null
+    ? dataFirstMs
+    : Math.min(dataFirstMs, lastMs - windowDays * 86400000);
   const spanMs = lastMs - firstMs;
   const spanDays = Math.max(1, Math.round(spanMs / 86400000));
   const x = (date: string) =>
@@ -423,18 +443,24 @@ function Chart({ chart, maxHeight }: { chart: PriceChart; maxHeight: number | nu
         })}
 
         {/* Several labels across the axis rather than only the two ends, each anchored so
-            the first and last sit inside the plot instead of overhanging it. */}
-        {tickIndices(dates.length).map((i, n, all) => (
+            the first and last sit inside the plot instead of overhanging it.
+
+            Spaced across the axis by time, not picked out of the data by index. Now that a
+            card younger than the window occupies only part of the frame, labels taken from
+            the points would all crowd into that part and leave the empty stretch unmarked --
+            which is the half a reader most needs told, because it is the half with no line
+            in it. */}
+        {axisTicks(firstMs, lastMs).map((ms, n, all) => (
           <text
-            key={dates[i]}
-            x={x(dates[i])}
+            key={ms}
+            x={PAD.left + (spanMs <= 0 ? plotW / 2 : ((ms - firstMs) / spanMs) * plotW)}
             y={HEIGHT - 5}
             fontSize="11"
             fontWeight={n === 0 || n === all.length - 1 ? '500' : '400'}
             textAnchor={n === 0 ? 'start' : n === all.length - 1 ? 'end' : 'middle'}
             fill={n === 0 || n === all.length - 1 ? 'var(--color-text)' : 'var(--color-text-muted)'}
           >
-            {axisDate(dates[i], spanDays)}
+            {axisDate(new Date(ms).toISOString().slice(0, 10), spanDays)}
           </text>
         ))}
       </svg>
@@ -595,7 +621,12 @@ export function PriceHistoryChart({
       </div>
 
       <div className="mt-2">
-        <Chart key={`${chart.service}-${range ?? 'all'}`} chart={windowed} maxHeight={maxHeight} />
+        <Chart
+            key={`${chart.service}-${range ?? 'all'}`}
+            chart={windowed}
+            maxHeight={maxHeight}
+            windowDays={range}
+          />
       </div>
 
       {/* Ranges below the plot, as a trading chart puts them. A window reaching further back
