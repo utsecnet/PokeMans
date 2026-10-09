@@ -56,6 +56,40 @@ export function isStarRarity(rarity: string | null | undefined) {
   return rarity ? STARRED.includes(rarityGlyph(rarity).shape) : false;
 }
 
+/**
+ * Which foil a card is printed with, as far as the tilt view is concerned.
+ *
+ * Not a cosmetic grading of rarity: these are four physically different materials, and the
+ * light does different things to each. A 1999 holo and a 2024 Hyper Rare are both "rare"
+ * and look nothing alike in the hand.
+ *
+ *   cosmos    The swirling galaxy foil of the WotC era, and only inside the illustration
+ *             window -- the border of a Base Set holo is plain card stock. Dated rather
+ *             than named, because the rarity string is the same "Rare Holo" either side of
+ *             the handover; Nintendo took the licence in mid-2003 and the foil changed.
+ *   etch      Illustration and Ultra Rares, whose foil is etched in fine parallel lines
+ *             across the whole face rather than stamped in shapes.
+ *   sparkle   Hyper, Secret and Rainbow Rares: dense fine glitter over everything.
+ *   stars     Everything else the catalogue marks with a star.
+ */
+export type FoilKind = 'cosmos' | 'etch' | 'sparkle' | 'stars';
+
+/** When Nintendo took the licence from Wizards of the Coast and the foil stock changed. */
+const WOTC_ENDS = '2003-07-01';
+
+export function foilFor(
+  rarity: string | null | undefined,
+  releaseDate: string | null | undefined,
+): FoilKind | null {
+  if (!rarity) return null;
+  const { shape } = rarityGlyph(rarity);
+  if (!STARRED.includes(shape)) return null;
+  if (shape === 'crown') return 'sparkle';
+  if (shape === 'double-star') return 'etch';
+  // A plain star, so the era decides.
+  return releaseDate && releaseDate < WOTC_ENDS ? 'cosmos' : 'stars';
+}
+
 export function RarityIcon({ rarity }: { rarity: string; active?: boolean }) {
   const { shape, tone } = rarityGlyph(rarity);
 

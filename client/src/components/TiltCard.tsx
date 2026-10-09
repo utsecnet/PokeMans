@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CardImage } from './CardImage';
+import type { FoilKind } from './RarityIcon';
 import type { RefObject } from 'react';
 
 const TAP_SLOP = 8; // px of travel that turns a tap into a drag
@@ -54,7 +55,7 @@ export function TiltCard({
   alt,
   onActivate,
   maxTilt = 12,
-  stars = false,
+  foil = null,
   className = '',
   imageClassName = '',
   imageRef,
@@ -65,11 +66,11 @@ export function TiltCard({
   onActivate?: () => void;
   maxTilt?: number;
   /**
-   * Whether the room's light is star-shaped for this card. Deliberately a boolean and not a
-   * rarity: what makes a card rare is the caller's problem, and this component's is only
-   * ever the light.
+   * Which foil this card is printed with, or null for plain stock. Deliberately a material
+   * and not a rarity: what makes a card rare is the caller's problem, and this component's
+   * is only ever what the light does when it gets here.
    */
-  stars?: boolean;
+  foil?: FoilKind | null;
   className?: string;
   imageClassName?: string;
   imageRef?: RefObject<HTMLImageElement | null>;
@@ -252,11 +253,15 @@ export function TiltCard({
             the foil stamped on the card, and what shows is the overlap. mask-composite would
             express that in one element, but intersect composites to nothing in Chrome here
             — verified with a flat red fill, both as `intersect` and as `intersect, add`. */}
-        {stars && (
-          <span className="tilt-stars" aria-hidden="true">
-            <span className="tilt-stars-foil" />
+        {foil && (
+          <span className={`tilt-foil tilt-foil-${foil}`} aria-hidden="true">
+            <span className="tilt-foil-prism" />
           </span>
         )}
+        {/* The card's own edge, catching the light last because it sits above the face.
+            Which edge brightens follows from the lean, the same way everything else here
+            does -- lean the top back and the bottom edge is the one turned into the light. */}
+        <span className="tilt-rim" aria-hidden="true" />
       </span>
     </button>
   );
