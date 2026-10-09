@@ -94,5 +94,4 @@ supabase/
   scripts/
     catalogue/       builds the catalogue from upstream, straight into Postgres
   tests/             policy and behaviour tests
-docs/                generated architecture documents
 ```
