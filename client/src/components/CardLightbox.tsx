@@ -103,20 +103,57 @@ export function CardLightbox({
     setHires(null);
     if (!largeFor) return;
     let cancelled = false;
+    let objectUrl: string | null = null;
 
-    // Local first, upstream second. TiltCard cross-fades whatever finally arrives, so the
-    // only job here is to decode it off-screen and never hand over a URL that fails.
-    const sources = [largeUrl, upstreamUrl].filter((u): u is string => !!u);
-    const attempt = (i: number) => {
-      if (cancelled || i >= sources.length) return;
-      const pre = new Image();
-      pre.onload = () => { if (!cancelled) setHires({ cardId: largeFor, url: sources[i] }); };
-      pre.onerror = () => attempt(i + 1);
-      pre.src = sources[i];
+    (async () => {
+      // Local first. A missing file here is served by the dev server as index.html, which an
+      // <img> cannot decode, so a plain load is enough to tell hit from miss.
+      if (largeUrl) {
+        const ok = await new Promise<boolean>((resolve) => {
+          const pre = new Image();
+          pre.onload = () => resolve(true);
+          pre.onerror = () => resolve(false);
+          pre.src = largeUrl;
+        });
+        if (cancelled) return;
+        if (ok) {
+          setHires({ cardId: largeFor, url: largeUrl });
+          return;
+        }
+      }
+
+      // Upstream second, and this one has to be fetched rather than loaded.
+      //
+      // images.pokemontcg.io answers a card it does not hold with 404 and a picture of the
+      // back of a card -- a real 186KB png, not an error page. An <img> does not look at the
+      // status, only at whether the bytes decode, so onload fires and the back is shown as
+      // though it were the card. Whole recent sets are missing that way: every card in
+      // Pitch Black came back as a card back.
+      //
+      // So the status is checked first and the bytes already in hand are handed to the
+      // <img> as a blob, which also means the picture is not downloaded twice.
+      if (!upstreamUrl) return;
+      try {
+        const res = await fetch(upstreamUrl);
+        if (cancelled || !res.ok) return;
+        const blob = await res.blob();
+        if (cancelled || !blob.type.startsWith('image/')) return;
+        objectUrl = URL.createObjectURL(blob);
+        setHires({ cardId: largeFor, url: objectUrl });
+      } catch {
+        // Offline, rate limited, or the host is down. Going through fetch rather than an
+        // <img> means a transient failure costs the upgrade where a plain load might have
+        // got it -- the trade for being able to see the status at all. The thumbnail stands,
+        // which is the floor this whole path is built on.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      // Freed on the way out rather than when the image unmounts: this effect owns the URL,
+      // and a card flicked past quickly would otherwise leak one blob per card.
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-    attempt(0);
-
-    return () => { cancelled = true; };
   }, [largeFor, largeUrl, upstreamUrl]);
 
   useEffect(() => {
