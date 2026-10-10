@@ -19,6 +19,62 @@
 const IMAGES = '/images/';
 
 /**
+ * Full-size card art, captured the first time anyone looks at it.
+ *
+ * Most cards have no vendored hi-res copy -- 246 of 20,635 at the time of writing -- and the
+ * client used to paper over that by fetching images.pokemontcg.io itself, once per view,
+ * forever, from the browser. Doing it here instead means the page only ever talks to this
+ * origin, and the second viewer of a card is served from R2.
+ *
+ * The capture stores the upstream png as-is, because the conversion cannot happen here.
+ * cardart.mjs converts with sharp, a native binary that a Worker isolate cannot load, and a
+ * wasm avif encoder wants seconds of CPU against a 10ms budget. So the raw file is parked in
+ * HI_RAW and cardart.mjs drains it into HI_OUT later, which is a batch job that already
+ * exists. Until it runs, the first viewer pays 754KB where the converted copy is 56KB.
+ */
+const HI_OUT = 'cards-hi/';
+const HI_RAW = 'cards-hi-raw/';
+
+/**
+ * Splits a card id into the set and number that address it upstream.
+ *
+ * "base1-4" is set base1 number 4, and the last hyphen is the divider because set ids contain
+ * them too -- "tk1a-1" is tk1a number 1, not tk and "1a-1". Numbers holding a character that
+ * safeFileName encoded (a slash, a star) will not round-trip; those miss upstream and fall
+ * through to a 404, which is the same answer they get today.
+ */
+function upstreamFor(cardId) {
+  const cut = cardId.lastIndexOf('-');
+  if (cut <= 0 || cut === cardId.length - 1) return null;
+  const setId = cardId.slice(0, cut);
+  const number = cardId.slice(cut + 1);
+  return `https://images.pokemontcg.io/${setId}/${encodeURIComponent(number)}_hires.png`;
+}
+
+/**
+ * Fetches the upstream card art, or nothing.
+ *
+ * The status check is the whole point. images.pokemontcg.io answers a card it does not hold
+ * with 404 and a real 186KB png of the back of a card -- not an error page, a picture that
+ * decodes. An <img> never sees the status, which is why card backs used to appear in the
+ * lightbox. Here it would be worse than a wrong picture: the back would be written into R2
+ * under that card's name and served to everyone from then on, and no retry would ever
+ * correct it.
+ */
+async function fetchUpstream(url) {
+  let res;
+  try {
+    res = await fetch(url, { cf: { cacheTtl: 0 } });
+  } catch {
+    return null;                                   // offline, rate limited, host down
+  }
+  if (!res.ok) return null;                        // the card-back case
+  const type = res.headers.get('content-type') ?? '';
+  if (!type.startsWith('image/')) return null;
+  return res;
+}
+
+/**
  * A year, immutable.
  *
  * A filename is derived from a card id and that artwork does not change. When one does, the
@@ -51,8 +107,56 @@ function imageHeaders(object, key) {
   return headers;
 }
 
+/**
+ * The converted copy, else the captured one, else go and get it.
+ *
+ * Returns null when the converted copy exists, so the ordinary read below handles it with
+ * the range and conditional support that path already has. Only the uncommon cases -- not
+ * yet converted, or not yet seen at all -- are answered here, and they are answered whole,
+ * because a client asking for a byte range of a file that does not exist yet is not a case
+ * worth carrying.
+ */
+async function serveOrCaptureHiRes(key, request, env, ctx) {
+  if (await env.IMAGES.head(key)) return null;
+
+  const cardId = key.slice(HI_OUT.length, -'.avif'.length);
+  const rawKey = `${HI_RAW}${cardId}.png`;
+
+  const raw = await env.IMAGES.get(rawKey);
+  if (raw) {
+    const headers = imageHeaders(raw, rawKey);
+    headers.set('content-length', String(raw.size));
+    return new Response(request.method === 'HEAD' ? null : raw.body, { status: 200, headers });
+  }
+
+  const upstream = upstreamFor(cardId);
+  if (!upstream) return new Response('Not found', { status: 404 });
+
+  const res = await fetchUpstream(upstream);
+  if (!res) return new Response('Not found', { status: 404 });
+
+  // One body, two consumers: the viewer waiting on it and the bucket. tee() lets the write
+  // happen alongside the response rather than after it, so nobody waits for R2.
+  const [toViewer, toBucket] = res.body.tee();
+  ctx.waitUntil(
+    env.IMAGES.put(rawKey, toBucket, {
+      httpMetadata: { contentType: 'image/png', cacheControl: IMMUTABLE },
+    }).catch(() => {
+      // A failed capture costs one re-fetch next time and nothing else. Never let it reach
+      // the viewer, who already has their picture.
+    }),
+  );
+
+  const headers = new Headers({
+    'content-type': 'image/png',
+    'cache-control': IMMUTABLE,
+    'access-control-allow-origin': '*',
+  });
+  return new Response(request.method === 'HEAD' ? null : toViewer, { status: 200, headers });
+}
+
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
     if (url.pathname.startsWith(IMAGES)) {
@@ -62,6 +166,13 @@ export default {
 
       const key = decodeURIComponent(url.pathname.slice(IMAGES.length));
       if (!key || key.includes('..')) return new Response('Not found', { status: 404 });
+
+      // Hi-res art is the one thing that can be missing and then stop being missing. Checked
+      // before the ordinary read so the two staging locations are tried in order.
+      if (key.startsWith(HI_OUT) && key.endsWith('.avif')) {
+        const captured = await serveOrCaptureHiRes(key, request, env, ctx);
+        if (captured) return captured;
+      }
 
       // Whether this is a range response is decided by the request, not by the reply. R2
       // fills in object.range whenever headers are handed to get(), describing the span it
