@@ -34,6 +34,15 @@ const IMAGES = '/images/';
  */
 const HI_OUT = 'cards-hi/';
 const HI_RAW = 'cards-hi-raw/';
+const THUMB_OUT = 'cards/';
+
+/**
+ * The encode settings, matching cardart.mjs so a card captured here is indistinguishable
+ * from one vendored in a batch. 245 is the width the grid draws; 700 covers the lightbox at
+ * better than 1.7x without storing pixels nobody will see.
+ */
+const THUMB_IMAGE = { format: 'avif', width: 245, quality: 55, fit: 'scale-down' };
+const FULL_IMAGE = { format: 'avif', width: 700, quality: 60, fit: 'scale-down' };
 
 /**
  * Splits a card id into the set and number that address it upstream.
@@ -79,10 +88,17 @@ function tcgplayerFor(productId) {
  * under that card's name and served to everyone from then on, and no retry would ever
  * correct it.
  */
-async function fetchUpstream(url) {
+async function fetchUpstream(url, image) {
   let res;
   try {
-    res = await fetch(url, { cf: { cacheTtl: 0 } });
+    // cf.image resizes and re-encodes at the edge on the way through, so what comes back is
+    // already avif at the right width. That is the whole reason this Worker can finish the
+    // job: sharp is a native binary an isolate cannot load, and without the transform the
+    // only options were staging the original for a machine that has sharp, or a CI runner.
+    //
+    // The URL form, /cdn-cgi/image/..., refuses a source on another zone with a 403. Only
+    // the binding form reaches an arbitrary origin.
+    res = await fetch(url, { cf: { cacheTtl: 0, ...(image ? { image } : {}) } });
   } catch {
     return null;                                   // offline, rate limited, host down
   }
@@ -134,55 +150,75 @@ function imageHeaders(object, key) {
  * because a client asking for a byte range of a file that does not exist yet is not a case
  * worth carrying.
  */
-async function serveOrCaptureHiRes(key, request, env, ctx, productId) {
+async function serveOrCapture(key, request, env, ctx, productId) {
   if (await env.IMAGES.head(key)) return null;
 
-  const cardId = key.slice(HI_OUT.length, -'.avif'.length);
+  const thumb = key.startsWith(THUMB_OUT);
+  const prefix = thumb ? THUMB_OUT : HI_OUT;
+  const cardId = key.slice(prefix.length, -'.avif'.length);
 
-  // Captured but not yet converted. Either extension may be waiting: pokemontcg.io serves
-  // png and TCGplayer serves jpeg, and the staged file keeps whichever it actually is so the
-  // drain can hand sharp something that matches its bytes.
-  for (const ext of ['png', 'jpg']) {
-    const rawKey = `${HI_RAW}${cardId}.${ext}`;
-    const raw = await env.IMAGES.get(rawKey);
-    if (!raw) continue;
-    const headers = imageHeaders(raw, rawKey);
-    headers.set('content-length', String(raw.size));
-    return new Response(request.method === 'HEAD' ? null : raw.body, { status: 200, headers });
+  // Anything left over from before the edge transform, when the original was parked here for
+  // a machine with sharp to collect. Nothing writes these now; this drains the last of them
+  // rather than re-fetching a card already paid for.
+  if (!thumb) {
+    for (const ext of ['png', 'jpg']) {
+      const rawKey = `${HI_RAW}${cardId}.${ext}`;
+      const raw = await env.IMAGES.get(rawKey);
+      if (!raw) continue;
+      const headers = imageHeaders(raw, rawKey);
+      headers.set('content-length', String(raw.size));
+      return new Response(request.method === 'HEAD' ? null : raw.body, { status: 200, headers });
+    }
   }
 
-  // Best source first. TCGplayer caps at 400px, so it is only worth reaching for once
-  // pokemontcg.io has said no.
-  const sources = [
-    { url: upstreamFor(cardId), type: 'image/png', ext: 'png' },
-    { url: tcgplayerFor(productId), type: 'image/jpeg', ext: 'jpg' },
-  ].filter((s) => s.url);
+  const captured = await captureFrom(
+    [upstreamFor(cardId), tcgplayerFor(productId)],
+    key,
+    thumb ? THUMB_IMAGE : FULL_IMAGE,
+    env,
+    ctx,
+  );
+  return captured ?? new Response('Not found', { status: 404 });
+}
 
-  for (const source of sources) {
-    const res = await fetchUpstream(source.url);
+/**
+ * Fetches from the first source that answers, stores the converted result, serves it.
+ *
+ * Sources are tried in order of quality: pokemontcg.io gives 600 to 756 wide, TCGplayer caps
+ * at 400 because 1000w answers 403, so TCGplayer is only worth reaching for once the first
+ * has said no -- which for the newest sets it always does.
+ *
+ * What lands in R2 is the converted avif, not the original, so there is no staging area to
+ * drain and no second machine in the loop. The viewer gets the same bytes.
+ */
+async function captureFrom(urls, key, image, env, ctx) {
+  for (const url of urls) {
+    if (!url) continue;
+    const res = await fetchUpstream(url, image);
     if (!res) continue;
 
     // One body, two consumers: the viewer waiting on it and the bucket. tee() lets the write
-    // happen alongside the response rather than after it, so nobody waits for R2.
+    // happen alongside the response rather than after it, so nobody waits on R2.
     const [toViewer, toBucket] = res.body.tee();
     ctx.waitUntil(
-      env.IMAGES.put(`${HI_RAW}${cardId}.${source.ext}`, toBucket, {
-        httpMetadata: { contentType: source.type, cacheControl: IMMUTABLE },
+      env.IMAGES.put(key, toBucket, {
+        httpMetadata: { contentType: 'image/avif', cacheControl: IMMUTABLE },
       }).catch(() => {
-        // A failed capture costs one re-fetch next time and nothing else. Never let it reach
+        // A failed store costs one re-fetch next time and nothing else. It must never reach
         // the viewer, who already has their picture.
       }),
     );
 
-    const headers = new Headers({
-      'content-type': source.type,
-      'cache-control': IMMUTABLE,
-      'access-control-allow-origin': '*',
+    return new Response(toViewer, {
+      status: 200,
+      headers: new Headers({
+        'content-type': 'image/avif',
+        'cache-control': IMMUTABLE,
+        'access-control-allow-origin': '*',
+      }),
     });
-    return new Response(request.method === 'HEAD' ? null : toViewer, { status: 200, headers });
   }
-
-  return new Response('Not found', { status: 404 });
+  return null;
 }
 
 export default {
@@ -199,8 +235,10 @@ export default {
 
       // Hi-res art is the one thing that can be missing and then stop being missing. Checked
       // before the ordinary read so the two staging locations are tried in order.
-      if (key.startsWith(HI_OUT) && key.endsWith('.avif')) {
-        const captured = await serveOrCaptureHiRes(key, request, env, ctx, url.searchParams.get('tcg'));
+      // The two capturable kinds. Both are checked before the ordinary read so a miss can
+      // become a hit rather than a 404; everything else in the bucket is static.
+      if (key.endsWith('.avif') && (key.startsWith(HI_OUT) || key.startsWith(THUMB_OUT))) {
+        const captured = await serveOrCapture(key, request, env, ctx, url.searchParams.get('tcg'));
         if (captured) return captured;
       }
 
