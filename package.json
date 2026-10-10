@@ -18,7 +18,8 @@
     "test:merge": "node supabase/tests/merge-anonymous.mjs",
     "test:sweep": "node supabase/tests/sweep-anonymous.mjs",
     "test:supabase": "npm run test:regression && npm run test:rls && npm run test:collection && npm run test:wants && npm run test:sync && npm run test:merge && npm run test:sweep",
-    "test": "npm test -w client && npm run test:supabase"
+    "test": "npm test -w client && npm run test:supabase",
+    "deploy": "npm run deploy -w client"
   },
   "devDependencies": {
     "@aws-sdk/client-s3": "^3.1149.0",
