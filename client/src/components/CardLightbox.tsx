@@ -84,91 +84,58 @@ export function CardLightbox({
   const largeUrl = card?.imageLarge ?? null;
   const largeFor = card?.id ?? null;
 
-  // Where the scan lives upstream, used only when we do not hold it.
+  // Fetches the full-size scan, which is always from our own origin now.
   //
-  // This is a deliberate exception to the rule that the app fetches nothing from another
-  // site while someone is using it, taken knowingly until the artwork is vendored to object
-  // storage. 126 cards of 20,635 have a local copy; the rest would show a thumbnail for
-  // ever. When the bucket is filled the local path will hit for every card and this branch
-  // will stop being reached without anything having to be removed.
+  // The two upstream sources used to be fetched from here, which meant the page reached out
+  // to images.pokemontcg.io on nearly every card -- 246 of 20,635 had a local copy -- and to
+  // TCGplayer on the newest sets. The Worker does that now and keeps what it gets, so the
+  // second person to open a card is served from R2 and the browser only ever talks to one
+  // host.
   //
-  // Built from the set and number because the stored URL columns were dropped once nothing
-  // rendered them. Only the full-size scan is ever fetched this way -- the thumbnail the
-  // grid draws is always local.
-  const upstreamUrl = card?.setId && card?.number
-    ? `https://images.pokemontcg.io/${card.setId}/${encodeURIComponent(card.number)}_hires.png`
-    : null;
-
+  // That also removes the blob dance. Those fetches had to check the HTTP status, because
+  // pokemontcg.io answers a card it does not hold with 404 and a real png of the back of a
+  // card, which an <img> cannot tell from the real thing. The Worker makes that check before
+  // anything is stored, so a plain load is trustworthy again.
   useEffect(() => {
     setHires(null);
-    if (!largeFor) return;
+    if (!largeFor || !largeUrl) return;
     let cancelled = false;
-    let objectUrl: string | null = null;
+
+    // A miss is still a load failure rather than an error we can read: the dev server answers
+    // an absent file with index.html, which an <img> cannot decode.
+    const load = (url: string) =>
+      new Promise<boolean>((resolve) => {
+        const pre = new Image();
+        pre.onload = () => resolve(true);
+        pre.onerror = () => resolve(false);
+        pre.src = url;
+      });
 
     (async () => {
-      // Local first. A missing file here is served by the dev server as index.html, which an
-      // <img> cannot decode, so a plain load is enough to tell hit from miss.
-      if (largeUrl) {
-        const ok = await new Promise<boolean>((resolve) => {
-          const pre = new Image();
-          pre.onload = () => resolve(true);
-          pre.onerror = () => resolve(false);
-          pre.src = largeUrl;
-        });
-        if (cancelled) return;
-        if (ok) {
-          setHires({ cardId: largeFor, url: largeUrl });
-          return;
-        }
+      if (await load(largeUrl)) {
+        if (!cancelled) setHires({ cardId: largeFor, url: largeUrl });
+        return;
       }
-
-      // Upstream second, and these have to be fetched rather than loaded.
-      //
-      // images.pokemontcg.io answers a card it does not hold with 404 and a picture of the
-      // back of a card -- a real 640x892 png, not an error page. An <img> does not look at
-      // the status, only at whether the bytes decode, so onload fires and the back is shown
-      // as though it were the card. So the status is checked first, and the bytes already in
-      // hand are handed to the <img> as a blob rather than downloaded a second time.
-      //
-      // TCGplayer last, because its ceiling is 400px wide against pokemontcg.io's 600 to 756
-      // -- every other size on their CDN answers 403. It is there because pokemontcg.io has
-      // not caught up with the newest sets, and that is exactly where it is strongest:
-      // across 80 cards spanning the catalogue, all three pokemontcg.io misses were 2020 or
-      // later and TCGplayer had every one of them.
-      const tryUrl = async (url: string) => {
-        try {
-          const res = await fetch(url);
-          if (cancelled || !res.ok) return false;
-          const blob = await res.blob();
-          if (cancelled || !blob.type.startsWith('image/')) return false;
-          objectUrl = URL.createObjectURL(blob);
-          setHires({ cardId: largeFor, url: objectUrl });
-          return true;
-        } catch {
-          // Offline, rate limited, or the host is down. Going through fetch rather than an
-          // <img> means a transient failure costs the upgrade where a plain load might have
-          // got it -- the trade for being able to see the status at all.
-          return false;
-        }
-      };
-
-      if (upstreamUrl && (await tryUrl(upstreamUrl))) return;
       if (cancelled) return;
 
-      // The product id is only looked up once the free options are exhausted, so the common
-      // card costs no extra query.
+      // Nothing here and nothing at pokemontcg.io. TCGplayer may still have it -- it is
+      // strongest on exactly the recent sets pokemontcg.io lags -- but it is addressed by
+      // product id, which only this side knows, from the price mapping already loaded for
+      // the price panel. Handing it over costs one query on a card that would otherwise show
+      // no scan at all, and lets the Worker capture it like any other.
       const productId = await fetchTcgplayerProductId(largeFor);
       if (cancelled || !productId) return;
-      await tryUrl(`https://tcgplayer-cdn.tcgplayer.com/product/${productId}_400w.jpg`);
+
+      const withProduct = `${largeUrl}?tcg=${productId}`;
+      if (await load(withProduct) && !cancelled) {
+        setHires({ cardId: largeFor, url: withProduct });
+      }
     })();
 
     return () => {
       cancelled = true;
-      // Freed on the way out rather than when the image unmounts: this effect owns the URL,
-      // and a card flicked past quickly would otherwise leak one blob per card.
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [largeFor, largeUrl, upstreamUrl]);
+  }, [largeFor, largeUrl]);
 
   useEffect(() => {
     if (provided) return;

@@ -52,7 +52,25 @@ function upstreamFor(cardId) {
 }
 
 /**
- * Fetches the upstream card art, or nothing.
+ * The second source, for the cards the first one has never heard of.
+ *
+ * images.pokemontcg.io lags the newest sets badly -- every card checked in Mega Evolution and
+ * the 30th anniversary sets 404s there while TCGplayer has all of them. 400w is the ceiling:
+ * 1000w answers 403, so this is 400px against pokemontcg.io's 600 to 756, which is why it is
+ * second and not first.
+ *
+ * The product id arrives as a query parameter because the client already looks it up from
+ * price_map to render prices. Fetching it here instead would mean a Supabase round trip from
+ * the edge and the service key living in a Worker secret, to learn something the caller
+ * already knows.
+ */
+function tcgplayerFor(productId) {
+  if (!/^[0-9]{1,12}$/.test(productId ?? '')) return null;   // it only ever addresses a number
+  return `https://tcgplayer-cdn.tcgplayer.com/product/${productId}_400w.jpg`;
+}
+
+/**
+ * Fetches card art from a source, or nothing.
  *
  * The status check is the whole point. images.pokemontcg.io answers a card it does not hold
  * with 404 and a real 186KB png of the back of a card -- not an error page, a picture that
@@ -116,43 +134,55 @@ function imageHeaders(object, key) {
  * because a client asking for a byte range of a file that does not exist yet is not a case
  * worth carrying.
  */
-async function serveOrCaptureHiRes(key, request, env, ctx) {
+async function serveOrCaptureHiRes(key, request, env, ctx, productId) {
   if (await env.IMAGES.head(key)) return null;
 
   const cardId = key.slice(HI_OUT.length, -'.avif'.length);
-  const rawKey = `${HI_RAW}${cardId}.png`;
 
-  const raw = await env.IMAGES.get(rawKey);
-  if (raw) {
+  // Captured but not yet converted. Either extension may be waiting: pokemontcg.io serves
+  // png and TCGplayer serves jpeg, and the staged file keeps whichever it actually is so the
+  // drain can hand sharp something that matches its bytes.
+  for (const ext of ['png', 'jpg']) {
+    const rawKey = `${HI_RAW}${cardId}.${ext}`;
+    const raw = await env.IMAGES.get(rawKey);
+    if (!raw) continue;
     const headers = imageHeaders(raw, rawKey);
     headers.set('content-length', String(raw.size));
     return new Response(request.method === 'HEAD' ? null : raw.body, { status: 200, headers });
   }
 
-  const upstream = upstreamFor(cardId);
-  if (!upstream) return new Response('Not found', { status: 404 });
+  // Best source first. TCGplayer caps at 400px, so it is only worth reaching for once
+  // pokemontcg.io has said no.
+  const sources = [
+    { url: upstreamFor(cardId), type: 'image/png', ext: 'png' },
+    { url: tcgplayerFor(productId), type: 'image/jpeg', ext: 'jpg' },
+  ].filter((s) => s.url);
 
-  const res = await fetchUpstream(upstream);
-  if (!res) return new Response('Not found', { status: 404 });
+  for (const source of sources) {
+    const res = await fetchUpstream(source.url);
+    if (!res) continue;
 
-  // One body, two consumers: the viewer waiting on it and the bucket. tee() lets the write
-  // happen alongside the response rather than after it, so nobody waits for R2.
-  const [toViewer, toBucket] = res.body.tee();
-  ctx.waitUntil(
-    env.IMAGES.put(rawKey, toBucket, {
-      httpMetadata: { contentType: 'image/png', cacheControl: IMMUTABLE },
-    }).catch(() => {
-      // A failed capture costs one re-fetch next time and nothing else. Never let it reach
-      // the viewer, who already has their picture.
-    }),
-  );
+    // One body, two consumers: the viewer waiting on it and the bucket. tee() lets the write
+    // happen alongside the response rather than after it, so nobody waits for R2.
+    const [toViewer, toBucket] = res.body.tee();
+    ctx.waitUntil(
+      env.IMAGES.put(`${HI_RAW}${cardId}.${source.ext}`, toBucket, {
+        httpMetadata: { contentType: source.type, cacheControl: IMMUTABLE },
+      }).catch(() => {
+        // A failed capture costs one re-fetch next time and nothing else. Never let it reach
+        // the viewer, who already has their picture.
+      }),
+    );
 
-  const headers = new Headers({
-    'content-type': 'image/png',
-    'cache-control': IMMUTABLE,
-    'access-control-allow-origin': '*',
-  });
-  return new Response(request.method === 'HEAD' ? null : toViewer, { status: 200, headers });
+    const headers = new Headers({
+      'content-type': source.type,
+      'cache-control': IMMUTABLE,
+      'access-control-allow-origin': '*',
+    });
+    return new Response(request.method === 'HEAD' ? null : toViewer, { status: 200, headers });
+  }
+
+  return new Response('Not found', { status: 404 });
 }
 
 export default {
@@ -170,7 +200,7 @@ export default {
       // Hi-res art is the one thing that can be missing and then stop being missing. Checked
       // before the ordinary read so the two staging locations are tried in order.
       if (key.startsWith(HI_OUT) && key.endsWith('.avif')) {
-        const captured = await serveOrCaptureHiRes(key, request, env, ctx);
+        const captured = await serveOrCaptureHiRes(key, request, env, ctx, url.searchParams.get('tcg'));
         if (captured) return captured;
       }
 

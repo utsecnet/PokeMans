@@ -133,7 +133,9 @@ async function main() {
   const converted = [];
 
   await pool(raw, CONCURRENCY, async (o) => {
-    const cardId = o.key.slice(RAW_PREFIX.length).replace(/\.png$/i, '');
+    // png from pokemontcg.io, jpg from TCGplayer; sharp reads both and the output is
+    // avif either way, so the extension only matters for stripping it off the id.
+    const cardId = o.key.slice(RAW_PREFIX.length).replace(/\.(png|jpe?g)$/i, '');
     try {
       const source = await body(o.key);
       const avif = await sharp(source)
