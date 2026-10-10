@@ -21,6 +21,7 @@
     "test": "npm test -w client && npm run test:supabase"
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "^3.1149.0",
     "concurrently": "^9.1.0"
   },
   "dependencies": {

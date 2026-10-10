@@ -1,0 +1,29 @@
+# Serves the built client and its images at https://pokemans.utsec.net/.
+#
+# A Worker rather than Pages because the images are read from R2 through a binding, which is
+# what keeps the bucket private. Each future app is its own subdomain and its own Worker,
+# deployed on its own schedule, sharing nothing.
+#
+#   npm run build
+#   npx wrangler deploy        from client/
+
+name = "pokemans"
+main = "worker.js"
+compatibility_date = "2026-10-10"
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+# Any path that is not a file is the router's business, so hand back index.html. Without
+# this, a reload on /settings is a 404.
+not_found_handling = "single-page-application"
+
+# The images, read straight from R2 rather than over a public hostname. The bucket needs no
+# public access this way, so nothing but this Worker can reach it.
+[[r2_buckets]]
+binding = "IMAGES"
+bucket_name = "pokemans-images"
+
+[[routes]]
+pattern = "pokemans.utsec.net/*"
+zone_name = "utsec.net"
