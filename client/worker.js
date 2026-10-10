@@ -47,6 +47,7 @@ function imageHeaders(object, key) {
   // For the Capacitor WebView, which loads from https://localhost and is cross-origin against
   // this host. Read-only and unauthenticated, so a wider origin list gives nothing away.
   headers.set('access-control-allow-origin', '*');
+  headers.set('accept-ranges', 'bytes');
   return headers;
 }
 
@@ -62,17 +63,37 @@ export default {
       const key = decodeURIComponent(url.pathname.slice(IMAGES.length));
       if (!key || key.includes('..')) return new Response('Not found', { status: 404 });
 
+      // Whether this is a range response is decided by the request, not by the reply. R2
+      // fills in object.range whenever headers are handed to get(), describing the span it
+      // returned -- which for an ordinary GET is the whole object. Trusting it meant every
+      // image came back 206 with no content-range and no content-length, which is a
+      // malformed partial response that happens to render in curl.
+      const wantsRange = request.headers.has('range');
+
       const object = await env.IMAGES.get(key, {
-        range: request.headers,
+        range: wantsRange ? request.headers : undefined,
         onlyIf: request.headers,
       });
       if (!object) return new Response('Not found', { status: 404 });
 
       const headers = imageHeaders(object, key);
-      // get() returns a body only when the conditional and range checks passed; without one
-      // this is a 304, and the status has to say so rather than sending an empty 200.
+
+      // get() returns a body only when the conditional check passed; without one this is a
+      // 304, and the status has to say so rather than sending an empty 200.
       if (!('body' in object)) return new Response(null, { status: 304, headers });
-      return new Response(object.body, { status: object.range ? 206 : 200, headers });
+
+      if (wantsRange && object.range) {
+        // R2 gives either {offset, length} or {suffix}; both have to become one content-range.
+        const { offset = 0, length, suffix } = object.range;
+        const start = suffix === undefined ? offset : object.size - suffix;
+        const count = suffix === undefined ? (length ?? object.size - start) : suffix;
+        headers.set('content-range', `bytes ${start}-${start + count - 1}/${object.size}`);
+        headers.set('content-length', String(count));
+        return new Response(object.body, { status: 206, headers });
+      }
+
+      headers.set('content-length', String(object.size));
+      return new Response(object.body, { status: 200, headers });
     }
 
     return env.ASSETS.fetch(request);
