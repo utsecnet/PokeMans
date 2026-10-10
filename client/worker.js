@@ -19,21 +19,19 @@
 const IMAGES = '/images/';
 
 /**
- * Full-size card art, captured the first time anyone looks at it.
+ * Card art, captured the first time anything asks for it.
  *
- * Most cards have no vendored hi-res copy -- 246 of 20,635 at the time of writing -- and the
- * client used to paper over that by fetching images.pokemontcg.io itself, once per view,
+ * The client used to cover the gaps by fetching images.pokemontcg.io itself, once per view,
  * forever, from the browser. Doing it here instead means the page only ever talks to this
  * origin, and the second viewer of a card is served from R2.
  *
- * The capture stores the upstream png as-is, because the conversion cannot happen here.
- * cardart.mjs converts with sharp, a native binary that a Worker isolate cannot load, and a
- * wasm avif encoder wants seconds of CPU against a 10ms budget. So the raw file is parked in
- * HI_RAW and cardart.mjs drains it into HI_OUT later, which is a batch job that already
- * exists. Until it runs, the first viewer pays 754KB where the converted copy is 56KB.
+ * Both sizes capture the same way, and both store the finished avif -- see fetchUpstream for
+ * why nothing has to be converted afterwards. Thumbnails additionally get filled in ahead of
+ * time by the admin page, because the gap is always the newest set and that is the set
+ * everybody opens the week it lands; a grid that has to fetch twenty thousand cards is a grid
+ * that stutters, where one card in a lightbox is one card.
  */
 const HI_OUT = 'cards-hi/';
-const HI_RAW = 'cards-hi-raw/';
 const THUMB_OUT = 'cards/';
 
 /**
@@ -156,20 +154,6 @@ async function serveOrCapture(key, request, env, ctx, productId) {
   const thumb = key.startsWith(THUMB_OUT);
   const prefix = thumb ? THUMB_OUT : HI_OUT;
   const cardId = key.slice(prefix.length, -'.avif'.length);
-
-  // Anything left over from before the edge transform, when the original was parked here for
-  // a machine with sharp to collect. Nothing writes these now; this drains the last of them
-  // rather than re-fetching a card already paid for.
-  if (!thumb) {
-    for (const ext of ['png', 'jpg']) {
-      const rawKey = `${HI_RAW}${cardId}.${ext}`;
-      const raw = await env.IMAGES.get(rawKey);
-      if (!raw) continue;
-      const headers = imageHeaders(raw, rawKey);
-      headers.set('content-length', String(raw.size));
-      return new Response(request.method === 'HEAD' ? null : raw.body, { status: 200, headers });
-    }
-  }
 
   const captured = await captureFrom(
     [upstreamFor(cardId), tcgplayerFor(productId)],
