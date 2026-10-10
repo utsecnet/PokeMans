@@ -1,6 +1,34 @@
+import { rmSync } from 'node:fs'
+import { resolve } from 'node:path'
+
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
+
+/**
+ * The vendored images live in public/ so the dev server can serve them, and Vite copies
+ * everything in public/ into the build. In production they come from R2 instead, so copying
+ * them is not merely wasteful: dist/ came to 23,217 files and 408 MB, and Workers refuses an
+ * asset directory over 20,000 files, so the deploy would fail outright rather than just
+ * uploading 352 MB it already has.
+ *
+ * Removing them after the copy, rather than moving them out of public/, keeps one source of
+ * truth for the dev server and costs a directory delete at the end of a build.
+ */
+function dropVendoredImages(): Plugin {
+  const dirs = ['cards', 'cards-hi', 'logos', 'sprites', 'artwork']
+  return {
+    name: 'drop-vendored-images',
+    apply: 'build',
+    closeBundle() {
+      const out = resolve(__dirname, 'dist')
+      for (const d of dirs) rmSync(resolve(out, d), { recursive: true, force: true })
+      // The foil overlay lab is a scratch page for looking at rarity treatments. It is not
+      // part of the app and has no business on a public origin.
+      rmSync(resolve(out, 'foil-lab.html'), { force: true })
+    },
+  }
+}
 
 // The port comes from the environment so a second checkout (a git worktree used for trying
 // things out) can run at the same time as this one without colliding. Set CLIENT_PORT in
@@ -9,7 +37,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
 
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), dropVendoredImages()],
     server: {
       port: Number(env.CLIENT_PORT) || 5173,
       // Fail rather than slide to the next free port, so two checkouts cannot quietly
