@@ -37,43 +37,6 @@ export function Settings() {
           <DatabaseMeter />
           <AdminSync />
           <AdminCardArt />
-
-          <section className="mt-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
-            <h2 className="text-lg font-semibold">Catalogue</h2>
-            <p className="mt-1 text-sm text-[var(--color-text-muted)]">
-              Every Pokémon and card, shared by all users. Loaded once and refreshed when a
-              new set appears.
-            </p>
-            <dl className="mt-4 space-y-3 text-sm">
-              <div>
-                <dt className="font-medium text-[var(--color-text)]">Pokémon and cards</dt>
-                <dd className="text-[var(--color-text-muted)]">
-                  Imported from the project machine with{' '}
-                  <code className="rounded bg-[var(--color-bg)] px-1 py-0.5 text-xs">
-                    node supabase/scripts/import-catalogue.mjs
-                  </code>
-                  . Not yet runnable from here.
-                </dd>
-              </div>
-              <div>
-                <dt className="font-medium text-[var(--color-text)]">Card to product mapping</dt>
-                <dd className="text-[var(--color-text-muted)]">
-                  Rebuilt with{' '}
-                  <code className="rounded bg-[var(--color-bg)] px-1 py-0.5 text-xs">
-                    node supabase/scripts/buildPriceMap.mjs
-                  </code>
-                  {' '}after a new set lands, or nothing in it will ever be priced.
-                </dd>
-              </div>
-              <div>
-                <dt className="font-medium text-[var(--color-text)]">Set and series artwork</dt>
-                <dd className="text-[var(--color-text-muted)]">
-                  Downloads and re-encodes images, which needs a filesystem — so it stays a
-                  job for the machine that holds them.
-                </dd>
-              </div>
-            </dl>
-          </section>
         </>
       )}
     </div>
