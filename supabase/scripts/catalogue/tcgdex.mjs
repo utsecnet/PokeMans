@@ -211,19 +211,28 @@ export async function syncTcgdexEnrichment({ onProgress } = {}) {
     }
 
     for (const ours of cardsBySet.get(ourSet.id) ?? []) {
+      // Number first, then name -- and the name is tried whether the number found nothing or
+      // found the wrong card.
+      //
+      // Celebrations: Classic Collection and 30th Classic Collection both carry each card's
+      // original number, where TCGdex renumbers the set from 001. So a number lookup in those
+      // sets does not merely miss, it lands on a different card: our #4 Charizard finds their
+      // 004, which is Genesect EX. Treating that as "found" and stopping left ten cards of
+      // 30th Classic Collection unmatched even though seven of them have a unique name
+      // sitting right there -- and with no match there are no printings, with no printings no
+      // price mapping, and with no price mapping no artwork either, because the fallback
+      // image source is addressed by a product id that only the price mapping holds.
+      //
+      // The name is still only trusted when exactly one card in the set has it, so the two
+      // halves of Darkrai & Cresselia LEGEND stay unmatched rather than being guessed at.
       let theirCard = theirs.get(normNumber(ours.number));
-
-      // Number first, then name. Celebrations: Classic Collection carries each card's
-      // original number -- Donphan is 107 -- while TCGdex numbers the set CC001 to CC025, so
-      // nothing matched and all 25 cards ended up with no printings. The name is only
-      // trusted when exactly one card in the set has it.
-      if (!theirCard) {
-        const byName = byCardName.get(normCardName(ours.name));
-        if (byName) theirCard = byName;
+      if (!theirCard || normCardName(theirCard.name) !== normCardName(ours.name)) {
+        theirCard = byCardName.get(normCardName(ours.name)) ?? null;
       }
 
       if (!theirCard) continue;
-      // Guard against a number collision landing on a different card entirely.
+      // Both paths agree on the name by here: the number path was checked above, and the name
+      // path matched on it. Kept as an assertion of that rather than a live branch.
       if (normCardName(theirCard.name) !== normCardName(ours.name)) continue;
 
       // Their id, which is what the printing data below is keyed on and what price capture
