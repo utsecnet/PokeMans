@@ -1,3 +1,4 @@
+import { AdminCardArt } from '../components/AdminCardArt';
 import { AdminSync } from '../components/AdminSync';
 import { SyncCalendar } from '../components/SyncCalendar';
 import { SetCoverage } from '../components/SetCoverage';
@@ -35,6 +36,7 @@ export function Settings() {
           <PriceProvenance />
           <DatabaseMeter />
           <AdminSync />
+          <AdminCardArt />
 
           <section className="mt-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
             <h2 className="text-lg font-semibold">Catalogue</h2>

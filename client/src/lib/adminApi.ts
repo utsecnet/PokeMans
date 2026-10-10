@@ -134,3 +134,68 @@ export async function fetchSetCoverage(): Promise<SetCoverageRow[]> {
   if (error) throw new Error(error.message);
   return (data ?? []) as SetCoverageRow[];
 }
+
+export interface CardArtStatus {
+  total: number;
+  present: number;
+  missing: number;
+  durationMs: number;
+  cards: { id: string; tcg: number | null }[];
+}
+
+/** Which cards have no thumbnail in the bucket, and the product id needed to fetch them. */
+export async function fetchCardArtStatus(): Promise<CardArtStatus> {
+  const { data, error } = await supabase.functions.invoke('card-art-status', { body: {} });
+  if (error) return detailed(error);
+  return data as CardArtStatus;
+}
+
+/**
+ * Fills the gaps by asking for each missing thumbnail once.
+ *
+ * There is no sync endpoint to call. The Worker captures and converts a card the first time
+ * anything requests it, so requesting it *is* the sync -- this just does it deliberately
+ * rather than waiting for someone to scroll past the card. Nothing is uploaded from here;
+ * the bytes travel upstream to the edge and into the bucket without passing through the
+ * browser.
+ *
+ * The product id rides along for the newest sets, where images.pokemontcg.io has nothing and
+ * TCGplayer is the only source.
+ *
+ * Eight at a time: enough to finish 191 cards in well under a minute, few enough to stay a
+ * polite neighbour to two free services.
+ */
+export async function syncCardArt(
+  cards: { id: string; tcg: number | null }[],
+  onProgress?: (done: number, failed: number) => void,
+): Promise<{ done: number; failed: number }> {
+  const base = import.meta.env.VITE_IMAGE_BASE_URL ?? '';
+  const safe = (v: string) =>
+    v.replace(/[^a-zA-Z0-9.-]/g, (c) => '_' + c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0'));
+
+  let next = 0;
+  let done = 0;
+  let failed = 0;
+
+  const worker = async () => {
+    for (;;) {
+      const i = next++;
+      if (i >= cards.length) return;
+      const card = cards[i];
+      const url = `${base}/cards/${safe(card.id)}.avif` + (card.tcg ? `?tcg=${card.tcg}` : '');
+      try {
+        // HEAD, because the capture happens on the server either way and the bytes would
+        // only be thrown away here.
+        const res = await fetch(url, { method: 'HEAD', cache: 'no-store' });
+        if (res.ok) done++;
+        else failed++;
+      } catch {
+        failed++;
+      }
+      onProgress?.(done, failed);
+    }
+  };
+
+  await Promise.all(Array.from({ length: Math.min(8, cards.length) }, worker));
+  return { done, failed };
+}
