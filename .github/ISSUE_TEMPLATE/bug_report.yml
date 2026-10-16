@@ -1,0 +1,66 @@
+name: Report a bug type
+description: Something in PokéMans is wrong, broken, or showing the wrong card.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. Only the first box is required — fill in whatever
+        else you know and skip the rest.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, and what the app did instead.
+      placeholder: |
+        Opened Charizard from Base Set and the price chart was empty, but the card
+        shows a price in the grid.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      options:
+        - Card list / browsing
+        - A single card (the large view)
+        - My collection
+        - A want list
+        - Search or filters
+        - Signing in
+        - Settings
+        - Somewhere else
+    validations:
+      required: false
+
+  - type: input
+    id: card
+    attributes:
+      label: Which card or set
+      description: >
+        If it is about one card, the set and number pins it down exactly — the same
+        name often appears in a dozen sets, and printings of one card can behave
+        differently from each other.
+      placeholder: Base Set 4, or base1-4, or just "Charizard from Base Set"
+    validations:
+      required: false
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and device
+      placeholder: Chrome on Windows, Safari on iPhone, the Android app
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: >
+        A screenshot helps a lot for anything visual — drag it straight into this box.
+      placeholder: Drag images here, or leave this empty.
+    validations:
+      required: false
