@@ -21,7 +21,7 @@ function dropVendoredImages(): Plugin {
     name: 'drop-vendored-images',
     apply: 'build',
     closeBundle() {
-      const out = resolve(__dirname, 'dist')
+      const out = resolve(import.meta.dirname, 'dist')
       for (const d of dirs) rmSync(resolve(out, d), { recursive: true, force: true })
       // The foil overlay lab is a scratch page for looking at rarity treatments. It is not
       // part of the app and has no business on a public origin.
