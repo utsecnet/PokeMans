@@ -7,7 +7,10 @@ window.OPS = {"health":{"lastRunOn":"2026-10-16","historyRows":1806959,"newestPo
    art: what the R2 bucket holds against the catalogue, from the last status check.
    sources: price_source as the live page reads it, including the provenance columns
    added in migration 0045 -- who prices it, who carries it, and on what terms. */
-window.OPS.art = { cards: 20635, present: 20625, missing: 10, noSource: 3 };
+/* The three with no source anywhere: two halves of one LEGEND card that share a name,
+   and a Palkia LV.X whose upstream number belongs to a different Palkia. */
+window.OPS.art = { cards: 20635, present: 20625, missing: 10, noSource: 3,
+  noSourceCards: ['me55c-99', 'me55c-100', 'me55c-106p'] };
 window.OPS.sources = [{
   key: 'tcgplayer',
   label: 'TCGplayer',

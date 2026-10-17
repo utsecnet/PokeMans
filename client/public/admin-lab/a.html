@@ -7,100 +7,141 @@
 <link rel="stylesheet" href="./console.css" />
 <style>
 /* A: WATCH FLOOR.
-   One screen, no page scroll. Three columns: what runs on the left, the catalogue in the
-   middle, what needs doing on the right. The middle is the hero -- 176 sets as 176 cells,
-   which is the most characteristic object this system has and nothing a generic dashboard
-   would show.
+   One screen, no page scroll, and one place where detail appears.
 
-   Everything the Settings page can do is reachable from this screen. The detail that used
-   to be a section of its own -- a set's figures, a day's run, where prices come from -- is
-   behind the object it belongs to rather than stacked underneath it, so depth costs a
-   click instead of a scroll. */
+   The rails hold the instruments -- every figure on the left, every job and control on the
+   right -- and none of them tell their own story in place. Clicking any of them fills the
+   centre, which is the only pane that scrolls and the only pane that goes deep. That is
+   what separates a console from a settings page: the settings page gave each figure its
+   own box and made you scroll past all of them to reach the one you wanted. */
 body { display: grid; grid-template-rows: 46px 1fr; overflow: hidden; }
 .floor {
   display: grid;
-  grid-template-columns: 268px minmax(0, 1fr) 352px;
+  grid-template-columns: 318px minmax(0, 1fr) 336px;
   gap: 12px;
   padding: 12px;
   min-height: 0;
 }
 .col { display: grid; gap: 12px; min-height: 0; }
-.col.left { grid-template-rows: auto auto 1fr auto; }
-.col.mid { grid-template-rows: auto 1fr; }
-.col.right { grid-template-rows: auto auto 1fr; }
+.col.left { grid-template-rows: auto 1fr; }
+.col.right { grid-template-rows: auto auto auto minmax(96px, 1fr); }
 
-/* The job strip: one row per scheduled job, with its recent outcomes as a run of ticks. */
-.job { padding: 11px 13px; border-bottom: 1px solid var(--line); }
-.job:last-child { border-bottom: 0; }
-.job .top { display: flex; align-items: center; gap: 8px; }
-.job .name { font-weight: 600; }
-.job .when { margin-left: auto; color: var(--faint); font-family: var(--narrow); font-size: 12px; }
-.ticks { display: flex; gap: 2px; margin-top: 8px; }
-.ticks button {
-  flex: 1; height: 16px; padding: 0; border: 0; border-radius: 2px;
-  background: var(--raised); cursor: pointer;
+/* ------------------------------------------------------------------ signals */
+
+.sig {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  width: 100%;
+  text-align: left;
+  gap: 1px 10px;
+  padding: 9px 13px;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  cursor: pointer;
 }
-.ticks button.ok { background: var(--ok); }
-.ticks button.warn { background: var(--warn); }
-.ticks button.crit { background: var(--crit); }
-.ticks button:hover { outline: 1px solid var(--ink); outline-offset: 1px; }
-.ticks button:disabled { cursor: default; }
-.ticks button:disabled:hover { outline: 0; }
+.sig:last-child { border-bottom: 0; }
+.sig:hover { background: var(--raised); }
+.sig .k { font-family: var(--narrow); color: var(--dim); }
+.sig .v { font-size: 19px; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.sig .h { grid-column: 1 / -1; color: var(--faint); font-family: var(--narrow); font-size: 12px; }
 
-/* The four figures that say whether the data is sound, which a run log cannot. */
-.vitals { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); }
-.vitals > div { background: var(--panel); padding: 11px 13px; }
-.vitals .k { color: var(--dim); font-family: var(--narrow); font-size: 12px; }
-.vitals .v { font-size: 25px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
-.vitals .h { color: var(--faint); font-family: var(--narrow); font-size: 12px; }
+/* ------------------------------------------------------------------ the set map */
 
-/* The hero. Each cell is a set; fill is how much of it carries a price.
-
-   The cell size is computed from the pane at runtime rather than declared here, because
-   176 square cells and a minimum column width cannot both be honoured in a fixed pane --
-   one of them has to give, and a minimum width gives by scrolling. The grid is the whole
-   argument for this layout, so it is the pane that wins. */
 .grid {
   display: grid;
-  gap: 4px;
+  gap: 3px;
   align-content: center;
   justify-content: center;
   width: 100%;
   height: 100%;
 }
 .grid button {
-  border: 0;
-  padding: 0;
-  border-radius: 3px;
+  border: 0; padding: 0; border-radius: 2px;
   background: var(--raised);
-  position: relative;
-  cursor: pointer;
-  overflow: hidden;
+  position: relative; cursor: pointer; overflow: hidden;
 }
 .grid button::after {
-  content: '';
-  position: absolute;
-  inset: auto 0 0 0;
-  background: var(--cell);
-  height: var(--fill);
+  content: ''; position: absolute; inset: auto 0 0 0;
+  background: var(--cell); height: var(--fill);
 }
 .grid button:hover, .grid button:focus-visible { outline: 1px solid var(--ink); outline-offset: 1px; }
+.grid button[data-on] { outline: 2px solid var(--ink); outline-offset: 1px; }
 
-.legend { display: flex; gap: 14px; align-items: center; color: var(--faint); font-family: var(--narrow); font-size: 12px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; color: var(--faint); font-family: var(--narrow); font-size: 12px; padding: 0 13px 10px; }
 .legend span { display: flex; align-items: center; gap: 5px; }
-.legend b { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.legend b { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
 
-/* A segmented control, because the grid answers "which sets" and the table answers
-   "how many exactly", and both questions get asked. */
-.seg { display: flex; gap: 2px; margin-left: auto; }
+/* ------------------------------------------------------------------ inspector */
+
+.insp { min-width: 0; }
+.ihead {
+  display: flex; align-items: baseline; gap: 10px;
+  padding: 11px 15px; border-bottom: 1px solid var(--line);
+}
+.ihead h2 { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+.ihead .sub { color: var(--faint); font-family: var(--narrow); font-size: 12.5px; }
+.ihead .back { padding: 2px 9px; font-size: 12px; align-self: center; }
+.ibody { padding: 15px; overflow: auto; min-height: 0; }
+.ibody.flush { padding: 0; }
+
+.lede { color: var(--dim); font-family: var(--narrow); max-width: 74ch; margin: 0 0 14px; }
+.lede b { color: var(--ink); font-weight: 600; }
+
+.figs { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; margin-bottom: 15px; }
+.figs > div { background: var(--panel); padding: 10px 13px; }
+.figs .k { color: var(--dim); font-family: var(--narrow); font-size: 12px; }
+.figs .v { font-size: 21px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.ibody table { font-size: 13px; }
+.ibody th { background: var(--panel); }
+tr.go { cursor: pointer; }
+tr.go:hover td { background: var(--raised); }
+td .id { color: var(--faint); margin-left: 6px; }
+.tag { font-family: var(--narrow); font-size: 11.5px; padding: 1px 6px; border-radius: 3px; background: var(--raised); color: var(--dim); }
+.tag.miss { color: var(--crit); }
+.tag.old { color: var(--warn); }
+
+.seg { display: flex; gap: 2px; }
 .seg button { padding: 2px 9px; font-size: 12px; border-radius: 4px; background: transparent; border: 0; color: var(--dim); }
 .seg button[aria-pressed="true"] { background: var(--raised); color: var(--ink); }
 
-tr.row { cursor: pointer; }
-tr.row:hover td { background: var(--raised); }
+/* The briefing the console opens on: the open conditions, each one a way in. */
+.brief { display: grid; gap: 9px; }
+.brief button {
+  display: grid; grid-template-columns: 10px 1fr auto; gap: 12px; align-items: start;
+  text-align: left; padding: 13px 15px; background: var(--raised); border: 1px solid var(--line);
+}
+.brief button:hover { border-color: var(--faint); }
+.brief .dot { margin-top: 6px; }
+.brief .what { font-weight: 600; font-size: 14.5px; }
+.brief .why { color: var(--dim); font-family: var(--narrow); font-size: 12.5px; max-width: 70ch; }
+.brief .arrow { color: var(--faint); align-self: center; }
 
-.cond { display: flex; gap: 9px; padding: 10px 13px; border-bottom: 1px solid var(--line); }
+/* ------------------------------------------------------------------ right rail */
+
+.job { padding: 10px 13px; border-bottom: 1px solid var(--line); }
+.job:last-child { border-bottom: 0; }
+.job .top { display: flex; align-items: center; gap: 8px; }
+.job .name { font-weight: 600; background: transparent; border: 0; padding: 0; color: var(--ink); font-family: inherit; font-size: inherit; cursor: pointer; }
+.job .name:hover { text-decoration: underline; }
+.job .when { margin-left: auto; color: var(--faint); font-family: var(--narrow); font-size: 12px; }
+.ticks { display: flex; gap: 2px; margin-top: 7px; }
+.ticks button { flex: 1; height: 15px; padding: 0; border: 0; border-radius: 2px; background: var(--raised); cursor: pointer; }
+.ticks button.ok { background: var(--ok); }
+.ticks button.crit { background: var(--crit); }
+.ticks button:hover { outline: 1px solid var(--ink); outline-offset: 1px; }
+.ticks button:disabled { cursor: default; }
+.ticks button:disabled:hover { outline: 0; }
+
+.cond {
+  display: grid; grid-template-columns: 9px 1fr; gap: 9px; width: 100%; text-align: left;
+  padding: 10px 13px; background: transparent; border: 0; border-bottom: 1px solid var(--line);
+  border-radius: 0; cursor: pointer;
+}
 .cond:last-child { border-bottom: 0; }
+.cond:hover { background: var(--raised); }
 .cond .dot { margin-top: 6px; }
 .cond .what { font-weight: 500; }
 .cond .why { color: var(--dim); font-family: var(--narrow); font-size: 12.5px; }
@@ -108,52 +149,20 @@ tr.row:hover td { background: var(--raised); }
 .acts { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; padding: 13px; }
 .acts hr { grid-column: 1 / -1; border: 0; border-top: 1px solid var(--line); margin: 3px 0; }
 .acts .note { grid-column: 1 / -1; color: var(--faint); font-family: var(--narrow); font-size: 12px; }
+.bars { padding: 0 13px 11px; }
 
-/* The output surface. Every control on this page reports here rather than growing its
-   own result block, which is what made the old page scroll. */
-.log { padding: 9px 13px; overflow: auto; font-family: var(--narrow); font-size: 12.5px; }
+.log { padding: 8px 13px; overflow: auto; font-family: var(--narrow); font-size: 12.5px; min-height: 0; }
 .log div { display: flex; gap: 8px; padding: 3px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent); }
 .log div:last-child { border-bottom: 0; }
 .log time { color: var(--faint); font-variant-numeric: tabular-nums; flex: none; }
-.log .what { color: var(--ink); }
 .log .quiet { color: var(--dim); }
 .log .empty { color: var(--faint); border: 0; }
-
-.bars { padding: 0 13px 11px; }
-.ref { display: flex; flex-wrap: wrap; gap: 7px; padding: 11px 13px; }
-.ref button, .ref a {
-  font-family: var(--narrow); font-size: 12.5px; color: var(--dim);
-  background: transparent; border: 1px solid var(--line); border-radius: 5px;
-  padding: 4px 10px; text-decoration: none;
-}
-.ref button:hover, .ref a:hover { color: var(--ink); border-color: var(--faint); }
 
 .kv { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; font-family: var(--narrow); }
 .kv span { color: var(--dim); }
 .kv b { font-weight: 600; font-variant-numeric: tabular-nums; }
-
-/* The drawer. One sheet, reused by every object that has more to say. */
-.scrim { position: fixed; inset: 0; background: rgba(8, 10, 15, 0.55); opacity: 0; pointer-events: none; }
-.scrim[data-open] { opacity: 1; pointer-events: auto; }
-.drawer {
-  position: fixed; top: 0; right: 0; bottom: 0; width: min(440px, 92vw);
-  background: var(--panel); border-left: 1px solid var(--line);
-  display: flex; flex-direction: column;
-  transform: translateX(100%);
-  transition: transform 160ms ease;
-}
-.scrim[data-open] .drawer { transform: none; }
-@media (prefers-reduced-motion: reduce) { .drawer { transition: none; } }
-.drawer header { display: flex; align-items: baseline; gap: 9px; padding: 13px 16px; border-bottom: 1px solid var(--line); }
-.drawer header h2 { margin: 0; font-size: 16px; font-weight: 600; }
-.drawer header .sub { color: var(--faint); font-family: var(--narrow); font-size: 12.5px; }
-.drawer header button { margin-left: auto; padding: 2px 9px; }
-.drawer .inner { padding: 16px; overflow: auto; }
-.drawer p { color: var(--dim); font-family: var(--narrow); margin: 0 0 12px; max-width: 58ch; }
-.drawer .chain { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 12px; }
-.drawer .chain i { font-style: normal; background: var(--raised); border-radius: 4px; padding: 4px 8px; font-family: var(--narrow); font-size: 12.5px; }
-.drawer .chain i span { color: var(--faint); }
-.drawer .url { font-family: var(--narrow); font-size: 12px; color: var(--faint); word-break: break-all; }
+.linky { background: transparent; border: 0; padding: 0; color: var(--cosmos); font: inherit; cursor: pointer; }
+.linky:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -174,60 +183,39 @@ tr.row:hover td { background: var(--raised); }
 
   <div class="col left">
     <section class="panel">
+      <h2>Signals<span class="spacer"></span><span style="color:var(--faint)">click to inspect</span></h2>
+      <div class="body flush" id="signals"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Sets <b id="covCount"></b><span class="spacer"></span><button class="linky" data-go="coverage">as a table</button></h2>
+      <div class="body" id="gridBody" style="display:flex;overflow:hidden;padding-bottom:4px"><div class="grid" id="grid"></div></div>
+      <div class="legend">
+        <span><b style="background:var(--ok)"></b>100%</span>
+        <span><b style="background:var(--warn)"></b>90–99%</span>
+        <span><b style="background:var(--crit)"></b>below 90%</span>
+        <span><b style="background:var(--raised)"></b>none</span>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel insp">
+    <div class="ihead">
+      <button type="button" class="back" id="back" hidden>&larr; Back</button>
+      <h2 id="iTitle">—</h2>
+      <span class="sub" id="iSub"></span>
+      <span class="spacer" style="margin-left:auto"></span>
+      <span id="iTools"></span>
+    </div>
+    <div class="ibody" id="iBody"></div>
+  </section>
+
+  <div class="col right">
+    <section class="panel">
       <h2>Scheduled jobs<span class="spacer"></span><span style="color:var(--faint)">click a day</span></h2>
       <div class="body flush" id="jobs"></div>
     </section>
 
-    <section class="panel">
-      <h2>Storage</h2>
-      <div class="body">
-        <div class="reading"><span class="v num" id="dbUsed">—</span><span class="u" id="dbLimit"></span></div>
-        <div class="meter" style="margin-top:9px"><i id="dbBar"></i></div>
-        <p id="dbWarn" hidden style="margin:9px 0 0;font-family:var(--narrow);font-size:12.5px"></p>
-      </div>
-    </section>
-
-    <section class="panel">
-      <h2>Catalogue</h2>
-      <div class="body" id="catalogue"></div>
-    </section>
-
-    <section class="panel">
-      <h2>Reference</h2>
-      <div class="ref">
-        <button type="button" id="openSources">Price sources</button>
-        <button type="button" id="openTables">Table sizes</button>
-        <a href="/foil-lab">Foil Lab</a>
-      </div>
-    </section>
-  </div>
-
-  <div class="col mid">
-    <section class="panel">
-      <div class="vitals" id="vitals"></div>
-    </section>
-
-    <section class="panel">
-      <h2>
-        <span id="covTitle">Price coverage by set</span>
-        <b id="covCount"></b>
-        <span class="legend" style="margin-left:18px">
-          <span><b style="background:var(--ok)"></b>100%</span>
-          <span><b style="background:var(--warn)"></b>90–99%</span>
-          <span><b style="background:var(--crit)"></b>below 90%</span>
-          <span><b style="background:var(--raised)"></b>none</span>
-        </span>
-        <span class="seg">
-          <button type="button" id="vGrid" aria-pressed="true">Grid</button>
-          <button type="button" id="vTable" aria-pressed="false">Table</button>
-        </span>
-      </h2>
-      <div class="body" id="gridBody" style="display:flex;overflow:hidden"><div class="grid" id="grid"></div></div>
-      <div class="body flush" id="tableBody" hidden style="overflow:auto"></div>
-    </section>
-  </div>
-
-  <div class="col right">
     <section class="panel">
       <h2>Conditions <b id="condCount"></b></h2>
       <div class="body flush" id="conds"></div>
@@ -256,184 +244,413 @@ tr.row:hover td { background: var(--raised); }
 
 </main>
 
-<div class="scrim" id="scrim">
-  <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle">
-    <header>
-      <h2 id="drawerTitle">—</h2>
-      <span class="sub" id="drawerSub"></span>
-      <button type="button" id="drawerClose">Close</button>
-    </header>
-    <div class="inner" id="drawerBody"></div>
-  </aside>
-</div>
-
 <script src="./data.js"></script>
+<script src="./detail.js"></script>
 <script src="./shared.js"></script>
 <script>
-const { health, usage, coverage, art, sources } = window.OPS;
+const { health, usage, coverage, art, sources, printings, labels, days, setNames, stale } = window.OPS;
 
 document.getElementById('stamp').textContent = ops.stamp();
 
-/* ---------------------------------------------------------------- the drawer */
+const fmt = ops.fmt;
+const money = (v) => (v == null ? '—' : '$' + Number(v).toFixed(2));
+const pretty = (d) => (d ? new Date(d + 'T12:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
+const figs = (rows) => `<div class="figs">${rows.map(([k, v, tone]) =>
+  `<div><div class="k">${k}</div><div class="v"${tone ? ` style="color:${tone}"` : ''}>${v}</div></div>`).join('')}</div>`;
 
-const scrim = document.getElementById('scrim');
-let lastFocus = null;
-function openDrawer(title, sub, html) {
-  lastFocus = document.activeElement;
-  document.getElementById('drawerTitle').textContent = title;
-  document.getElementById('drawerSub').textContent = sub || '';
-  document.getElementById('drawerBody').innerHTML = html;
-  scrim.setAttribute('data-open', '');
-  document.getElementById('drawerClose').focus();
+/* Every printing of a set, flattened out of the indexed snapshot: one row per printing,
+   which is the grain the catalogue is actually priced at. */
+function setRows(id) {
+  return (printings[id] || []).flatMap(([number, name, vs]) =>
+    vs.map(([li, mapped, market, di]) => ({
+      number, name, label: labels[li], mapped: !!mapped,
+      market, seen: di == null ? null : days[di],
+    })));
 }
-function closeDrawer() {
-  scrim.removeAttribute('data-open');
-  if (lastFocus) lastFocus.focus();
-}
-document.getElementById('drawerClose').addEventListener('click', closeDrawer);
-scrim.addEventListener('click', (e) => { if (e.target === scrim) closeDrawer(); });
-addEventListener('keydown', (e) => { if (e.key === 'Escape' && scrim.hasAttribute('data-open')) closeDrawer(); });
-
-const kv = (rows) => rows.map(([k, v]) => `<div class="kv"><span>${k}</span><b>${v}</b></div>`).join('');
-
-/* ---------------------------------------------------------------- jobs */
-
-const jobList = ops.jobs();
-document.getElementById('jobs').innerHTML = jobList.map((j, i) => `
-  <div class="job">
-    <div class="top">
-      <i class="dot ${j.state}"></i>
-      <span class="name">${j.label}</span>
-      <span class="when">${j.when}</span>
-    </div>
-    <div class="kv" style="padding-top:4px"><span>last run wrote</span><b>${j.rows} rows in ${j.ms}</b></div>
-    <div class="ticks" data-job="${i}">${j.ticks.map((t, d) =>
-      `<button type="button" class="${t}" data-day="${d}" ${t ? '' : 'disabled'} aria-label="day ${d + 1}"></button>`).join('')}</div>
-  </div>`).join('');
-
-// A tick is a run, so clicking one opens that run. The note a job recorded is the part
-// worth reading, and it had nowhere to live on the old page.
-document.querySelectorAll('.ticks').forEach((strip) => {
-  const track = window.OPS.calendar[Number(strip.dataset.job)];
-  const days = (track.days || []).slice(-30);
-  strip.addEventListener('click', (e) => {
-    const b = e.target.closest('button');
-    if (!b || b.disabled) return;
-    const d = days[Number(b.dataset.day)];
-    const when = new Date(d.day + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
-    openDrawer(jobList[Number(strip.dataset.job)].label, when, kv([
-      ['Outcome', d.status === 'ok' ? 'completed' : d.status],
-      ['Rows written', ops.fmt(d.rows ?? 0)],
-      ['Points held after', ops.fmt(d.series ?? 0)],
-      ['Duration', ((d.ms ?? 0) / 1000).toFixed(1) + 's'],
-      ['Failures', ops.fmt(d.fails ?? 0)],
-    ]) + (d.note ? `<p style="margin-top:14px">${d.note}</p>` : ''));
-  });
-});
-
-/* ---------------------------------------------------------------- storage */
-
-document.getElementById('dbUsed').textContent = usage.pretty;
-document.getElementById('dbLimit').textContent = `of ${usage.limitPretty} · ${usage.pct}%`;
-const bar = document.getElementById('dbBar');
-bar.style.width = usage.pct + '%';
-bar.className = usage.pct > 85 ? 'crit' : usage.pct > 65 ? 'warn' : '';
-if (usage.pct > 65) {
-  const w = document.getElementById('dbWarn');
-  w.hidden = false;
-  w.style.color = usage.pct > 85 ? 'var(--crit)' : 'var(--warn)';
-  w.textContent = 'Past the limit writes fail rather than cost money, and the price capture stops recording.';
-}
-
-document.getElementById('openTables').addEventListener('click', () =>
-  openDrawer('Table sizes', `${usage.pretty} of ${usage.limitPretty}`,
-    '<p>The database only. File storage and bandwidth are counted separately and are not what price history consumes.</p>'
-    + kv(usage.tables.map((t) => [t.name, t.pretty]))));
-
-/* ---------------------------------------------------------------- catalogue */
-
-document.getElementById('catalogue').innerHTML = ops.catalogue()
-  .map((r) => `<div class="kv"><span>${r[0]}</span><b>${r[1]}</b></div>`).join('');
-
-/* The four figures that say whether the data is sound. Coverage and freshness are kept
-   apart on purpose: folding them into one number made a successful run look like a
-   failure for most of every day. */
-const coveragePct = Math.round((health.pricedPrintings / health.totalPrintings) * 100);
-const freshness = Math.round((health.coveredByLastRun / health.pricedPrintings) * 100);
-document.getElementById('vitals').innerHTML = [
-  ['Coverage', coveragePct + '%', `${ops.fmt(health.pricedPrintings)} of ${ops.fmt(health.totalPrintings)} printings`, coveragePct < 70],
-  ['Last run covered', freshness + '%', health.daysSinceLastRun === 0 ? 'ran today' : health.daysSinceLastRun === 1 ? 'ran yesterday' : `ran ${health.daysSinceLastRun} days ago`, freshness < 90],
-  ['Stale over 3 days', ops.fmt(health.staleOver3Days), 'not seen by a recent run', health.staleOver3Days > 0],
-  ['History', ops.fmt(health.historyRows), `since ${health.oldestPoint}`, false],
-].map(([k, v, h, warn]) => `
-  <div><div class="k">${k}</div><div class="v"${warn ? ' style="color:var(--warn)"' : ''}>${v}</div><div class="h">${h}</div></div>`).join('');
-
-/* ---------------------------------------------------------------- coverage */
 
 const sets = [...coverage].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-document.getElementById('covCount').textContent = `${sets.length} sets, oldest first`;
+const setById = new Map(sets.map((s) => [s.id, s]));
 
-function setDrawer(s) {
-  openDrawer(s.name, s.id, kv([
-    ['Released', s.date || 'unknown'],
-    ['Cards', ops.fmt(s.cards)],
-    ['Printings', ops.fmt(s.printings)],
-    ['Carrying a price', ops.fmt(s.priced)],
-    ['Coverage', s.pct === null ? '—' : s.pct + '%'],
-  ]) + (s.pct !== null && s.pct < 90
-    ? '<p style="margin-top:14px">Below 90%. Usually printings the source does not publish separately rather than a fault — but a set matched to the wrong upstream group looks exactly the same from here, so it is worth opening once.</p>'
-    : ''));
+/* ---------------------------------------------------------------- the inspector */
+
+const iTitle = document.getElementById('iTitle');
+const iSub = document.getElementById('iSub');
+const iTools = document.getElementById('iTools');
+const iBody = document.getElementById('iBody');
+const backBtn = document.getElementById('back');
+const trail = [];
+
+function show(key, arg, fromTrail) {
+  const view = VIEWS[key];
+  if (!view) return;
+  const out = view(arg);
+  if (!fromTrail) {
+    const here = { key, arg };
+    if (trail.length && trail[trail.length - 1].key === key && trail[trail.length - 1].arg === arg) {
+      // the same thing again: not a step
+    } else {
+      trail.push(here);
+    }
+  }
+  backBtn.hidden = trail.length < 2;
+  iTitle.textContent = out.title;
+  iSub.textContent = out.sub || '';
+  iTools.innerHTML = out.tools || '';
+  iBody.className = 'ibody' + (out.flush ? ' flush' : '');
+  iBody.innerHTML = out.html;
+  iBody.scrollTop = 0;
+  if (out.after) out.after();
+  // The map marks what is being inspected, so the left rail and the centre agree.
+  document.querySelectorAll('#grid button[data-on]').forEach((b) => b.removeAttribute('data-on'));
+  if (key === 'set') {
+    const cell = document.querySelector(`#grid button[data-id="${arg}"]`);
+    if (cell) cell.setAttribute('data-on', '');
+  }
 }
+backBtn.addEventListener('click', () => {
+  trail.pop();
+  const prev = trail[trail.length - 1];
+  if (prev) show(prev.key, prev.arg, true);
+});
 
+// One delegated handler for every way into the inspector.
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-go]');
+  if (!el) return;
+  show(el.dataset.go, el.dataset.arg);
+});
+
+const VIEWS = {};
+
+/* The briefing. What is open, each one a door rather than a complaint. */
+VIEWS.overview = () => {
+  const conds = ops.conditions();
+  const last = ops.jobs()[0];
+  return {
+    title: 'Watch floor',
+    sub: conds.length ? `${conds.length} conditions open` : 'all clear',
+    html: `
+      <p class="lede">Price capture <b>${last.when}</b> and wrote <b>${last.rows}</b> rows in ${last.ms}.
+      Coverage is <b>${Math.round((health.pricedPrintings / health.totalPrintings) * 100)}%</b> of
+      ${fmt(health.totalPrintings)} printings. Nothing here stops the site working.</p>
+      <div class="brief">${conds.map((c) => `
+        <button type="button" data-go="${c.key}">
+          <i class="dot ${c.level}"></i>
+          <span><span class="what">${c.what}</span><br><span class="why">${c.why}</span></span>
+          <span class="arrow">&rarr;</span>
+        </button>`).join('')}</div>
+      <p class="lede" style="margin-top:18px">Every figure, set, job and day on this screen opens here.
+      Reference: <button class="linky" data-go="sources">where prices come from</button>, and the
+      <a href="/foil-lab" style="color:var(--cosmos)">Foil Lab</a>.</p>`,
+  };
+};
+
+VIEWS.coverage = () => ({
+  title: 'Price coverage',
+  sub: `${sets.length} sets, worst first`,
+  flush: true,
+  html: `
+    <table>
+      <thead><tr><th>Set</th><th class="n">Cards</th><th class="n">Printings</th><th class="n">Priced</th><th class="n">Missing</th><th class="n">Coverage</th></tr></thead>
+      <tbody>${[...sets].sort((a, b) => (a.pct ?? -1) - (b.pct ?? -1)).map((s) => `
+        <tr class="go" data-go="set" data-arg="${s.id}">
+          <td>${s.name}<span class="id">${s.id}</span></td>
+          <td class="n">${fmt(s.cards)}</td>
+          <td class="n">${fmt(s.printings)}</td>
+          <td class="n">${fmt(s.priced)}</td>
+          <td class="n">${s.printings - s.priced || '—'}</td>
+          <td class="n" style="color:${ops.band(s.pct)}">${s.pct === null ? '—' : s.pct + '%'}</td>
+        </tr>`).join('')}</tbody>
+    </table>`,
+});
+
+/* A set, printing by printing. The question a red cell asks is "what is missing", so a
+   set that is short opens on exactly those rows. */
+VIEWS.set = (id) => {
+  const s = setById.get(id);
+  const rows = setRows(id);
+  const missing = rows.filter((r) => r.market == null);
+  const short = s.pct !== null && s.pct < 100;
+  return {
+    title: s.name,
+    sub: `${s.id} · released ${pretty(s.date)}`,
+    tools: `<span class="seg">
+      <button type="button" data-filter="missing" aria-pressed="${short}">Missing ${missing.length}</button>
+      <button type="button" data-filter="all" aria-pressed="${!short}">All ${rows.length}</button>
+    </span>`,
+    html: figs([
+      ['Cards', fmt(s.cards)],
+      ['Printings', fmt(s.printings)],
+      ['Carrying a price', fmt(s.priced)],
+      ['Missing', fmt(s.printings - s.priced), s.printings - s.priced ? 'var(--crit)' : null],
+      ['Coverage', s.pct === null ? '—' : s.pct + '%', ops.band(s.pct)],
+    ]) + `
+      <table id="setTable">
+        <thead><tr><th>No.</th><th>Card</th><th>Printing</th><th>State</th><th class="n">Market</th><th class="n">Last seen</th></tr></thead>
+        <tbody>${rows.map((r) => `
+          <tr data-missing="${r.market == null}">
+            <td style="color:var(--dim)">${r.number}</td>
+            <td>${r.name}</td>
+            <td style="color:var(--dim)">${r.label}</td>
+            <td>${r.market != null
+              ? '<span class="tag">priced</span>'
+              : r.mapped ? '<span class="tag old">mapped, no price</span>' : '<span class="tag miss">no product</span>'}</td>
+            <td class="n">${money(r.market)}</td>
+            <td class="n" style="color:var(--faint)">${r.seen ? pretty(r.seen) : '—'}</td>
+          </tr>`).join('')}</tbody>
+      </table>`,
+    after() {
+      const apply = (which) => {
+        iBody.querySelectorAll('#setTable tbody tr').forEach((tr) => {
+          tr.hidden = which === 'missing' && tr.dataset.missing !== 'true';
+        });
+        iTools.querySelectorAll('[data-filter]').forEach((b) =>
+          b.setAttribute('aria-pressed', String(b.dataset.filter === which)));
+      };
+      iTools.querySelectorAll('[data-filter]').forEach((b) =>
+        b.addEventListener('click', () => apply(b.dataset.filter)));
+      apply(short ? 'missing' : 'all');
+    },
+  };
+};
+
+VIEWS.stale = () => ({
+  title: 'Prices older than three days',
+  sub: `${stale.length} printings`,
+  html: `<p class="lede">The source publishes a set at a time. A set it skips goes stale until a later
+    run picks it up, so these are printings the last few runs did not see — not failures.</p>`
+    + `<table>
+      <thead><tr><th>Set</th><th>No.</th><th>Card</th><th>Printing</th><th class="n">Market</th><th class="n">Last seen</th></tr></thead>
+      <tbody>${stale.map((r) => `
+        <tr class="go" data-go="set" data-arg="${r.set}">
+          <td>${setNames[r.set] || r.set}</td>
+          <td style="color:var(--dim)">${r.number}</td>
+          <td>${r.name}</td>
+          <td style="color:var(--dim)">${r.label}</td>
+          <td class="n">${money(r.market)}</td>
+          <td class="n" style="color:var(--warn)">${pretty(r.seen)}</td>
+        </tr>`).join('')}</tbody>
+    </table>`,
+});
+
+/* Unmapped printings, by set. Derived from the printing rows themselves rather than from
+   a total, so the table adds up to the figure in the rail. */
+VIEWS.unmapped = () => {
+  const rows = sets.map((s) => {
+    const rs = setRows(s.id);
+    return { s, n: rs.filter((r) => !r.mapped).length, total: rs.length };
+  }).filter((r) => r.n).sort((a, b) => b.n - a.n);
+  const total = rows.reduce((a, r) => a + r.n, 0);
+  return {
+    title: 'Printings not mapped to a product',
+    sub: `${fmt(total)} across ${rows.length} sets`,
+    html: `<p class="lede">Mostly subtypes the price feed does not break out — a reverse holo it folds
+      into the base card. They will never carry a price until the map changes, so they are the floor
+      coverage can reach rather than a fault to clear.</p>`
+      + `<table>
+        <thead><tr><th>Set</th><th class="n">Printings</th><th class="n">Not mapped</th><th class="n">Share</th></tr></thead>
+        <tbody>${rows.map(({ s, n, total: t }) => `
+          <tr class="go" data-go="set" data-arg="${s.id}">
+            <td>${s.name}<span class="id">${s.id}</span></td>
+            <td class="n">${fmt(t)}</td>
+            <td class="n" style="color:var(--warn)">${fmt(n)}</td>
+            <td class="n" style="color:var(--dim)">${Math.round((n / t) * 100)}%</td>
+          </tr>`).join('')}</tbody>
+      </table>`,
+  };
+};
+
+const bandView = (title, pick, lede) => () => {
+  const rows = sets.filter(pick).sort((a, b) => (a.pct ?? -1) - (b.pct ?? -1));
+  return {
+    title,
+    sub: `${rows.length} ${rows.length === 1 ? 'set' : 'sets'}`,
+    html: `<p class="lede">${lede}</p>`
+      + `<table>
+        <thead><tr><th>Set</th><th class="n">Printings</th><th class="n">Priced</th><th class="n">Missing</th><th class="n">Coverage</th></tr></thead>
+        <tbody>${rows.map((s) => `
+          <tr class="go" data-go="set" data-arg="${s.id}">
+            <td>${s.name}<span class="id">${s.id}</span></td>
+            <td class="n">${fmt(s.printings)}</td>
+            <td class="n">${fmt(s.priced)}</td>
+            <td class="n">${fmt(s.printings - s.priced)}</td>
+            <td class="n" style="color:${ops.band(s.pct)}">${s.pct === null ? '—' : s.pct + '%'}</td>
+          </tr>`).join('')}</tbody>
+      </table>`,
+  };
+};
+VIEWS.thin = bandView('Sets below 90% priced', (s) => s.pct !== null && s.pct < 90,
+  'A set matched to the wrong upstream group still looks matched. Open one and the printing list says which it is: a run of "no product" rows on cards that plainly exist upstream is a mapping fault, scattered ones are not.');
+VIEWS.dark = bandView('Sets carrying no price at all', (s) => s.pct === null || s.priced === 0,
+  'Nothing in them is mapped to a product, so a price has nowhere to land.');
+
+VIEWS.freshness = () => {
+  const covered = health.coveredByLastRun;
+  const held = health.pricedPrintings;
+  return {
+    title: 'Last run covered',
+    sub: `${Math.round((covered / held) * 100)}% of what we hold`,
+    html: figs([
+      ['Covered by last run', fmt(covered)],
+      ['Carrying a price', fmt(held)],
+      ['Not seen', fmt(held - covered), held - covered ? 'var(--warn)' : null],
+      ['Older than 3 days', fmt(health.staleOver3Days), health.staleOver3Days ? 'var(--warn)' : null],
+    ]) + `<p class="lede">Two separate facts, deliberately kept apart: how complete the last run was, and
+      how long ago it happened. Folded into one number, a successful run looks like a failure for most
+      of every day.</p>
+      <p class="lede">${fmt(held - covered)} printings were not in the last run.
+      <button class="linky" data-go="stale">${fmt(health.staleOver3Days)} of them have gone past three days</button>,
+      which is the figure worth watching.</p>`,
+  };
+};
+
+VIEWS.history = () => {
+  const thinTrack = window.OPS.calendar.find((t) => t.job === 'thin');
+  const runs = (thinTrack.days || []).filter((d) => d.status && d.status !== 'none').slice(-14).reverse();
+  return {
+    title: 'Price history',
+    sub: `${fmt(health.historyRows)} rows`,
+    html: figs([
+      ['Rows held', fmt(health.historyRows)],
+      ['Oldest point', health.oldestPoint],
+      ['Newest point', health.newestPoint],
+      ['Table size', usage.tables[0].pretty],
+    ]) + `<p class="lede">Every capture adds a point per printing. Thinning keeps a daily point for the
+      recent window and thins the rest, which is what holds the table under the storage limit.</p>`
+      + `<table>
+        <thead><tr><th>Night</th><th class="n">Removed</th><th class="n">Kept</th><th class="n">Took</th><th>Note</th></tr></thead>
+        <tbody>${runs.map((d) => `
+          <tr><td>${pretty(d.day)}</td>
+            <td class="n">${fmt(d.rows ?? 0)}</td>
+            <td class="n">${fmt(d.series ?? 0)}</td>
+            <td class="n" style="color:var(--dim)">${((d.ms ?? 0) / 1000).toFixed(1)}s</td>
+            <td style="color:var(--faint)">${d.note || ''}</td></tr>`).join('')}</tbody>
+      </table>`,
+  };
+};
+
+VIEWS.storage = () => ({
+  title: 'Storage',
+  sub: `${usage.pretty} of ${usage.limitPretty}`,
+  html: figs([
+    ['Used', usage.pretty],
+    ['Limit', usage.limitPretty],
+    ['Share', usage.pct + '%', usage.pct > 85 ? 'var(--crit)' : usage.pct > 65 ? 'var(--warn)' : null],
+    ['Largest table', usage.tables[0].name],
+  ]) + `<p class="lede">The database only. File storage and bandwidth are counted separately and are not
+    what price history consumes. Past the limit writes fail rather than cost money, and the capture
+    stops recording.</p>`
+    + `<table>
+      <thead><tr><th>Table</th><th class="n">Size</th><th class="n">Share of used</th></tr></thead>
+      <tbody>${usage.tables.map((t) => `
+        <tr><td>${t.name}</td><td class="n">${t.pretty}</td>
+          <td class="n" style="color:var(--dim)">${Math.round((t.bytes / usage.bytes) * 100)}%</td></tr>`).join('')}</tbody>
+    </table>`,
+});
+
+VIEWS.art = () => ({
+  title: 'Card art',
+  sub: `${fmt(art.present)} of ${fmt(art.cards)} held`,
+  html: figs([
+    ['Cards in catalogue', fmt(art.cards)],
+    ['Thumbnails held', fmt(art.present)],
+    ['Missing', fmt(art.missing), art.missing ? 'var(--warn)' : null],
+    ['No source yet', fmt(art.noSource)],
+  ]) + `<p class="lede">A thumbnail is fetched and converted the first time anyone opens the card, so the
+    bucket fills by itself. <b>Sync missing art</b> in the rail does the rest in one go, which is usually
+    a set that has just come out.</p>
+    <p class="lede">These three are carried by neither source. Two are halves of one LEGEND card that
+    share a name; the third is a Palkia LV.X whose upstream number belongs to a different Palkia.
+    Guessing which card to use would put the wrong art on a page, so they stay empty.</p>`
+    + `<table><thead><tr><th>Card</th><th>Why</th></tr></thead><tbody>${(art.noSourceCards || []).map((id) => `
+      <tr><td>${id}</td><td style="color:var(--dim)">no match at either source</td></tr>`).join('')}</tbody></table>`,
+});
+
+VIEWS.sources = () => ({
+  title: 'Where prices come from',
+  sub: sources.length === 1 ? 'one source' : `${sources.length} sources`,
+  html: '<p class="lede">The chart on a card names the marketplace whose prices these are. It is not always who we fetch them from.</p>'
+    + sources.map((s) => figs([['Prices', s.label], ['Currency', s.currency], ['Basis', s.priceBasis || '—']])
+      + `<p class="lede"><b>${s.label}</b> prices it &rarr; <b>${s.feedLabel || 'fetched directly'}</b> carries it &rarr; <b>PokéMans</b> stores it</p>`
+      + (s.feedUrl ? `<p class="lede" style="color:var(--faint)">${s.feedUrl}</p>` : '')
+      + (s.feedNote ? `<p class="lede">${s.feedNote}</p>` : '')).join(''),
+});
+
+VIEWS.job = (i) => {
+  const track = window.OPS.calendar[Number(i)];
+  const j = ops.jobs()[Number(i)];
+  const runs = (track.days || []).filter((d) => d.status && d.status !== 'none').slice(-30).reverse();
+  return {
+    title: j.label,
+    sub: `${runs.length} runs in 30 days`,
+    html: figs([
+      ['Last run', j.when],
+      ['Rows written', j.rows],
+      ['Duration', j.ms],
+      ['Failures', fmt(runs.reduce((a, d) => a + (d.fails || 0), 0))],
+    ]) + `<table>
+        <thead><tr><th>Day</th><th>Outcome</th><th class="n">Rows</th><th class="n">Took</th><th>Note</th></tr></thead>
+        <tbody>${runs.map((d) => `
+          <tr class="go" data-go="run" data-arg="${i}:${d.day}">
+            <td>${pretty(d.day)}</td>
+            <td style="color:${d.status === 'ok' ? 'var(--ok)' : 'var(--crit)'}">${d.status === 'ok' ? 'completed' : d.status}</td>
+            <td class="n">${fmt(d.rows ?? 0)}</td>
+            <td class="n" style="color:var(--dim)">${((d.ms ?? 0) / 1000).toFixed(1)}s</td>
+            <td style="color:var(--faint)">${d.note || ''}</td>
+          </tr>`).join('')}</tbody>
+      </table>`,
+  };
+};
+
+VIEWS.run = (arg) => {
+  const [i, day] = String(arg).split(':');
+  const track = window.OPS.calendar[Number(i)];
+  const d = (track.days || []).find((x) => x.day === day);
+  const j = ops.jobs()[Number(i)];
+  return {
+    title: j.label,
+    sub: new Date(day + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }),
+    html: figs([
+      ['Outcome', d.status === 'ok' ? 'completed' : d.status],
+      ['Rows written', fmt(d.rows ?? 0)],
+      ['Points held after', fmt(d.series ?? 0)],
+      ['Duration', ((d.ms ?? 0) / 1000).toFixed(1) + 's'],
+      ['Failures', fmt(d.fails ?? 0)],
+    ]) + (d.note ? `<p class="lede">${d.note}</p>` : '')
+      + `<p class="lede"><button class="linky" data-go="job" data-arg="${i}">Every run of this job</button></p>`,
+  };
+};
+
+/* ---------------------------------------------------------------- the rails */
+
+const coveragePct = Math.round((health.pricedPrintings / health.totalPrintings) * 100);
+const freshness = Math.round((health.coveredByLastRun / health.pricedPrintings) * 100);
+const unmappedTotal = health.totalPrintings - health.mappedPrintings;
+
+document.getElementById('signals').innerHTML = [
+  ['coverage', 'Coverage', coveragePct + '%', `${fmt(health.pricedPrintings)} of ${fmt(health.totalPrintings)} printings`, coveragePct < 70],
+  ['freshness', 'Last run covered', freshness + '%', health.daysSinceLastRun === 0 ? 'ran today' : health.daysSinceLastRun === 1 ? 'ran yesterday' : `ran ${health.daysSinceLastRun} days ago`, freshness < 90],
+  ['stale', 'Stale over 3 days', fmt(health.staleOver3Days), 'not seen by a recent run', health.staleOver3Days > 0],
+  ['unmapped', 'Not mapped to a product', fmt(unmappedTotal), 'will never price until the map changes', unmappedTotal > 0],
+  ['history', 'History', fmt(health.historyRows), `since ${health.oldestPoint}`, false],
+  ['storage', 'Storage', usage.pct + '%', `${usage.pretty} of ${usage.limitPretty}`, usage.pct > 65],
+  ['art', 'Card art', fmt(art.missing), `missing of ${fmt(art.cards)} cards`, art.missing > 0],
+].map(([go, k, v, h, warn]) => `
+  <button type="button" class="sig" data-go="${go}">
+    <span class="k">${k}</span><span class="v"${warn ? ' style="color:var(--warn)"' : ''}>${v}</span>
+    <span class="h">${h}</span>
+  </button>`).join('');
+
+document.getElementById('covCount').textContent = `${sets.length}, oldest first`;
 const gridEl = document.getElementById('grid');
-gridEl.innerHTML = sets.map((s, i) => {
-  const pct = s.pct ?? 0;
-  return `<button type="button" data-i="${i}" style="--cell:${ops.band(s.pct)};--fill:${Math.max(pct, 4)}%"
-    title="${s.name} — ${s.priced}/${s.printings} priced${s.pct === null ? '' : ` (${pct}%)`}"></button>`;
-}).join('');
-gridEl.addEventListener('click', (e) => {
-  const b = e.target.closest('button');
-  if (b) setDrawer(sets[Number(b.dataset.i)]);
-});
+gridEl.innerHTML = sets.map((s) => `
+  <button type="button" data-go="set" data-arg="${s.id}" data-id="${s.id}"
+    style="--cell:${ops.band(s.pct)};--fill:${Math.max(s.pct ?? 0, 4)}%"
+    title="${s.name} — ${s.priced}/${s.printings} priced${s.pct === null ? '' : ` (${s.pct}%)`}"></button>`).join('');
 
-// The same 176 sets as figures, for when the question is "how many exactly".
-const byWorst = [...sets].sort((a, b) => (a.pct ?? -1) - (b.pct ?? -1));
-document.getElementById('tableBody').innerHTML = `
-  <table>
-    <thead><tr><th>Set</th><th class="n">Priced</th><th class="n">Printings</th><th class="n">Coverage</th></tr></thead>
-    <tbody>${byWorst.map((s) => `
-      <tr class="row" data-id="${s.id}">
-        <td>${s.name} <span style="color:var(--faint)">${s.id}</span></td>
-        <td class="n" style="color:var(--dim)">${ops.fmt(s.priced)}</td>
-        <td class="n" style="color:var(--dim)">${ops.fmt(s.printings)}</td>
-        <td class="n" style="color:${ops.band(s.pct)}">${s.pct === null ? '—' : s.pct + '%'}</td>
-      </tr>`).join('')}</tbody>
-  </table>`;
-document.getElementById('tableBody').addEventListener('click', (e) => {
-  const tr = e.target.closest('tr.row');
-  if (tr) setDrawer(sets.find((s) => s.id === tr.dataset.id));
-});
-
-const gridBody = document.getElementById('gridBody');
-const tableBody = document.getElementById('tableBody');
-const vGrid = document.getElementById('vGrid');
-const vTable = document.getElementById('vTable');
-function view(grid) {
-  gridBody.hidden = !grid;
-  tableBody.hidden = grid;
-  gridBody.style.display = grid ? 'flex' : 'none';
-  vGrid.setAttribute('aria-pressed', String(grid));
-  vTable.setAttribute('aria-pressed', String(!grid));
-  document.getElementById('covTitle').textContent = grid ? 'Price coverage by set' : 'Price coverage by set, worst first';
-  if (grid) fitGrid();
-}
-vGrid.addEventListener('click', () => view(true));
-vTable.addEventListener('click', () => view(false));
-
-/* Fit every cell on screen: try each column count and keep the one that leaves the
-   squares biggest. Runs again whenever the pane changes size, so the grid reflows with
-   the window instead of growing a scrollbar. */
-const GAP = 4;
+/* Fit every cell in the rail: try each column count and keep the one that leaves the
+   squares biggest. Recomputed on resize, so the map reflows instead of scrolling. */
+const GAP = 3;
 function fitGrid() {
   const n = sets.length;
   const w = gridEl.clientWidth;
@@ -445,52 +662,44 @@ function fitGrid() {
     const size = Math.min((w - (cols - 1) * GAP) / cols, (h - (rows - 1) * GAP) / rows);
     if (size > best.size) best = { size, cols };
   }
-  // Capped, and the grid centres in whatever is left: on a wide monitor the fit alone
-  // would hand each of 176 sets a 100px tile, which is a quilt rather than a readout.
-  const px = Math.min(Math.max(Math.floor(best.size), 1), 72);
+  const px = Math.min(Math.max(Math.floor(best.size), 1), 40);
   gridEl.style.gridTemplateColumns = 'repeat(' + best.cols + ', ' + px + 'px)';
   gridEl.style.gridAutoRows = px + 'px';
 }
-// Safe against a feedback loop: the grid is sized by its parent, so changing the track
-// sizes cannot change the box being measured.
 new ResizeObserver(fitGrid).observe(gridEl);
 fitGrid();
 
-/* ---------------------------------------------------------------- conditions */
+const jobList = ops.jobs();
+document.getElementById('jobs').innerHTML = jobList.map((j, i) => `
+  <div class="job">
+    <div class="top">
+      <i class="dot ${j.state}"></i>
+      <button type="button" class="name" data-go="job" data-arg="${i}">${j.label}</button>
+      <span class="when">${j.when}</span>
+    </div>
+    <div class="kv" style="padding-top:3px"><span>last run wrote</span><b>${j.rows} rows in ${j.ms}</b></div>
+    <div class="ticks">${j.ticks.map((t, d) => {
+      const day = (window.OPS.calendar[i].days || []).slice(-30)[d];
+      return `<button type="button" class="${t}" ${t ? `data-go="run" data-arg="${i}:${day.day}"` : 'disabled'}
+        aria-label="${day ? day.day : ''}"></button>`;
+    }).join('')}</div>
+  </div>`).join('');
 
 const conds = ops.conditions();
 document.getElementById('condCount').textContent = conds.length ? `${conds.length} open` : 'all clear';
 document.getElementById('conds').innerHTML = conds.length
+  // The headline only. Why it is true, and what to do about it, is the centre pane's job --
+  // repeating it in the rail is what made the old page tall.
   ? conds.map((c) => `
-    <div class="cond">
+    <button type="button" class="cond" data-go="${c.key}">
       <i class="dot ${c.level}"></i>
-      <div><div class="what">${c.what}</div><div class="why">${c.why}</div></div>
-    </div>`).join('')
+      <span class="what">${c.what}</span>
+    </button>`).join('')
   : '<div class="cond"><i class="dot ok"></i><div><div class="what">Nothing to do</div><div class="why">Every set priced, every job on time.</div></div></div>';
 
 const v = document.getElementById('verdict');
 v.textContent = conds.length ? `${conds.length} conditions` : 'Nominal';
 v.className = 'chip ' + (conds.some((c) => c.level === 'crit') ? 'crit' : conds.length ? 'warn' : 'ok');
-
-/* ---------------------------------------------------------------- price sources */
-
-document.getElementById('openSources').addEventListener('click', () => {
-  openDrawer('Where prices come from', sources.length === 1 ? 'one source' : `${sources.length} sources`,
-    '<p>The chart on a card names the marketplace whose prices these are. It is not always who we fetch them from.</p>'
-    + sources.map((s) => `
-      <div style="border-top:1px solid var(--line);padding-top:12px;margin-top:12px">
-        ${kv([['Prices', s.label], ['Currency', s.currency], ['Basis', s.priceBasis || '—']])}
-        <div class="chain" style="margin-top:12px">
-          <i>${s.label} <span>prices it</span></i>
-          <span style="color:var(--faint)">&rarr;</span>
-          <i>${s.feedLabel || 'fetched directly'} <span>carries it</span></i>
-          <span style="color:var(--faint)">&rarr;</span>
-          <i>PokéMans <span>stores it</span></i>
-        </div>
-        ${s.feedUrl ? `<div class="url">${s.feedUrl}</div>` : ''}
-        ${s.feedNote ? `<p style="margin-top:12px">${s.feedNote}</p>` : ''}
-      </div>`).join(''));
-});
 
 /* ---------------------------------------------------------------- actions */
 
@@ -500,7 +709,7 @@ function say(what, tone) {
   if (empty) empty.remove();
   const row = document.createElement('div');
   row.innerHTML = `<time>${new Date().toLocaleTimeString(undefined, { hour12: false })}</time>`
-    + `<span class="${tone || 'what'}">${what}</span>`;
+    + `<span class="${tone || ''}">${what}</span>`;
   log.prepend(row);
 }
 
@@ -513,17 +722,17 @@ const lastThin = window.OPS.calendar.find((t) => t.job === 'thin').days.filter((
 const artState = { ...art };
 function artSummary() {
   document.getElementById('artNote').textContent =
-    `${ops.fmt(artState.present)} thumbnails held of ${ops.fmt(artState.cards)} cards · ${ops.fmt(artState.missing)} missing`;
+    `${fmt(artState.present)} held of ${fmt(artState.cards)} cards · ${fmt(artState.missing)} missing`;
   document.getElementById('artSync').disabled = artState.missing === 0;
 }
 artSummary();
 
 const RUNS = {
-  prices: () => say(`Capture prices · replayed: ${ops.fmt(lastPrices.v)} rows written`),
+  prices: () => say(`Capture prices · replayed: ${fmt(lastPrices.v)} rows written`),
   force: () => say('Re-capture today · the source asks for one fetch per set per day, so this is the deliberate repeat', 'quiet'),
-  'thin-dry': () => say(`Preview thinning · ${ops.fmt(lastThin.rows)} points would go, ${ops.fmt(lastThin.series)} kept`, 'quiet'),
-  thin: () => say(`Thin history · ${ops.fmt(lastThin.rows)} points removed in ${(lastThin.ms / 1000).toFixed(1)}s`),
-  'art-check': () => say(`Check card art · ${ops.fmt(artState.missing)} cards have no thumbnail yet`),
+  'thin-dry': () => say(`Preview thinning · ${fmt(lastThin.rows)} points would go, ${fmt(lastThin.series)} kept`, 'quiet'),
+  thin: () => say(`Thin history · ${fmt(lastThin.rows)} points removed in ${(lastThin.ms / 1000).toFixed(1)}s`),
+  'art-check': () => { say(`Check card art · ${fmt(artState.missing)} cards have no thumbnail yet`); show('art'); },
   'art-sync': () => {
     const wrap = document.getElementById('artBarWrap');
     const el = document.getElementById('artBar');
@@ -540,13 +749,15 @@ const RUNS = {
       artState.present += total - artState.noSource;
       artState.missing = artState.noSource;
       artSummary();
-      say(`Sync card art · ${ops.fmt(total - artState.noSource)} fetched and converted, ${artState.noSource} with no source yet`);
+      say(`Sync card art · ${fmt(total - artState.noSource)} fetched and converted, ${artState.noSource} with no source yet`);
     }, 220);
-    say(`Sync card art · ${ops.fmt(total)} queued`, 'quiet');
+    say(`Sync card art · ${fmt(total)} queued`, 'quiet');
   },
 };
 document.querySelectorAll('[data-run]').forEach((b) =>
   b.addEventListener('click', () => RUNS[b.dataset.run]()));
+
+show('overview');
 </script>
 </body>
 </html>

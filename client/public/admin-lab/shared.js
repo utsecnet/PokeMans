@@ -75,6 +75,7 @@ window.ops = (function () {
 
     if (health.staleOver3Days > 0) {
       out.push({
+        key: 'stale',
         level: health.staleOver3Days > 100 ? 'crit' : 'warn',
         what: `${fmt(health.staleOver3Days)} prices older than three days`,
         why: 'The source publishes a set at a time; a set it skips goes stale until the next run picks it up.',
@@ -82,6 +83,7 @@ window.ops = (function () {
     }
     if (dark.length) {
       out.push({
+        key: 'dark',
         level: 'crit',
         what: `${dark.length} ${dark.length === 1 ? 'set carries' : 'sets carry'} no price at all`,
         why: 'Nothing in them is mapped to a product, so a price has nowhere to land.',
@@ -89,6 +91,7 @@ window.ops = (function () {
     }
     if (thin.length) {
       out.push({
+        key: 'thin',
         level: 'warn',
         what: `${thin.length} sets below 90% priced`,
         why: 'Usually printings the source does not publish separately, rather than a fault.',
@@ -96,6 +99,7 @@ window.ops = (function () {
     }
     if (unmapped > 0) {
       out.push({
+        key: 'unmapped',
         level: 'warn',
         what: `${fmt(unmapped)} printings not mapped to a product`,
         why: 'Mostly subtypes the price feed does not break out. They will never price until the map changes.',
@@ -103,6 +107,7 @@ window.ops = (function () {
     }
     if (usage.pct > 65) {
       out.push({
+        key: 'storage',
         level: usage.pct > 85 ? 'crit' : 'warn',
         what: `Storage at ${usage.pct}%`,
         why: `${usage.pretty} of ${usage.limitPretty}. Thinning history is what brings this down.`,
