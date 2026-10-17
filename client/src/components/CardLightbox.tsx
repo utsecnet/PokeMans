@@ -196,11 +196,18 @@ export function CardLightbox({
         className="relative flex max-h-full w-full max-w-4xl"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* On the corner, not inside it. Within the panel it landed on the type badge, which
+            sits top right on a wide screen; reserving space in that header would only have
+            moved the collision, since the panel stacks into a column on a narrow one and the
+            badges go elsewhere. Out here it clears every layout.
+
+            The offset stays inside the backdrop's p-6, so the button never leaves the
+            viewport however narrow the window gets. */}
         <button
           type="button"
           onClick={onClose}
           aria-label="Close"
-          className="absolute right-2 top-2 z-10 flex size-8 items-center justify-center rounded-full bg-[var(--color-surface)]/85 text-[var(--color-text-muted)] backdrop-blur transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+          className="absolute -right-4 -top-4 z-10 flex size-8 items-center justify-center rounded-full bg-[var(--color-surface)] text-[var(--color-text-muted)] shadow-lg ring-1 ring-[var(--color-border)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="size-4" aria-hidden="true">
             <path strokeLinecap="round" d="M6 6l12 12M18 6L6 18" />
