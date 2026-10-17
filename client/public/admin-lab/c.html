@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Incident board — admin layout C</title>
+<link rel="stylesheet" href="./console.css" />
+<style>
+/* C: INCIDENT BOARD.
+   Answers one question before anything else: does this need me right now. The verdict is
+   the hero and it is allowed to be enormous, because on most days it says no and the
+   operator is gone in two seconds. Instruments are present but secondary -- they explain
+   the verdict rather than compete with it.
+
+   The opposite bet to A and B, which both assume you came to study the system. */
+body { display: grid; grid-template-rows: 46px 1fr; overflow: hidden; }
+.board { display: grid; grid-template-rows: auto 1fr; gap: 12px; padding: 12px; min-height: 0; }
+
+.verdict {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 26px;
+  padding: 20px 26px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-left: 4px solid var(--state, var(--ok));
+}
+.verdict .state {
+  font-size: 46px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: var(--state, var(--ok));
+}
+.verdict .gloss { color: var(--dim); font-family: var(--narrow); max-width: 62ch; }
+.verdict .gloss b { color: var(--ink); font-weight: 600; }
+.pulse { display: flex; gap: 22px; }
+.pulse div { text-align: right; }
+.pulse b { display: block; font-size: 21px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.pulse span { color: var(--faint); font-family: var(--narrow); font-size: 12px; }
+
+.lower { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 12px; min-height: 0; }
+
+/* The queue. Each row is something to decide about, with the action that settles it. */
+.item {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  gap: 13px;
+  align-items: start;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.item:last-child { border-bottom: 0; }
+.item .dot { margin-top: 7px; }
+.item h3 { margin: 0; font-size: 15px; font-weight: 600; }
+.item p { margin: 3px 0 0; color: var(--dim); font-family: var(--narrow); font-size: 13px; max-width: 72ch; }
+.item .fix { white-space: nowrap; }
+
+.clear { padding: 40px 16px; text-align: center; color: var(--faint); }
+.clear b { display: block; color: var(--ok); font-size: 17px; font-weight: 600; margin-bottom: 4px; }
+
+.sparkrow { display: flex; align-items: center; gap: 11px; padding: 10px 13px; border-bottom: 1px solid var(--line); }
+.sparkrow:last-child { border-bottom: 0; }
+.sparkrow .nm { font-family: var(--narrow); flex: 1; min-width: 0; }
+.sparkrow .nm b { display: block; font-weight: 600; }
+.sparkrow .nm span { color: var(--faint); font-size: 12px; }
+.sparkrow svg { width: 96px; height: 26px; flex: none; }
+.sparkrow .val { font-variant-numeric: tabular-nums; font-weight: 600; width: 62px; text-align: right; }
+
+.kv { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; font-family: var(--narrow); }
+.kv span { color: var(--dim); }
+.kv b { font-weight: 600; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="mark">PokéMans <span>ops</span></div>
+  <nav class="switch">
+    <a href="./a.html">Watch floor</a>
+    <a href="./b.html">Telemetry</a>
+    <a href="./c.html" aria-current="page">Incident board</a>
+  </nav>
+  <div class="spacer"></div>
+  <time id="stamp">—</time>
+</header>
+
+<main class="board">
+
+  <section class="verdict" id="verdict">
+    <div class="state" id="state">—</div>
+    <div class="gloss" id="gloss"></div>
+    <div class="pulse" id="pulse"></div>
+  </section>
+
+  <div class="lower">
+    <section class="panel">
+      <h2>Needs a decision <b id="queueCount"></b></h2>
+      <div class="body flush" id="queue"></div>
+    </section>
+
+    <div style="display:grid;grid-template-rows:auto auto 1fr;gap:12px;min-height:0">
+      <section class="panel">
+        <h2>Running normally</h2>
+        <div class="body flush" id="normal"></div>
+      </section>
+      <section class="panel">
+        <h2>Storage</h2>
+        <div class="body">
+          <div class="reading"><span class="v num" id="dbUsed">—</span><span class="u" id="dbLimit"></span></div>
+          <div class="meter" style="margin-top:9px"><i id="dbBar"></i></div>
+        </div>
+      </section>
+      <section class="panel">
+        <h2>Catalogue</h2>
+        <div class="body" id="catalogue"></div>
+      </section>
+    </div>
+  </div>
+
+</main>
+
+<script src="./data.js"></script>
+<script src="./shared.js"></script>
+<script>
+const { health, usage } = window.OPS;
+document.getElementById('stamp').textContent = ops.stamp();
+
+const conds = ops.conditions();
+const worst = conds.some((c) => c.level === 'crit') ? 'crit' : conds.length ? 'warn' : 'ok';
+
+/* The verdict. Plain words, because "3 conditions" is a count and "Needs a look" is an
+   answer, and the answer is what somebody came here for. */
+const STATE = {
+  ok:   { word: 'All clear',    colour: 'var(--ok)' },
+  warn: { word: 'Needs a look', colour: 'var(--warn)' },
+  crit: { word: 'Acting now',   colour: 'var(--crit)' },
+};
+document.getElementById('verdict').style.setProperty('--state', STATE[worst].colour);
+document.getElementById('state').textContent = STATE[worst].word;
+document.getElementById('gloss').innerHTML = conds.length
+  ? `${conds.length} ${conds.length === 1 ? 'thing' : 'things'} to decide about. Prices ran <b>${ops.jobs()[0]?.when || '—'}</b> and wrote <b>${ops.jobs()[0]?.rows || '—'}</b> rows. Nothing here stops the site working.`
+  : `Every set priced, every job on time, storage at <b>${usage.pct}%</b>. Nothing wants you.`;
+
+document.getElementById('pulse').innerHTML = [
+  ['Printings priced', ops.fmt(health.pricedPrintings)],
+  ['Of', ops.fmt(health.totalPrintings)],
+  ['History rows', ops.fmt(health.historyRows)],
+].map(([k, v]) => `<div><b>${v}</b><span>${k}</span></div>`).join('');
+
+/* What each condition's resolution actually is. Naming the action next to the problem is
+   the difference between a list of complaints and a queue of work. */
+const FIX = {
+  'older than three days': 'Capture prices',
+  'no price at all': 'Rebuild price map',
+  'below 90% priced': 'Review coverage',
+  'not mapped to a product': 'Rebuild price map',
+  'Storage at': 'Thin history',
+};
+function fixFor(what) {
+  const hit = Object.keys(FIX).find((k) => what.includes(k));
+  return hit ? FIX[hit] : null;
+}
+
+const queue = document.getElementById('queue');
+document.getElementById('queueCount').textContent = conds.length ? `${conds.length}` : '';
+queue.innerHTML = conds.length
+  ? conds.map((c) => `
+    <div class="item">
+      <i class="dot ${c.level}"></i>
+      <div><h3>${c.what}</h3><p>${c.why}</p></div>
+      ${fixFor(c.what) ? `<button class="fix">${fixFor(c.what)}</button>` : '<span></span>'}
+    </div>`).join('')
+  : '<div class="clear"><b>Nothing in the queue</b>Next scheduled run is tonight.</div>';
+
+/* The quiet half: things that are fine, shown small, so "fine" is visible rather than
+   merely implied by absence. */
+function spark(data, colour) {
+  const vals = data.map((d) => d.v).filter((v) => v != null);
+  if (!vals.length) return '';
+  const max = Math.max(...vals, 1);
+  const step = 96 / Math.max(data.length - 1, 1);
+  let d = '';
+  let open = false;
+  data.forEach((p, i) => {
+    if (p.v == null) { open = false; return; }
+    d += (open ? 'L' : 'M') + (i * step).toFixed(1) + ' ' + (26 - (p.v / max) * 22 - 2).toFixed(1) + ' ';
+    open = true;
+  });
+  return `<svg viewBox="0 0 96 26" preserveAspectRatio="none"><path d="${d}" fill="none" stroke="${colour}" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>`;
+}
+
+document.getElementById('normal').innerHTML = ops.jobs().map((j, i) => `
+  <div class="sparkrow">
+    <i class="dot ${j.state}"></i>
+    <div class="nm"><b>${j.label}</b><span>${j.when} · ${j.ran} runs in 30 days</span></div>
+    ${spark(ops.series(j.job, 'rows'), i === 0 ? 'var(--stars)' : 'var(--etch)')}
+    <span class="val">${j.rows}</span>
+  </div>`).join('');
+
+document.getElementById('dbUsed').textContent = usage.pretty;
+document.getElementById('dbLimit').textContent = `of ${usage.limitPretty} · ${usage.pct}%`;
+const bar = document.getElementById('dbBar');
+bar.style.width = usage.pct + '%';
+bar.className = usage.pct > 85 ? 'crit' : usage.pct > 65 ? 'warn' : '';
+
+document.getElementById('catalogue').innerHTML = ops.catalogue().slice(0, 5)
+  .map((r) => `<div class="kv"><span>${r[0]}</span><b>${r[1]}</b></div>`).join('');
+</script>
+</body>
+</html>

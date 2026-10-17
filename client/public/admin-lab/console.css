@@ -1,0 +1,176 @@
+/* Shared instrument styling for the three admin layout proposals.
+   Deliberately not the app's stylesheet: the console is allowed its own look. */
+
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Archivo+Narrow:wght@400;500;600&display=swap');
+
+:root {
+  /* Ground is slate with a blue bias rather than a tinted near-black. Panels sit one step
+     up from it so depth comes from value, not from a shadow under every box. */
+  --ground: #141821;
+  --panel:  #1a202c;
+  --raised: #222a39;
+  --line:   #2b3345;
+  --ink:    #e8ecf4;
+  --dim:    #8b94a8;
+  --faint:  #5b6478;
+
+  /* Severity. Desaturated on purpose — an acid green that shouts at you when nothing is
+     wrong leaves nowhere to go when something is. */
+  --ok:   #4fb286;
+  --warn: #d9a340;
+  --crit: #d9556b;
+
+  /* Series colours are the four foil treatments from the card view. The console is about
+     Pokémon cards, so its chart palette may as well say so. */
+  --cosmos:  #5ba9d8;
+  --stars:   #e0a54a;
+  --etch:    #9b8ae0;
+  --sparkle: #e07a9b;
+
+  --ui: 'Archivo', system-ui, sans-serif;
+  --narrow: 'Archivo Narrow', 'Archivo', system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--ui);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Every figure in the console lines up in a column. */
+.num { font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------- chrome */
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 0 18px;
+  height: 46px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+.bar .mark { font-weight: 700; letter-spacing: -0.01em; }
+.bar .mark span { color: var(--faint); font-weight: 500; }
+.bar .spacer { margin-left: auto; }
+.bar time { color: var(--dim); font-family: var(--narrow); }
+
+/* The proposal switcher. Only here because these are proposals. */
+.switch { display: flex; gap: 2px; }
+.switch a {
+  padding: 4px 11px;
+  border-radius: 5px;
+  color: var(--dim);
+  text-decoration: none;
+  font-family: var(--narrow);
+  font-weight: 500;
+}
+.switch a:hover { background: var(--raised); color: var(--ink); }
+.switch a[aria-current] { background: var(--raised); color: var(--ink); }
+
+/* ---------------------------------------------------------------- panels */
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+.panel > h2 {
+  margin: 0;
+  padding: 10px 13px;
+  font-family: var(--narrow);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dim);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.panel > h2 b { color: var(--ink); font-weight: 600; }
+.panel > h2 .spacer { margin-left: auto; }
+.panel .body { padding: 13px; overflow: auto; min-height: 0; }
+.panel .body.flush { padding: 0; }
+
+/* ---------------------------------------------------------------- readings */
+
+.reading { display: flex; align-items: baseline; gap: 7px; }
+.reading .v { font-size: 27px; font-weight: 600; letter-spacing: -0.02em; }
+.reading .u { color: var(--dim); font-family: var(--narrow); }
+
+.dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--faint); }
+.dot.ok { background: var(--ok); }
+.dot.warn { background: var(--warn); }
+.dot.crit { background: var(--crit); }
+
+.chip {
+  font-family: var(--narrow);
+  font-size: 12px;
+  padding: 1px 7px;
+  border-radius: 20px;
+  border: 1px solid currentColor;
+}
+.chip.ok { color: var(--ok); }
+.chip.warn { color: var(--warn); }
+.chip.crit { color: var(--crit); }
+
+/* ---------------------------------------------------------------- tables */
+
+table { width: 100%; border-collapse: collapse; font-family: var(--narrow); }
+th {
+  text-align: left;
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--faint);
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+}
+td { padding: 6px 10px; border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent); }
+tr:last-child td { border-bottom: 0; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------- meters */
+
+.meter { height: 5px; border-radius: 3px; background: var(--raised); overflow: hidden; }
+.meter > i { display: block; height: 100%; background: var(--ok); }
+.meter > i.warn { background: var(--warn); }
+.meter > i.crit { background: var(--crit); }
+
+/* ---------------------------------------------------------------- buttons */
+
+button {
+  font: inherit;
+  font-family: var(--narrow);
+  font-weight: 500;
+  color: var(--ink);
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+button:hover { border-color: var(--faint); }
+button:focus-visible { outline: 2px solid var(--cosmos); outline-offset: 2px; }
+button.go { background: color-mix(in srgb, var(--ok) 18%, var(--raised)); border-color: var(--ok); }
+
+a:focus-visible { outline: 2px solid var(--cosmos); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}

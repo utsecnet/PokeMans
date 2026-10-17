@@ -6,19 +6,28 @@ import react from '@vitejs/plugin-react'
 import { defineConfig, loadEnv, type Plugin } from 'vite'
 
 /**
- * The vendored images live in public/ so the dev server can serve them, and Vite copies
- * everything in public/ into the build. In production they come from R2 instead, so copying
- * them is not merely wasteful: dist/ came to 23,217 files and 408 MB, and Workers refuses an
- * asset directory over 20,000 files, so the deploy would fail outright rather than just
- * uploading 352 MB it already has.
+ * Things that live in public/ for the dev server and have no business in the build.
  *
- * Removing them after the copy, rather than moving them out of public/, keeps one source of
- * truth for the dev server and costs a directory delete at the end of a build.
+ * Vite copies everything under public/ into dist, which is right for a favicon and wrong
+ * for both of these.
+ *
+ * The vendored images come from R2 in production, so copying them is not merely wasteful:
+ * dist/ came to 23,217 files and 408 MB, and Workers refuses an asset directory over 20,000
+ * files, so the deploy failed outright rather than just uploading 352 MB it already had.
+ *
+ * admin-lab is the console layout proposals. They are local prototypes with a snapshot of
+ * real figures baked in -- storage, row counts, set coverage -- and nothing links to them,
+ * so shipping them would put an unfinished admin console on a public origin where only the
+ * filename kept anyone out. The build check in CI would not have caught it either: six
+ * files is nowhere near the 500 that fails a build.
+ *
+ * Removing them after the copy, rather than keeping them outside public/, leaves one source
+ * of truth for the dev server and costs a directory delete at the end of a build.
  */
-function dropVendoredImages(): Plugin {
-  const dirs = ['cards', 'cards-hi', 'logos', 'sprites', 'artwork']
+function dropFromBuild(): Plugin {
+  const dirs = ['cards', 'cards-hi', 'logos', 'sprites', 'artwork', 'admin-lab']
   return {
-    name: 'drop-vendored-images',
+    name: 'drop-from-build',
     apply: 'build',
     closeBundle() {
       const out = resolve(import.meta.dirname, 'dist')
@@ -34,7 +43,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
 
   return {
-    plugins: [react(), tailwindcss(), dropVendoredImages()],
+    plugins: [react(), tailwindcss(), dropFromBuild()],
     server: {
       port: Number(env.CLIENT_PORT) || 5173,
       // Fail rather than slide to the next free port, so two checkouts cannot quietly

@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Watch Floor — admin layout A</title>
+<link rel="stylesheet" href="./console.css" />
+<style>
+/* A: WATCH FLOOR.
+   One screen, no page scroll. Three columns: what runs on the left, the catalogue in the
+   middle, what needs doing on the right. The middle is the hero — 176 sets as 176 cells,
+   which is the most characteristic object this system has and nothing a generic dashboard
+   would show. */
+body { display: grid; grid-template-rows: 46px 1fr; overflow: hidden; }
+.floor {
+  display: grid;
+  grid-template-columns: 270px minmax(0, 1fr) 300px;
+  gap: 12px;
+  padding: 12px;
+  min-height: 0;
+}
+.col { display: grid; gap: 12px; min-height: 0; }
+.col.left { grid-template-rows: auto auto 1fr; }
+.col.right { grid-template-rows: auto 1fr; }
+
+/* The job strip: one row per scheduled job, with its recent outcomes as a run of ticks. */
+.job { padding: 11px 13px; border-bottom: 1px solid var(--line); }
+.job:last-child { border-bottom: 0; }
+.job .top { display: flex; align-items: center; gap: 8px; }
+.job .name { font-weight: 600; }
+.job .when { margin-left: auto; color: var(--faint); font-family: var(--narrow); font-size: 12px; }
+.ticks { display: flex; gap: 2px; margin-top: 8px; }
+.ticks i { flex: 1; height: 16px; border-radius: 2px; background: var(--raised); }
+.ticks i.ok { background: var(--ok); }
+.ticks i.warn { background: var(--warn); }
+.ticks i.crit { background: var(--crit); }
+
+/* The hero. Each cell is a set; fill is how much of it carries a price. */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(34px, 1fr));
+  grid-auto-rows: 1fr;
+  gap: 4px;
+  height: 100%;
+}
+.grid i {
+  aspect-ratio: 1;
+  border-radius: 3px;
+  background: var(--raised);
+  position: relative;
+  cursor: default;
+}
+.grid i::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  border-radius: 0 0 3px 3px;
+  background: var(--cell);
+  height: var(--fill);
+}
+.grid i:hover { outline: 1px solid var(--ink); outline-offset: 1px; }
+
+.legend { display: flex; gap: 14px; align-items: center; color: var(--faint); font-family: var(--narrow); font-size: 12px; }
+.legend span { display: flex; align-items: center; gap: 5px; }
+.legend b { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+.cond { display: flex; gap: 9px; padding: 10px 13px; border-bottom: 1px solid var(--line); }
+.cond:last-child { border-bottom: 0; }
+.cond .dot { margin-top: 6px; }
+.cond .what { font-weight: 500; }
+.cond .why { color: var(--dim); font-family: var(--narrow); font-size: 12.5px; }
+
+.acts { display: grid; gap: 7px; padding: 13px; }
+
+.kv { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; font-family: var(--narrow); }
+.kv span { color: var(--dim); }
+.kv b { font-weight: 600; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="mark">PokéMans <span>ops</span></div>
+  <nav class="switch">
+    <a href="./a.html" aria-current="page">Watch floor</a>
+    <a href="./b.html">Telemetry</a>
+    <a href="./c.html">Incident board</a>
+  </nav>
+  <div class="spacer"></div>
+  <span class="chip ok" id="verdict">—</span>
+  <time id="stamp">—</time>
+</header>
+
+<main class="floor">
+
+  <div class="col left">
+    <section class="panel">
+      <h2>Scheduled jobs</h2>
+      <div class="body flush" id="jobs"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Storage</h2>
+      <div class="body">
+        <div class="reading"><span class="v num" id="dbUsed">—</span><span class="u" id="dbLimit"></span></div>
+        <div class="meter" style="margin-top:9px"><i id="dbBar"></i></div>
+        <div style="margin-top:11px" id="dbTables"></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Catalogue</h2>
+      <div class="body" id="catalogue"></div>
+    </section>
+  </div>
+
+  <div class="col">
+    <section class="panel">
+      <h2>
+        Price coverage by set
+        <b id="covCount"></b>
+        <span class="spacer"></span>
+        <span class="legend">
+          <span><b style="background:var(--ok)"></b>100%</span>
+          <span><b style="background:var(--warn)"></b>90–99%</span>
+          <span><b style="background:var(--crit)"></b>below 90%</span>
+          <span><b style="background:var(--raised)"></b>none</span>
+        </span>
+      </h2>
+      <div class="body" style="display:flex"><div class="grid" id="grid"></div></div>
+    </section>
+  </div>
+
+  <div class="col right">
+    <section class="panel">
+      <h2>Conditions <b id="condCount"></b></h2>
+      <div class="body flush" id="conds"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Run a job</h2>
+      <div class="acts">
+        <button class="go">Capture prices</button>
+        <button>Re-capture today</button>
+        <button>Sync card art</button>
+        <button>Preview thinning</button>
+        <button>Thin history</button>
+      </div>
+    </section>
+  </div>
+
+</main>
+
+<script src="./data.js"></script>
+<script src="./shared.js"></script>
+<script>
+const { health, usage, coverage } = window.OPS;
+
+document.getElementById('stamp').textContent = ops.stamp();
+
+// Jobs. Only two run on a schedule today; the ticks are their real recorded outcomes.
+document.getElementById('jobs').innerHTML = ops.jobs().map((j) => `
+  <div class="job">
+    <div class="top">
+      <i class="dot ${j.state}"></i>
+      <span class="name">${j.label}</span>
+      <span class="when">${j.when}</span>
+    </div>
+    <div class="kv" style="padding-top:4px"><span>last run wrote</span><b>${j.rows} rows in ${j.ms}</b></div>
+    <div class="ticks">${j.ticks.map((t) => `<i class="${t}"></i>`).join('')}</div>
+  </div>`).join('');
+
+// Storage
+document.getElementById('dbUsed').textContent = usage.pretty;
+document.getElementById('dbLimit').textContent = `of ${usage.limitPretty} · ${usage.pct}%`;
+const bar = document.getElementById('dbBar');
+bar.style.width = usage.pct + '%';
+bar.className = usage.pct > 85 ? 'crit' : usage.pct > 65 ? 'warn' : '';
+document.getElementById('dbTables').innerHTML = usage.tables.slice(0, 5)
+  .map((t) => `<div class="kv"><span>${t.name}</span><b>${t.pretty}</b></div>`).join('');
+
+// Catalogue figures
+document.getElementById('catalogue').innerHTML = ops.catalogue()
+  .map((r) => `<div class="kv"><span>${r[0]}</span><b>${r[1]}</b></div>`).join('');
+
+// The hero grid
+const sets = [...coverage].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+document.getElementById('covCount').textContent = `${sets.length} sets, oldest first`;
+document.getElementById('grid').innerHTML = sets.map((s) => {
+  const pct = s.pct ?? 0;
+  const c = ops.band(s.pct);
+  return `<i style="--cell:${c};--fill:${Math.max(pct, 4)}%" title="${s.name} — ${s.priced}/${s.printings} priced${s.pct === null ? '' : ` (${pct}%)`}"></i>`;
+}).join('');
+
+// Conditions
+const conds = ops.conditions();
+document.getElementById('condCount').textContent = conds.length ? `${conds.length} open` : 'all clear';
+document.getElementById('conds').innerHTML = conds.length
+  ? conds.map((c) => `
+    <div class="cond">
+      <i class="dot ${c.level}"></i>
+      <div><div class="what">${c.what}</div><div class="why">${c.why}</div></div>
+    </div>`).join('')
+  : '<div class="cond"><i class="dot ok"></i><div><div class="what">Nothing to do</div><div class="why">Every set priced, every job on time.</div></div></div>';
+
+const v = document.getElementById('verdict');
+v.textContent = conds.length ? `${conds.length} conditions` : 'Nominal';
+v.className = 'chip ' + (conds.some((c) => c.level === 'crit') ? 'crit' : conds.length ? 'warn' : 'ok');
+</script>
+</body>
+</html>

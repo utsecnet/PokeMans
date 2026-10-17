@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Telemetry — admin layout B</title>
+<link rel="stylesheet" href="./console.css" />
+<style>
+/* B: TELEMETRY.
+   Every signal on one shared time axis, stacked. Reading down a vertical answers "what was
+   happening on the 14th" across all of them at once, which is the question a strip chart
+   exists to answer and a grid of tiles cannot. The axis is the hero, so it is drawn once at
+   the bottom and the bands above it carry no axis of their own. */
+body { display: grid; grid-template-rows: 46px 1fr; overflow: hidden; }
+.deck { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 12px; padding: 12px; min-height: 0; }
+
+.strips { display: grid; grid-template-rows: 1fr 1fr 1fr auto; min-height: 0; flex: 1; }
+.strip {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) 104px;
+  align-items: center;
+  gap: 14px;
+  padding: 0 13px;
+  border-bottom: 1px solid var(--line);
+  min-height: 0;
+}
+.strip:last-of-type { border-bottom: 0; }
+.strip .label { font-family: var(--narrow); }
+.strip .label b { display: block; font-weight: 600; color: var(--ink); }
+.strip .label span { color: var(--faint); font-size: 12px; }
+.strip .plot { height: 100%; min-height: 0; position: relative; }
+.strip .plot svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.strip .now { text-align: right; font-family: var(--narrow); }
+.strip .now b { display: block; font-size: 19px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.strip .now span { color: var(--faint); font-size: 12px; }
+
+/* The axis, drawn once for all of them. */
+.axis {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) 104px;
+  gap: 14px;
+  padding: 7px 13px 11px;
+  border-top: 1px solid var(--line);
+}
+.axis .ticks { display: flex; justify-content: space-between; color: var(--faint); font-family: var(--narrow); font-size: 12px; }
+
+/* A crosshair that reads every band at the same instant. */
+.cursor { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--ink); opacity: 0; pointer-events: none; }
+.readout {
+  padding: 9px 13px;
+  border-bottom: 1px solid var(--line);
+  font-family: var(--narrow);
+  display: flex;
+  gap: 16px;
+  align-items: baseline;
+  min-height: 38px;
+}
+.readout .when { font-weight: 600; }
+.readout .pair { color: var(--dim); }
+.readout .pair b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.readout .idle { color: var(--faint); }
+
+.side { display: grid; grid-template-rows: auto auto 1fr; gap: 12px; min-height: 0; }
+.kv { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; font-family: var(--narrow); }
+.kv span { color: var(--dim); }
+.kv b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.acts { display: grid; gap: 7px; padding: 13px; }
+.cond { display: flex; gap: 9px; padding: 10px 13px; border-bottom: 1px solid var(--line); }
+.cond:last-child { border-bottom: 0; }
+.cond .dot { margin-top: 6px; }
+.cond .what { font-weight: 500; }
+.cond .why { color: var(--dim); font-family: var(--narrow); font-size: 12.5px; }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="mark">PokéMans <span>ops</span></div>
+  <nav class="switch">
+    <a href="./a.html">Watch floor</a>
+    <a href="./b.html" aria-current="page">Telemetry</a>
+    <a href="./c.html">Incident board</a>
+  </nav>
+  <div class="spacer"></div>
+  <span class="chip ok" id="verdict">—</span>
+  <time id="stamp">—</time>
+</header>
+
+<main class="deck">
+
+  <section class="panel">
+    <h2>45 days <b>every signal on one axis</b><span class="spacer"></span><span style="color:var(--faint)">move across to read a day</span></h2>
+    <div class="readout" id="readout"><span class="idle">Hover a chart to read every signal at that moment.</span></div>
+    <div class="strips" id="strips"></div>
+  </section>
+
+  <div class="side">
+    <section class="panel">
+      <h2>Storage</h2>
+      <div class="body">
+        <div class="reading"><span class="v num" id="dbUsed">—</span><span class="u" id="dbLimit"></span></div>
+        <div class="meter" style="margin-top:9px"><i id="dbBar"></i></div>
+        <div style="margin-top:11px" id="dbTables"></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Run a job</h2>
+      <div class="acts">
+        <button class="go">Capture prices</button>
+        <button>Sync card art</button>
+        <button>Thin history</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Conditions <b id="condCount"></b></h2>
+      <div class="body flush" id="conds"></div>
+    </section>
+  </div>
+
+</main>
+
+<script src="./data.js"></script>
+<script src="./shared.js"></script>
+<script>
+const { usage } = window.OPS;
+document.getElementById('stamp').textContent = ops.stamp();
+
+/* Four signals. Prices and thinning are recorded day by day; coverage and storage are
+   single current readings, so they are drawn as a level rather than faked into a history
+   nobody measured. */
+const priceRows = ops.series('prices', 'rows');
+const priceMs = ops.series('prices', 'ms');
+const days = priceRows.map((d) => d.day);
+
+const SIGNALS = [
+  { key: 'rows',  name: 'Prices written',   sub: 'rows per run',      color: 'var(--stars)',   data: priceRows },
+  { key: 'ms',    name: 'Capture duration', sub: 'seconds per run',   color: 'var(--cosmos)',  data: priceMs.map((d) => ({ ...d, v: d.v == null ? null : d.v / 1000 })) },
+  { key: 'thin',  name: 'History thinned',  sub: 'rows removed',      color: 'var(--etch)',    data: ops.series('thin', 'rows') },
+];
+
+function path(data, w, h) {
+  const vals = data.map((d) => d.v).filter((v) => v != null);
+  if (!vals.length) return { line: '', area: '', max: 0 };
+  const max = Math.max(...vals, 1);
+  const step = w / Math.max(data.length - 1, 1);
+  let line = '';
+  let open = false;
+  data.forEach((d, i) => {
+    if (d.v == null) { open = false; return; }
+    const x = i * step;
+    const y = h - (d.v / max) * (h - 6) - 3;
+    line += (open ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1) + ' ';
+    open = true;
+  });
+  return { line, max, step };
+}
+
+const strips = document.getElementById('strips');
+strips.innerHTML = SIGNALS.map((s) => `
+  <div class="strip" data-key="${s.key}">
+    <div class="label"><b>${s.name}</b><span>${s.sub}</span></div>
+    <div class="plot"><svg preserveAspectRatio="none" viewBox="0 0 600 100">
+      <path fill="none" stroke="${s.color}" stroke-width="1.6" vector-effect="non-scaling-stroke" d=""></path>
+    </svg><i class="cursor"></i></div>
+    <div class="now"><b>—</b><span></span></div>
+  </div>`).join('') + `
+  <div class="axis">
+    <div></div>
+    <div class="ticks" id="ticks"></div>
+    <div></div>
+  </div>`;
+
+SIGNALS.forEach((s) => {
+  const el = strips.querySelector(`[data-key="${s.key}"]`);
+  const { line, max } = path(s.data, 600, 100);
+  el.querySelector('path').setAttribute('d', line);
+  const last = [...s.data].reverse().find((d) => d.v != null);
+  el.querySelector('.now b').textContent = last ? (s.key === 'ms' ? last.v.toFixed(1) : ops.fmt(last.v)) : '—';
+  el.querySelector('.now span').textContent = max ? `peak ${s.key === 'ms' ? (max).toFixed(0) : ops.fmt(Math.round(max))}` : 'never run';
+});
+
+const ticks = document.getElementById('ticks');
+const marks = [0, Math.floor(days.length / 3), Math.floor((days.length * 2) / 3), days.length - 1];
+ticks.innerHTML = marks.map((i) => {
+  const d = days[i];
+  return `<span>${d ? new Date(d + 'T12:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : ''}</span>`;
+}).join('');
+
+/* One crosshair, every band. This is the whole point of the layout, so it is the only
+   interaction on the page. */
+const readout = document.getElementById('readout');
+const plots = [...strips.querySelectorAll('.plot')];
+function readAt(ratio) {
+  const i = Math.max(0, Math.min(days.length - 1, Math.round(ratio * (days.length - 1))));
+  plots.forEach((p) => {
+    const c = p.querySelector('.cursor');
+    c.style.left = (ratio * 100).toFixed(2) + '%';
+    c.style.opacity = '1';
+  });
+  const day = days[i];
+  const parts = SIGNALS.map((s) => {
+    const d = s.data[i];
+    if (!d || d.v == null) return `<span class="pair">${s.name} <b>did not run</b></span>`;
+    const v = s.key === 'ms' ? d.v.toFixed(1) + 's' : ops.fmt(d.v);
+    return `<span class="pair">${s.name} <b>${v}</b></span>`;
+  });
+  readout.innerHTML = `<span class="when">${new Date(day + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}</span>` + parts.join('');
+}
+plots.forEach((p) => {
+  p.addEventListener('pointermove', (e) => {
+    const r = p.getBoundingClientRect();
+    readAt((e.clientX - r.left) / r.width);
+  });
+});
+strips.addEventListener('pointerleave', () => {
+  plots.forEach((p) => (p.querySelector('.cursor').style.opacity = '0'));
+  readout.innerHTML = '<span class="idle">Hover a chart to read every signal at that moment.</span>';
+});
+
+document.getElementById('dbUsed').textContent = usage.pretty;
+document.getElementById('dbLimit').textContent = `of ${usage.limitPretty} · ${usage.pct}%`;
+const bar = document.getElementById('dbBar');
+bar.style.width = usage.pct + '%';
+bar.className = usage.pct > 85 ? 'crit' : usage.pct > 65 ? 'warn' : '';
+document.getElementById('dbTables').innerHTML = usage.tables.slice(0, 5)
+  .map((t) => `<div class="kv"><span>${t.name}</span><b>${t.pretty}</b></div>`).join('');
+
+const conds = ops.conditions();
+document.getElementById('condCount').textContent = conds.length ? `${conds.length} open` : 'all clear';
+document.getElementById('conds').innerHTML = conds.map((c) => `
+  <div class="cond"><i class="dot ${c.level}"></i><div><div class="what">${c.what}</div><div class="why">${c.why}</div></div></div>`).join('');
+const v = document.getElementById('verdict');
+v.textContent = conds.length ? `${conds.length} conditions` : 'Nominal';
+v.className = 'chip ' + (conds.some((c) => c.level === 'crit') ? 'crit' : conds.length ? 'warn' : 'ok');
+</script>
+</body>
+</html>
