@@ -1,0 +1,70 @@
+#
+
+# Ships main to pokemans.utsec.net.
+#
+# Deploying used to be a second command after committing, which is one command too many: the
+# sync-prices fix once sat committed and not live for an hour because only the first half got
+# run. Pushing is now the whole act.
+#
+# A runner needs almost nothing to build this. The 20,000 card images are gitignored and the
+# build deletes the rest of public/ anyway, and the Supabase URL and publishable key are
+# committed in client/.env.production because they ship inside the bundle regardless. So the
+# only secret here is the Cloudflare token.
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  # So a deploy can be re-run from the Actions tab without an empty commit.
+  workflow_dispatch:
+
+# One deploy at a time, newest wins. Two pushes a minute apart should not race to decide
+# which one is live.
+concurrency:
+  group: deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # ci rather than install: it installs exactly the lockfile and fails if the two have
+      # drifted, which is the behaviour worth having on a machine nobody is watching.
+      - run: npm ci
+
+      # tsc -b runs first inside this script, so a type error fails the deploy rather than
+      # shipping a build that happens to have compiled.
+      - run: npm run build -w client
+
+      # Refuse to ship an empty or unreasonably large bundle. The build drops ~23,000 image
+      # files from dist/, and if that plugin ever stops running, Workers rejects the upload
+      # with a file-count error that reads like an outage. Better to say so here.
+      - name: Check the bundle looks sane
+        run: |
+          count=$(find client/dist -type f | wc -l)
+          echo "dist holds $count files"
+          if [ "$count" -lt 4 ]; then
+            echo "::error::dist has $count files — the build produced nothing"
+            exit 1
+          fi
+          if [ "$count" -gt 500 ]; then
+            echo "::error::dist has $count files — the vendored images were not dropped"
+            exit 1
+          fi
+
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: client
+          # No command: the action runs `wrangler deploy`, which reads client/wrangler.toml
+          # for the name, the assets directory, the R2 binding and the route.
