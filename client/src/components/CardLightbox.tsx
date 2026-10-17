@@ -184,10 +184,30 @@ export function CardLightbox({
       aria-modal="true"
       aria-label={card.name}
     >
+      {/* An outer box that does not scroll, so the close button can sit still while the
+          panel inside it moves.
+
+          Escape and the backdrop already closed this, but neither is visible, and on a phone
+          there is no Escape at all — the backdrop is a thin margin around a panel that nearly
+          fills the screen, so the only way out was a lucky tap. Putting the button inside the
+          scrolling panel would have fixed that only until someone scrolled, which on a phone
+          is immediately, and only there. */}
       <div
-        className="flex max-h-full w-full max-w-4xl flex-col gap-4 overflow-y-auto rounded-xl bg-[var(--color-surface)] p-4 shadow-2xl sm:flex-row"
+        className="relative flex max-h-full w-full max-w-4xl"
         onClick={(e) => e.stopPropagation()}
       >
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute right-2 top-2 z-10 flex size-8 items-center justify-center rounded-full bg-[var(--color-surface)]/85 text-[var(--color-text-muted)] backdrop-blur transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="size-4" aria-hidden="true">
+            <path strokeLinecap="round" d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+
+        <div className="flex max-h-full w-full flex-col gap-4 overflow-y-auto rounded-xl bg-[var(--color-surface)] p-4 shadow-2xl sm:flex-row">
         {/* self-start stops the flex row stretching the image to the column height, which
             distorted the card; the max-* pair keeps its own aspect ratio whatever the box. */}
         {image && (
@@ -297,6 +317,7 @@ export function CardLightbox({
               </div>
             </div>
           )}
+        </div>
         </div>
       </div>
     </div>
