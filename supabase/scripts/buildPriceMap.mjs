@@ -20,6 +20,12 @@
  * WotC era unpriced, so each printing is matched against the subtypes that product actually
  * publishes, in order of preference.
  *
+ * Reverse patterns are a third disagreement, and a newer one. A modern set prints its
+ * reverse holos in several foil patterns, and TCGplayer sells each pattern as its own
+ * product under the same card number -- "Erika's Oddish (Poke Ball)" beside plain
+ * "Erika's Oddish" -- where we hold them as printings of one card. Matched on the
+ * qualifier in brackets (pickByFoil), which is the only part of the name that differs.
+ *
  * WotC-era editions, which the two catalogues disagree about.
  *
  * We model edition as a property of the printing: base1-4 is four variants differing by
@@ -457,7 +463,7 @@ for (const v of myVars) {
 const rows = [];
 const unmatchedCards = [];
 const unmatchedPrintings = [];
-let byNumber = 0, byName = 0, noGroup = 0;
+let byNumber = 0, byName = 0, byFoil = 0, noGroup = 0;
 
 const cardsBySet = new Map();
 for (const c of myCards) {
@@ -514,6 +520,77 @@ function setHinted(candidates, setName) {
     for (const w of setWords) if (words.has(w)) return true;
     return false;
   });
+}
+
+/**
+ * The reverse patterns, as our catalogue spells them and as TCGplayer names them.
+ *
+ * Modern sets print a reverse holo in several foil patterns -- a Poke Ball, an energy
+ * symbol, a Dusk Ball -- and TCGplayer sells each as its own product carrying the same card
+ * number: "Erika's Oddish", "Erika's Oddish (Poke Ball)", "Erika's Oddish (Energy Symbol
+ * Pattern)". Our catalogue models them as three printings of one card, which is the same
+ * fact in a different shape.
+ *
+ * Without this table the three are indistinguishable to the matcher, so pickByNumber
+ * collapses them to the plainest product -- correct for the plain printing, and fatal for
+ * the patterned ones, which then ask that product for a Reverse Holofoil it does not
+ * publish. Ascended Heroes lost 280 of its 629 printings that way and read 53.6% priced.
+ *
+ * Matched on the qualifier in brackets, never on the whole name: the trainer card Quick Ball
+ * is a product called "Quick Ball", and a rule reading the whole name would hand every
+ * Quick Ball-pattern reverse in the set that trainer's price.
+ */
+const FOIL_PATTERNS = {
+  pokeball: 'poke ball',
+  masterball: 'master ball',
+  duskball: 'dusk ball',
+  loveball: 'love ball',
+  friendball: 'friend ball',
+  quickball: 'quick ball',
+  energy: 'energy symbol',
+  cosmos: 'cosmos',
+  galaxy: 'galaxy',
+  'cracked-ice': 'cracked ice',
+  'team-rocket': 'team rocket',
+};
+
+/**
+ * A qualifier with the finish words taken off, so one pattern has one name.
+ *
+ * The same pattern is written four ways upstream -- "(Poke Ball)", "(Poke Ball Pattern)",
+ * "(Cosmos Holo)", "(Reverse Cosmos Holo)" -- and a table listing every spelling would
+ * silently miss the fifth. Stripping the finish leaves the pattern itself, which is the part
+ * that names the printing.
+ */
+const patternOf = (qualifier) =>
+  base(qualifier).replace(/\b(pattern|holofoil|holo|foil|reverse)\b/g, ' ').replace(/\s+/g, ' ').trim();
+
+/** The qualifiers a product name carries, in brackets or parentheses. */
+const qualifiers = (name) => [...String(name ?? '').matchAll(/\(([^)]+)\)|\[([^\]]+)\]/g)]
+  .map((m) => m[1] ?? m[2]);
+
+/**
+ * The product for a patterned printing, where the set sells the pattern separately.
+ *
+ * Deliberately narrow. It answers only for a printing that records a foil we have a name
+ * for, and only when exactly one product of that card carries the matching qualifier. Every
+ * other case -- an unpatterned printing, a pattern upstream does not split out, two products
+ * claiming the same pattern -- returns null and leaves pickByNumber to decide as before.
+ *
+ * A null here is not a failure: in the sets where TCGplayer sells one reverse product for
+ * all patterns, falling through is what keeps those printings priced at all.
+ */
+function pickByFoil(candidates, card, variant) {
+  const wanted = FOIL_PATTERNS[variant.foil ?? ''];
+  if (!wanted || candidates.length < 2) return null;
+  const myCore = coreName(card.name);
+  const mine = norm(card.name);
+  const hits = candidates.filter((p) => {
+    if (coreName(p.name) !== myCore && coreName(p.name) !== mine) return false;
+    const quals = qualifiers(p.name);
+    return quals.some((q) => patternOf(q) === wanted);
+  });
+  return hits.length === 1 ? hits[0] : null;
 }
 
 /**
@@ -596,8 +673,12 @@ for (const [setId, cards] of cardsBySet) {
       const targetGid = groupForVariant(v, gid, alternates);
       const idx = indexes.get(targetGid) ?? indexes.get(gid);
 
-      let prod = pickByNumber(idx.numIdx.get(cardNum(c.number)) ?? [], c, c.set_name);
-      let how = 'number';
+      const candidates = idx.numIdx.get(cardNum(c.number)) ?? [];
+      // The pattern product first, where the set sells one. It is the same card on the same
+      // number, so the number index already holds it; what tells it apart is the qualifier.
+      let prod = pickByFoil(candidates, c, v);
+      let how = prod ? 'foil' : 'number';
+      if (!prod) prod = pickByNumber(candidates, c, c.set_name);
       if (!prod) { prod = idx.nameIdx.get(norm(c.name)); how = 'name'; }
       // Nothing found, and deliberately no fallback to the main group for an edition-bearing
       // printing. A shadowless card missing from the shadowless group could be given the
@@ -609,12 +690,20 @@ for (const [setId, cards] of cardsBySet) {
         matchedThisCard = true;
         how === 'name' ? byName++ : byNumber++;
       }
+      if (how === 'foil') byFoil++;
 
       const available = subTypesByProduct.get(prod.productId) ?? new Set();
-      const sub = subtypePreference(v, variants).find((w) => available.has(w));
+      let sub = subtypePreference(v, variants).find((w) => available.has(w));
+      // A product named for this printing's pattern is this printing, so the finish it
+      // publishes is the right one whatever it is called. Ascended Heroes sells a patterned
+      // reverse as "Reverse Holofoil" and Black Bolt sells the same thing as "Holofoil";
+      // asking for the name our side would have used leaves half of them unpriced. Only
+      // where the product publishes one finish -- otherwise there is a real choice to make
+      // and the preference order is the only honest way to make it.
+      if (!sub && how === 'foil' && available.size === 1) sub = [...available][0];
       if (!sub) {
         unmatchedPrintings.push(
-          `${c.id} ${v.type}${v.stamp ? '/' + v.stamp : ''}${v.subtype ? '/' + v.subtype : ''}`
+          `${c.id} ${v.type}${v.stamp ? '/' + v.stamp : ''}${v.subtype ? '/' + v.subtype : ''}${v.foil ? '/' + v.foil : ''}`
           + ` → product ${prod.productId} has [${[...available].join(', ') || 'no prices'}]`);
         continue;
       }
@@ -685,6 +774,7 @@ console.log('     card unmatched   ', String(unmatchedCards.length).padStart(6),
 console.log('');
 console.log('   PRINTINGS  (of ' + totalPrintings.toLocaleString() + ')');
 console.log('     mapped           ', String(rows.length).padStart(6), pct(rows.length, totalPrintings));
+console.log('       of those, by foil pattern', String(byFoil).padStart(6));
 console.log('     no subtype       ', String(unmatchedPrintings.length).padStart(6), pct(unmatchedPrintings.length, totalPrintings));
 for (const u of unmatchedPrintings.slice(0, 6)) console.log('       ·', u);
 
@@ -697,10 +787,20 @@ if (args.includes('--inspect')) {
   console.log(`   ${want}  ${mine?.name ?? '?'}  (${mine?.set_name ?? '?'})`);
   for (const r of rows.filter((r) => r.cardId === want)) {
     const v = (variantsByCard.get(want) ?? []).find((v) => v.position === r.variant_position);
-    const label = [v?.type, v?.subtype, v?.stamp].filter(Boolean).join(' / ');
+    const label = [v?.type, v?.subtype, v?.stamp, v?.foil].filter(Boolean).join(' / ');
     const prodName = Object.values(byGroup).flat().find((p) => p.productId === r.external_id)?.name ?? '?';
     console.log(`     pos ${r.variant_position}  ${label.padEnd(34)} → ${r.external_id} ${JSON.stringify(prodName)} / ${r.sub_type}`);
   }
+}
+
+// --dump <file> writes the rows this run would produce, which is how one rule change is
+// told from another: two dumps diffed say exactly which printings moved and where to,
+// where the summary only says how many.
+if (args.includes('--dump')) {
+  const out = args[args.indexOf('--dump') + 1];
+  fs.writeFileSync(out, rows.map((r) => [r.cardId, r.variant_position, r.external_id, r.sub_type, r.matched_by].join('\t')).sort().join('\n'));
+  console.log('');
+  console.log('   wrote', rows.length.toLocaleString(), 'rows to', out);
 }
 
 if (!APPLY) {
