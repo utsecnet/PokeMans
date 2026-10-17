@@ -35,16 +35,21 @@ body { display: grid; grid-template-rows: 46px 1fr; overflow: hidden; }
 .ticks i.warn { background: var(--warn); }
 .ticks i.crit { background: var(--crit); }
 
-/* The hero. Each cell is a set; fill is how much of it carries a price. */
+/* The hero. Each cell is a set; fill is how much of it carries a price.
+
+   The cell size is computed from the pane at runtime rather than declared here, because
+   176 square cells and a minimum column width cannot both be honoured in a fixed pane --
+   one of them has to give, and a minimum width gives by scrolling. The grid is the whole
+   argument for this layout, so it is the pane that wins. */
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(34px, 1fr));
-  grid-auto-rows: 1fr;
   gap: 4px;
+  align-content: center;
+  justify-content: center;
+  width: 100%;
   height: 100%;
 }
 .grid i {
-  aspect-ratio: 1;
   border-radius: 3px;
   background: var(--raised);
   position: relative;
@@ -127,7 +132,7 @@ body { display: grid; grid-template-rows: 46px 1fr; overflow: hidden; }
           <span><b style="background:var(--raised)"></b>none</span>
         </span>
       </h2>
-      <div class="body" style="display:flex"><div class="grid" id="grid"></div></div>
+      <div class="body" style="display:flex;overflow:hidden"><div class="grid" id="grid"></div></div>
     </section>
   </div>
 
@@ -191,6 +196,33 @@ document.getElementById('grid').innerHTML = sets.map((s) => {
   const c = ops.band(s.pct);
   return `<i style="--cell:${c};--fill:${Math.max(pct, 4)}%" title="${s.name} — ${s.priced}/${s.printings} priced${s.pct === null ? '' : ` (${pct}%)`}"></i>`;
 }).join('');
+
+/* Fit every cell on screen: try each column count and keep the one that leaves the
+   squares biggest. Runs again whenever the pane changes size, so the grid reflows with
+   the window instead of growing a scrollbar. */
+const gridEl = document.getElementById('grid');
+const GAP = 4;
+function fitGrid() {
+  const n = sets.length;
+  const w = gridEl.clientWidth;
+  const h = gridEl.clientHeight;
+  if (!n || w < 1 || h < 1) return;
+  let best = { size: 0, cols: 1 };
+  for (let cols = 1; cols <= n; cols++) {
+    const rows = Math.ceil(n / cols);
+    const size = Math.min((w - (cols - 1) * GAP) / cols, (h - (rows - 1) * GAP) / rows);
+    if (size > best.size) best = { size, cols };
+  }
+  // Capped, and the grid centres in whatever is left: on a wide monitor the fit alone
+  // would hand each of 176 sets a 100px tile, which is a quilt rather than a readout.
+  const px = Math.min(Math.max(Math.floor(best.size), 1), 72);
+  gridEl.style.gridTemplateColumns = 'repeat(' + best.cols + ', ' + px + 'px)';
+  gridEl.style.gridAutoRows = px + 'px';
+}
+// Safe against a feedback loop: the grid is sized by its parent, so changing the track
+// sizes cannot change the box being measured.
+new ResizeObserver(fitGrid).observe(gridEl);
+fitGrid();
 
 // Conditions
 const conds = ops.conditions();
