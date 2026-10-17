@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes, useLocation, useNavigationType } from 're
 import { Header } from './components/Header';
 import { PokemonList } from './pages/PokemonList';
 import { PokemonDetail } from './pages/PokemonDetail';
+import { FoilLab } from './pages/FoilLab';
 import { Settings } from './pages/Settings';
 import { Collection } from './pages/Collection';
 import { WantListPage } from './pages/WantList';
@@ -51,6 +52,7 @@ function App() {
                 <Route path="/" element={<PokemonList />} />
                 <Route path="/pokemon/:id" element={<PokemonDetail />} />
                 <Route path="/settings" element={<Settings />} />
+                <Route path="/foil-lab" element={<FoilLab />} />
                 <Route path="/collection" element={<Collection />} />
                 <Route path="/collection/:boxId" element={<CollectionBoxPage />} />
                 <Route path="/wants/:listId" element={<WantListPage />} />

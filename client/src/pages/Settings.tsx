@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { AdminCardArt } from '../components/AdminCardArt';
 import { AdminSync } from '../components/AdminSync';
 import { SyncCalendar } from '../components/SyncCalendar';
@@ -37,6 +38,22 @@ export function Settings() {
           <DatabaseMeter />
           <AdminSync />
           <AdminCardArt />
+
+          {/* Inside the admin block, so the link is only drawn for an admin. The page checks
+              again on its own, because a route is reachable by typing it. */}
+          <section className="mt-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+            <h2 className="text-lg font-semibold">Foil Lab</h2>
+            <p className="mt-1 text-sm text-[var(--color-text-muted)]">
+              The four foil treatments side by side, on real cards and on one control card.
+              For checking a change to the overlays against what the lightbox actually draws.
+            </p>
+            <Link
+              to="/foil-lab"
+              className="mt-4 inline-block rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm hover:bg-[var(--color-surface-hover)]"
+            >
+              Open Foil Lab
+            </Link>
+          </section>
         </>
       )}
     </div>

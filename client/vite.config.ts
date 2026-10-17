@@ -23,9 +23,6 @@ function dropVendoredImages(): Plugin {
     closeBundle() {
       const out = resolve(import.meta.dirname, 'dist')
       for (const d of dirs) rmSync(resolve(out, d), { recursive: true, force: true })
-      // The foil overlay lab is a scratch page for looking at rarity treatments. It is not
-      // part of the app and has no business on a public origin.
-      rmSync(resolve(out, 'foil-lab.html'), { force: true })
     },
   }
 }
