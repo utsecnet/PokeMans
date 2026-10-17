@@ -136,7 +136,14 @@ export async function fetchSetCoverage(): Promise<SetCoverageRow[]> {
   return (data ?? []) as SetCoverageRow[];
 }
 
-interface CardVariantRow { position: number; type: string; subtype: string | null; stamp: string | null }
+interface CardVariantRow {
+  position: number;
+  type: string;
+  subtype: string | null;
+  stamp: string | null;
+  size: string | null;
+  foil: string | null;
+}
 interface CardJoin {
   id: string;
   name: string;
@@ -150,6 +157,26 @@ interface StaleJoin {
   market: number | null;
   observed_on: string;
   tcg_cards: { id: string; name: string; number: string; set_id: string } | null;
+}
+
+/**
+ * Marks the position on any label a card repeats, so no two rows in a table read alike.
+ *
+ * printingLabel() says everything the printing records, and for ten cards in the
+ * catalogue that is still not enough: TCGdex lists the same printing twice, identical in
+ * every stored field. Nothing distinguishes them because nothing about them differs, so
+ * the row carries its position — the only thing that does — rather than looking like a
+ * duplicate an admin should go and fix.
+ */
+function withUniqueLabels<T extends { cardId: string; position: number; label: string }>(rows: T[]): T[] {
+  const seen = new Map<string, number>();
+  for (const r of rows) {
+    const k = r.cardId + '|' + r.label;
+    seen.set(k, (seen.get(k) ?? 0) + 1);
+  }
+  return rows.map((r) => ((seen.get(r.cardId + '|' + r.label) ?? 0) > 1
+    ? { ...r, label: r.label + ' · printing ' + r.position }
+    : r));
 }
 
 /** One printing of one card, with whether it is mapped and what it last sold for. */
@@ -175,7 +202,7 @@ export interface SetPrinting {
 export async function fetchSetPrintings(setId: string): Promise<SetPrinting[]> {
   const { data, error } = await supabase
     .from('tcg_cards')
-    .select('id,name,number,tcg_card_variants(position,type,subtype,stamp),price_latest(variant_position,market,observed_on),price_map(variant_position)')
+    .select('id,name,number,tcg_card_variants(position,type,subtype,stamp,size,foil),price_latest(variant_position,market,observed_on),price_map(variant_position)')
     .eq('set_id', setId)
     .limit(2000)
     // The embedded shape is named rather than inferred: three nested resources defeat the
@@ -205,9 +232,9 @@ export async function fetchSetPrintings(setId: string): Promise<SetPrinting[]> {
 
   // Card number is text and sorts as text: 2 belongs before 10, and TG01 belongs with the
   // other TG numbers rather than at the front of the set.
-  return rows.sort((a, b) =>
+  return withUniqueLabels(rows.sort((a, b) =>
     String(a.number).localeCompare(String(b.number), undefined, { numeric: true })
-    || a.position - b.position);
+    || a.position - b.position));
 }
 
 export interface StalePrinting extends SetPrinting {
@@ -237,13 +264,13 @@ export async function fetchStalePrintings(before: string): Promise<StalePrinting
   const ids = [...new Set(rows.map((r) => r.tcg_cards.id))];
   const { data: variants, error: vErr } = await supabase
     .from('tcg_card_variants')
-    .select('card_id,position,type,subtype,stamp')
+    .select('card_id,position,type,subtype,stamp,size,foil')
     .in('card_id', ids)
     .returns<(CardVariantRow & { card_id: string })[]>();
   if (vErr) throw new Error(vErr.message);
   const byKey = new Map((variants ?? []).map((v) => [`${v.card_id}:${v.position}`, v]));
 
-  return rows.map((r) => {
+  return withUniqueLabels(rows.map((r) => {
     const card = r.tcg_cards;
     const v = byKey.get(`${card.id}:${r.variant_position}`);
     return {
@@ -257,7 +284,7 @@ export async function fetchStalePrintings(before: string): Promise<StalePrinting
       market: r.market,
       seen: r.observed_on,
     };
-  });
+  }));
 }
 
 export interface CardArtStatus {
