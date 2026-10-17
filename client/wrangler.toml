@@ -9,6 +9,13 @@
 
 name = "pokemans"
 main = "worker.js"
+
+# Set so wrangler does not have to ask which account this belongs to. Without it, it calls
+# /memberships -- a user-level endpoint an account-scoped token cannot read -- and the deploy
+# fails with "Authentication failed (status: 400) [code: 9106]", which reads like a bad token
+# rather than a missing field. Not a secret: it is in every dashboard URL and in the R2
+# endpoint hostname.
+account_id = "ec4277211bf09b65b26be2d074d89b5f"
 compatibility_date = "2026-10-10"
 
 [assets]
