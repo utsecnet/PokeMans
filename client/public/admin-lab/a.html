@@ -8,20 +8,26 @@
 <style>
 /* A: WATCH FLOOR.
    One screen, no page scroll. Three columns: what runs on the left, the catalogue in the
-   middle, what needs doing on the right. The middle is the hero — 176 sets as 176 cells,
+   middle, what needs doing on the right. The middle is the hero -- 176 sets as 176 cells,
    which is the most characteristic object this system has and nothing a generic dashboard
-   would show. */
+   would show.
+
+   Everything the Settings page can do is reachable from this screen. The detail that used
+   to be a section of its own -- a set's figures, a day's run, where prices come from -- is
+   behind the object it belongs to rather than stacked underneath it, so depth costs a
+   click instead of a scroll. */
 body { display: grid; grid-template-rows: 46px 1fr; overflow: hidden; }
 .floor {
   display: grid;
-  grid-template-columns: 270px minmax(0, 1fr) 300px;
+  grid-template-columns: 268px minmax(0, 1fr) 352px;
   gap: 12px;
   padding: 12px;
   min-height: 0;
 }
 .col { display: grid; gap: 12px; min-height: 0; }
-.col.left { grid-template-rows: auto auto 1fr; }
-.col.right { grid-template-rows: auto 1fr; }
+.col.left { grid-template-rows: auto auto 1fr auto; }
+.col.mid { grid-template-rows: auto 1fr; }
+.col.right { grid-template-rows: auto auto 1fr; }
 
 /* The job strip: one row per scheduled job, with its recent outcomes as a run of ticks. */
 .job { padding: 11px 13px; border-bottom: 1px solid var(--line); }
@@ -30,10 +36,23 @@ body { display: grid; grid-template-rows: 46px 1fr; overflow: hidden; }
 .job .name { font-weight: 600; }
 .job .when { margin-left: auto; color: var(--faint); font-family: var(--narrow); font-size: 12px; }
 .ticks { display: flex; gap: 2px; margin-top: 8px; }
-.ticks i { flex: 1; height: 16px; border-radius: 2px; background: var(--raised); }
-.ticks i.ok { background: var(--ok); }
-.ticks i.warn { background: var(--warn); }
-.ticks i.crit { background: var(--crit); }
+.ticks button {
+  flex: 1; height: 16px; padding: 0; border: 0; border-radius: 2px;
+  background: var(--raised); cursor: pointer;
+}
+.ticks button.ok { background: var(--ok); }
+.ticks button.warn { background: var(--warn); }
+.ticks button.crit { background: var(--crit); }
+.ticks button:hover { outline: 1px solid var(--ink); outline-offset: 1px; }
+.ticks button:disabled { cursor: default; }
+.ticks button:disabled:hover { outline: 0; }
+
+/* The four figures that say whether the data is sound, which a run log cannot. */
+.vitals { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); }
+.vitals > div { background: var(--panel); padding: 11px 13px; }
+.vitals .k { color: var(--dim); font-family: var(--narrow); font-size: 12px; }
+.vitals .v { font-size: 25px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.vitals .h { color: var(--faint); font-family: var(--narrow); font-size: 12px; }
 
 /* The hero. Each cell is a set; fill is how much of it carries a price.
 
@@ -49,25 +68,36 @@ body { display: grid; grid-template-rows: 46px 1fr; overflow: hidden; }
   width: 100%;
   height: 100%;
 }
-.grid i {
+.grid button {
+  border: 0;
+  padding: 0;
   border-radius: 3px;
   background: var(--raised);
   position: relative;
-  cursor: default;
+  cursor: pointer;
+  overflow: hidden;
 }
-.grid i::after {
+.grid button::after {
   content: '';
   position: absolute;
   inset: auto 0 0 0;
-  border-radius: 0 0 3px 3px;
   background: var(--cell);
   height: var(--fill);
 }
-.grid i:hover { outline: 1px solid var(--ink); outline-offset: 1px; }
+.grid button:hover, .grid button:focus-visible { outline: 1px solid var(--ink); outline-offset: 1px; }
 
 .legend { display: flex; gap: 14px; align-items: center; color: var(--faint); font-family: var(--narrow); font-size: 12px; }
 .legend span { display: flex; align-items: center; gap: 5px; }
 .legend b { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+/* A segmented control, because the grid answers "which sets" and the table answers
+   "how many exactly", and both questions get asked. */
+.seg { display: flex; gap: 2px; margin-left: auto; }
+.seg button { padding: 2px 9px; font-size: 12px; border-radius: 4px; background: transparent; border: 0; color: var(--dim); }
+.seg button[aria-pressed="true"] { background: var(--raised); color: var(--ink); }
+
+tr.row { cursor: pointer; }
+tr.row:hover td { background: var(--raised); }
 
 .cond { display: flex; gap: 9px; padding: 10px 13px; border-bottom: 1px solid var(--line); }
 .cond:last-child { border-bottom: 0; }
@@ -75,11 +105,55 @@ body { display: grid; grid-template-rows: 46px 1fr; overflow: hidden; }
 .cond .what { font-weight: 500; }
 .cond .why { color: var(--dim); font-family: var(--narrow); font-size: 12.5px; }
 
-.acts { display: grid; gap: 7px; padding: 13px; }
+.acts { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; padding: 13px; }
+.acts hr { grid-column: 1 / -1; border: 0; border-top: 1px solid var(--line); margin: 3px 0; }
+.acts .note { grid-column: 1 / -1; color: var(--faint); font-family: var(--narrow); font-size: 12px; }
+
+/* The output surface. Every control on this page reports here rather than growing its
+   own result block, which is what made the old page scroll. */
+.log { padding: 9px 13px; overflow: auto; font-family: var(--narrow); font-size: 12.5px; }
+.log div { display: flex; gap: 8px; padding: 3px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent); }
+.log div:last-child { border-bottom: 0; }
+.log time { color: var(--faint); font-variant-numeric: tabular-nums; flex: none; }
+.log .what { color: var(--ink); }
+.log .quiet { color: var(--dim); }
+.log .empty { color: var(--faint); border: 0; }
+
+.bars { padding: 0 13px 11px; }
+.ref { display: flex; flex-wrap: wrap; gap: 7px; padding: 11px 13px; }
+.ref button, .ref a {
+  font-family: var(--narrow); font-size: 12.5px; color: var(--dim);
+  background: transparent; border: 1px solid var(--line); border-radius: 5px;
+  padding: 4px 10px; text-decoration: none;
+}
+.ref button:hover, .ref a:hover { color: var(--ink); border-color: var(--faint); }
 
 .kv { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; font-family: var(--narrow); }
 .kv span { color: var(--dim); }
 .kv b { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* The drawer. One sheet, reused by every object that has more to say. */
+.scrim { position: fixed; inset: 0; background: rgba(8, 10, 15, 0.55); opacity: 0; pointer-events: none; }
+.scrim[data-open] { opacity: 1; pointer-events: auto; }
+.drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(440px, 92vw);
+  background: var(--panel); border-left: 1px solid var(--line);
+  display: flex; flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 160ms ease;
+}
+.scrim[data-open] .drawer { transform: none; }
+@media (prefers-reduced-motion: reduce) { .drawer { transition: none; } }
+.drawer header { display: flex; align-items: baseline; gap: 9px; padding: 13px 16px; border-bottom: 1px solid var(--line); }
+.drawer header h2 { margin: 0; font-size: 16px; font-weight: 600; }
+.drawer header .sub { color: var(--faint); font-family: var(--narrow); font-size: 12.5px; }
+.drawer header button { margin-left: auto; padding: 2px 9px; }
+.drawer .inner { padding: 16px; overflow: auto; }
+.drawer p { color: var(--dim); font-family: var(--narrow); margin: 0 0 12px; max-width: 58ch; }
+.drawer .chain { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 12px; }
+.drawer .chain i { font-style: normal; background: var(--raised); border-radius: 4px; padding: 4px 8px; font-family: var(--narrow); font-size: 12.5px; }
+.drawer .chain i span { color: var(--faint); }
+.drawer .url { font-family: var(--narrow); font-size: 12px; color: var(--faint); word-break: break-all; }
 </style>
 </head>
 <body>
@@ -100,7 +174,7 @@ body { display: grid; grid-template-rows: 46px 1fr; overflow: hidden; }
 
   <div class="col left">
     <section class="panel">
-      <h2>Scheduled jobs</h2>
+      <h2>Scheduled jobs<span class="spacer"></span><span style="color:var(--faint)">click a day</span></h2>
       <div class="body flush" id="jobs"></div>
     </section>
 
@@ -109,7 +183,7 @@ body { display: grid; grid-template-rows: 46px 1fr; overflow: hidden; }
       <div class="body">
         <div class="reading"><span class="v num" id="dbUsed">—</span><span class="u" id="dbLimit"></span></div>
         <div class="meter" style="margin-top:9px"><i id="dbBar"></i></div>
-        <div style="margin-top:11px" id="dbTables"></div>
+        <p id="dbWarn" hidden style="margin:9px 0 0;font-family:var(--narrow);font-size:12.5px"></p>
       </div>
     </section>
 
@@ -117,22 +191,39 @@ body { display: grid; grid-template-rows: 46px 1fr; overflow: hidden; }
       <h2>Catalogue</h2>
       <div class="body" id="catalogue"></div>
     </section>
+
+    <section class="panel">
+      <h2>Reference</h2>
+      <div class="ref">
+        <button type="button" id="openSources">Price sources</button>
+        <button type="button" id="openTables">Table sizes</button>
+        <a href="/foil-lab">Foil Lab</a>
+      </div>
+    </section>
   </div>
 
-  <div class="col">
+  <div class="col mid">
+    <section class="panel">
+      <div class="vitals" id="vitals"></div>
+    </section>
+
     <section class="panel">
       <h2>
-        Price coverage by set
+        <span id="covTitle">Price coverage by set</span>
         <b id="covCount"></b>
-        <span class="spacer"></span>
-        <span class="legend">
+        <span class="legend" style="margin-left:18px">
           <span><b style="background:var(--ok)"></b>100%</span>
           <span><b style="background:var(--warn)"></b>90–99%</span>
           <span><b style="background:var(--crit)"></b>below 90%</span>
           <span><b style="background:var(--raised)"></b>none</span>
         </span>
+        <span class="seg">
+          <button type="button" id="vGrid" aria-pressed="true">Grid</button>
+          <button type="button" id="vTable" aria-pressed="false">Table</button>
+        </span>
       </h2>
-      <div class="body" style="display:flex;overflow:hidden"><div class="grid" id="grid"></div></div>
+      <div class="body" id="gridBody" style="display:flex;overflow:hidden"><div class="grid" id="grid"></div></div>
+      <div class="body flush" id="tableBody" hidden style="overflow:auto"></div>
     </section>
   </div>
 
@@ -145,26 +236,70 @@ body { display: grid; grid-template-rows: 46px 1fr; overflow: hidden; }
     <section class="panel">
       <h2>Run a job</h2>
       <div class="acts">
-        <button class="go">Capture prices</button>
-        <button>Re-capture today</button>
-        <button>Sync card art</button>
-        <button>Preview thinning</button>
-        <button>Thin history</button>
+        <button class="go" data-run="prices">Capture prices</button>
+        <button data-run="force">Re-capture today</button>
+        <button data-run="thin-dry">Preview thinning</button>
+        <button data-run="thin">Thin history</button>
+        <hr />
+        <button data-run="art-check">Check card art</button>
+        <button data-run="art-sync" id="artSync">Sync missing art</button>
+        <span class="note" id="artNote"></span>
       </div>
+      <div class="bars" id="artBarWrap" hidden><div class="meter"><i id="artBar" style="width:0"></i></div></div>
+    </section>
+
+    <section class="panel">
+      <h2>Output <span class="spacer"></span><span style="color:var(--faint)">this session</span></h2>
+      <div class="log" id="log"><div class="empty">Nothing run yet. Job results appear here.</div></div>
     </section>
   </div>
 
 </main>
 
+<div class="scrim" id="scrim">
+  <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle">
+    <header>
+      <h2 id="drawerTitle">—</h2>
+      <span class="sub" id="drawerSub"></span>
+      <button type="button" id="drawerClose">Close</button>
+    </header>
+    <div class="inner" id="drawerBody"></div>
+  </aside>
+</div>
+
 <script src="./data.js"></script>
 <script src="./shared.js"></script>
 <script>
-const { health, usage, coverage } = window.OPS;
+const { health, usage, coverage, art, sources } = window.OPS;
 
 document.getElementById('stamp').textContent = ops.stamp();
 
-// Jobs. Only two run on a schedule today; the ticks are their real recorded outcomes.
-document.getElementById('jobs').innerHTML = ops.jobs().map((j) => `
+/* ---------------------------------------------------------------- the drawer */
+
+const scrim = document.getElementById('scrim');
+let lastFocus = null;
+function openDrawer(title, sub, html) {
+  lastFocus = document.activeElement;
+  document.getElementById('drawerTitle').textContent = title;
+  document.getElementById('drawerSub').textContent = sub || '';
+  document.getElementById('drawerBody').innerHTML = html;
+  scrim.setAttribute('data-open', '');
+  document.getElementById('drawerClose').focus();
+}
+function closeDrawer() {
+  scrim.removeAttribute('data-open');
+  if (lastFocus) lastFocus.focus();
+}
+document.getElementById('drawerClose').addEventListener('click', closeDrawer);
+scrim.addEventListener('click', (e) => { if (e.target === scrim) closeDrawer(); });
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && scrim.hasAttribute('data-open')) closeDrawer(); });
+
+const kv = (rows) => rows.map(([k, v]) => `<div class="kv"><span>${k}</span><b>${v}</b></div>`).join('');
+
+/* ---------------------------------------------------------------- jobs */
+
+const jobList = ops.jobs();
+document.getElementById('jobs').innerHTML = jobList.map((j, i) => `
   <div class="job">
     <div class="top">
       <i class="dot ${j.state}"></i>
@@ -172,35 +307,132 @@ document.getElementById('jobs').innerHTML = ops.jobs().map((j) => `
       <span class="when">${j.when}</span>
     </div>
     <div class="kv" style="padding-top:4px"><span>last run wrote</span><b>${j.rows} rows in ${j.ms}</b></div>
-    <div class="ticks">${j.ticks.map((t) => `<i class="${t}"></i>`).join('')}</div>
+    <div class="ticks" data-job="${i}">${j.ticks.map((t, d) =>
+      `<button type="button" class="${t}" data-day="${d}" ${t ? '' : 'disabled'} aria-label="day ${d + 1}"></button>`).join('')}</div>
   </div>`).join('');
 
-// Storage
+// A tick is a run, so clicking one opens that run. The note a job recorded is the part
+// worth reading, and it had nowhere to live on the old page.
+document.querySelectorAll('.ticks').forEach((strip) => {
+  const track = window.OPS.calendar[Number(strip.dataset.job)];
+  const days = (track.days || []).slice(-30);
+  strip.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b || b.disabled) return;
+    const d = days[Number(b.dataset.day)];
+    const when = new Date(d.day + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+    openDrawer(jobList[Number(strip.dataset.job)].label, when, kv([
+      ['Outcome', d.status === 'ok' ? 'completed' : d.status],
+      ['Rows written', ops.fmt(d.rows ?? 0)],
+      ['Points held after', ops.fmt(d.series ?? 0)],
+      ['Duration', ((d.ms ?? 0) / 1000).toFixed(1) + 's'],
+      ['Failures', ops.fmt(d.fails ?? 0)],
+    ]) + (d.note ? `<p style="margin-top:14px">${d.note}</p>` : ''));
+  });
+});
+
+/* ---------------------------------------------------------------- storage */
+
 document.getElementById('dbUsed').textContent = usage.pretty;
 document.getElementById('dbLimit').textContent = `of ${usage.limitPretty} · ${usage.pct}%`;
 const bar = document.getElementById('dbBar');
 bar.style.width = usage.pct + '%';
 bar.className = usage.pct > 85 ? 'crit' : usage.pct > 65 ? 'warn' : '';
-document.getElementById('dbTables').innerHTML = usage.tables.slice(0, 5)
-  .map((t) => `<div class="kv"><span>${t.name}</span><b>${t.pretty}</b></div>`).join('');
+if (usage.pct > 65) {
+  const w = document.getElementById('dbWarn');
+  w.hidden = false;
+  w.style.color = usage.pct > 85 ? 'var(--crit)' : 'var(--warn)';
+  w.textContent = 'Past the limit writes fail rather than cost money, and the price capture stops recording.';
+}
 
-// Catalogue figures
+document.getElementById('openTables').addEventListener('click', () =>
+  openDrawer('Table sizes', `${usage.pretty} of ${usage.limitPretty}`,
+    '<p>The database only. File storage and bandwidth are counted separately and are not what price history consumes.</p>'
+    + kv(usage.tables.map((t) => [t.name, t.pretty]))));
+
+/* ---------------------------------------------------------------- catalogue */
+
 document.getElementById('catalogue').innerHTML = ops.catalogue()
   .map((r) => `<div class="kv"><span>${r[0]}</span><b>${r[1]}</b></div>`).join('');
 
-// The hero grid
+/* The four figures that say whether the data is sound. Coverage and freshness are kept
+   apart on purpose: folding them into one number made a successful run look like a
+   failure for most of every day. */
+const coveragePct = Math.round((health.pricedPrintings / health.totalPrintings) * 100);
+const freshness = Math.round((health.coveredByLastRun / health.pricedPrintings) * 100);
+document.getElementById('vitals').innerHTML = [
+  ['Coverage', coveragePct + '%', `${ops.fmt(health.pricedPrintings)} of ${ops.fmt(health.totalPrintings)} printings`, coveragePct < 70],
+  ['Last run covered', freshness + '%', health.daysSinceLastRun === 0 ? 'ran today' : health.daysSinceLastRun === 1 ? 'ran yesterday' : `ran ${health.daysSinceLastRun} days ago`, freshness < 90],
+  ['Stale over 3 days', ops.fmt(health.staleOver3Days), 'not seen by a recent run', health.staleOver3Days > 0],
+  ['History', ops.fmt(health.historyRows), `since ${health.oldestPoint}`, false],
+].map(([k, v, h, warn]) => `
+  <div><div class="k">${k}</div><div class="v"${warn ? ' style="color:var(--warn)"' : ''}>${v}</div><div class="h">${h}</div></div>`).join('');
+
+/* ---------------------------------------------------------------- coverage */
+
 const sets = [...coverage].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 document.getElementById('covCount').textContent = `${sets.length} sets, oldest first`;
-document.getElementById('grid').innerHTML = sets.map((s) => {
+
+function setDrawer(s) {
+  openDrawer(s.name, s.id, kv([
+    ['Released', s.date || 'unknown'],
+    ['Cards', ops.fmt(s.cards)],
+    ['Printings', ops.fmt(s.printings)],
+    ['Carrying a price', ops.fmt(s.priced)],
+    ['Coverage', s.pct === null ? '—' : s.pct + '%'],
+  ]) + (s.pct !== null && s.pct < 90
+    ? '<p style="margin-top:14px">Below 90%. Usually printings the source does not publish separately rather than a fault — but a set matched to the wrong upstream group looks exactly the same from here, so it is worth opening once.</p>'
+    : ''));
+}
+
+const gridEl = document.getElementById('grid');
+gridEl.innerHTML = sets.map((s, i) => {
   const pct = s.pct ?? 0;
-  const c = ops.band(s.pct);
-  return `<i style="--cell:${c};--fill:${Math.max(pct, 4)}%" title="${s.name} — ${s.priced}/${s.printings} priced${s.pct === null ? '' : ` (${pct}%)`}"></i>`;
+  return `<button type="button" data-i="${i}" style="--cell:${ops.band(s.pct)};--fill:${Math.max(pct, 4)}%"
+    title="${s.name} — ${s.priced}/${s.printings} priced${s.pct === null ? '' : ` (${pct}%)`}"></button>`;
 }).join('');
+gridEl.addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (b) setDrawer(sets[Number(b.dataset.i)]);
+});
+
+// The same 176 sets as figures, for when the question is "how many exactly".
+const byWorst = [...sets].sort((a, b) => (a.pct ?? -1) - (b.pct ?? -1));
+document.getElementById('tableBody').innerHTML = `
+  <table>
+    <thead><tr><th>Set</th><th class="n">Priced</th><th class="n">Printings</th><th class="n">Coverage</th></tr></thead>
+    <tbody>${byWorst.map((s) => `
+      <tr class="row" data-id="${s.id}">
+        <td>${s.name} <span style="color:var(--faint)">${s.id}</span></td>
+        <td class="n" style="color:var(--dim)">${ops.fmt(s.priced)}</td>
+        <td class="n" style="color:var(--dim)">${ops.fmt(s.printings)}</td>
+        <td class="n" style="color:${ops.band(s.pct)}">${s.pct === null ? '—' : s.pct + '%'}</td>
+      </tr>`).join('')}</tbody>
+  </table>`;
+document.getElementById('tableBody').addEventListener('click', (e) => {
+  const tr = e.target.closest('tr.row');
+  if (tr) setDrawer(sets.find((s) => s.id === tr.dataset.id));
+});
+
+const gridBody = document.getElementById('gridBody');
+const tableBody = document.getElementById('tableBody');
+const vGrid = document.getElementById('vGrid');
+const vTable = document.getElementById('vTable');
+function view(grid) {
+  gridBody.hidden = !grid;
+  tableBody.hidden = grid;
+  gridBody.style.display = grid ? 'flex' : 'none';
+  vGrid.setAttribute('aria-pressed', String(grid));
+  vTable.setAttribute('aria-pressed', String(!grid));
+  document.getElementById('covTitle').textContent = grid ? 'Price coverage by set' : 'Price coverage by set, worst first';
+  if (grid) fitGrid();
+}
+vGrid.addEventListener('click', () => view(true));
+vTable.addEventListener('click', () => view(false));
 
 /* Fit every cell on screen: try each column count and keep the one that leaves the
    squares biggest. Runs again whenever the pane changes size, so the grid reflows with
    the window instead of growing a scrollbar. */
-const gridEl = document.getElementById('grid');
 const GAP = 4;
 function fitGrid() {
   const n = sets.length;
@@ -224,7 +456,8 @@ function fitGrid() {
 new ResizeObserver(fitGrid).observe(gridEl);
 fitGrid();
 
-// Conditions
+/* ---------------------------------------------------------------- conditions */
+
 const conds = ops.conditions();
 document.getElementById('condCount').textContent = conds.length ? `${conds.length} open` : 'all clear';
 document.getElementById('conds').innerHTML = conds.length
@@ -238,6 +471,82 @@ document.getElementById('conds').innerHTML = conds.length
 const v = document.getElementById('verdict');
 v.textContent = conds.length ? `${conds.length} conditions` : 'Nominal';
 v.className = 'chip ' + (conds.some((c) => c.level === 'crit') ? 'crit' : conds.length ? 'warn' : 'ok');
+
+/* ---------------------------------------------------------------- price sources */
+
+document.getElementById('openSources').addEventListener('click', () => {
+  openDrawer('Where prices come from', sources.length === 1 ? 'one source' : `${sources.length} sources`,
+    '<p>The chart on a card names the marketplace whose prices these are. It is not always who we fetch them from.</p>'
+    + sources.map((s) => `
+      <div style="border-top:1px solid var(--line);padding-top:12px;margin-top:12px">
+        ${kv([['Prices', s.label], ['Currency', s.currency], ['Basis', s.priceBasis || '—']])}
+        <div class="chain" style="margin-top:12px">
+          <i>${s.label} <span>prices it</span></i>
+          <span style="color:var(--faint)">&rarr;</span>
+          <i>${s.feedLabel || 'fetched directly'} <span>carries it</span></i>
+          <span style="color:var(--faint)">&rarr;</span>
+          <i>PokéMans <span>stores it</span></i>
+        </div>
+        ${s.feedUrl ? `<div class="url">${s.feedUrl}</div>` : ''}
+        ${s.feedNote ? `<p style="margin-top:12px">${s.feedNote}</p>` : ''}
+      </div>`).join(''));
+});
+
+/* ---------------------------------------------------------------- actions */
+
+const log = document.getElementById('log');
+function say(what, tone) {
+  const empty = log.querySelector('.empty');
+  if (empty) empty.remove();
+  const row = document.createElement('div');
+  row.innerHTML = `<time>${new Date().toLocaleTimeString(undefined, { hour12: false })}</time>`
+    + `<span class="${tone || 'what'}">${what}</span>`;
+  log.prepend(row);
+}
+
+/* The buttons replay the last real recorded run rather than pretending to work. What is
+   proposed here is the surface: one place results land, instead of every control growing
+   a result block underneath it. */
+const lastPrices = ops.series('prices', 'rows').filter((d) => d.v != null).pop();
+const lastThin = window.OPS.calendar.find((t) => t.job === 'thin').days.filter((d) => d.status === 'ok').pop();
+
+const artState = { ...art };
+function artSummary() {
+  document.getElementById('artNote').textContent =
+    `${ops.fmt(artState.present)} thumbnails held of ${ops.fmt(artState.cards)} cards · ${ops.fmt(artState.missing)} missing`;
+  document.getElementById('artSync').disabled = artState.missing === 0;
+}
+artSummary();
+
+const RUNS = {
+  prices: () => say(`Capture prices · replayed: ${ops.fmt(lastPrices.v)} rows written`),
+  force: () => say('Re-capture today · the source asks for one fetch per set per day, so this is the deliberate repeat', 'quiet'),
+  'thin-dry': () => say(`Preview thinning · ${ops.fmt(lastThin.rows)} points would go, ${ops.fmt(lastThin.series)} kept`, 'quiet'),
+  thin: () => say(`Thin history · ${ops.fmt(lastThin.rows)} points removed in ${(lastThin.ms / 1000).toFixed(1)}s`),
+  'art-check': () => say(`Check card art · ${ops.fmt(artState.missing)} cards have no thumbnail yet`),
+  'art-sync': () => {
+    const wrap = document.getElementById('artBarWrap');
+    const el = document.getElementById('artBar');
+    const total = artState.missing;
+    wrap.hidden = false;
+    let done = 0;
+    const step = setInterval(() => {
+      done += 1;
+      el.style.width = Math.round((done / total) * 100) + '%';
+      if (done < total) return;
+      clearInterval(step);
+      wrap.hidden = true;
+      el.style.width = '0';
+      artState.present += total - artState.noSource;
+      artState.missing = artState.noSource;
+      artSummary();
+      say(`Sync card art · ${ops.fmt(total - artState.noSource)} fetched and converted, ${artState.noSource} with no source yet`);
+    }, 220);
+    say(`Sync card art · ${ops.fmt(total)} queued`, 'quiet');
+  },
+};
+document.querySelectorAll('[data-run]').forEach((b) =>
+  b.addEventListener('click', () => RUNS[b.dataset.run]()));
 </script>
 </body>
 </html>
