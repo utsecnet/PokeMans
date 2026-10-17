@@ -6,6 +6,7 @@
  * — hiding a button is a courtesy to the reader, not a security measure, and neither the
  * function nor Postgres has any idea what the interface chose to draw.
  */
+import { printingLabel } from './printingLabel';
 import { supabase } from './supabase';
 import type {
   DatabaseUsage,
@@ -133,6 +134,130 @@ export async function fetchSetCoverage(): Promise<SetCoverageRow[]> {
   const { data, error } = await supabase.rpc('set_coverage');
   if (error) throw new Error(error.message);
   return (data ?? []) as SetCoverageRow[];
+}
+
+interface CardVariantRow { position: number; type: string; subtype: string | null; stamp: string | null }
+interface CardJoin {
+  id: string;
+  name: string;
+  number: string;
+  tcg_card_variants: CardVariantRow[];
+  price_latest: { variant_position: number; market: number | null; observed_on: string }[];
+  price_map: { variant_position: number }[];
+}
+interface StaleJoin {
+  variant_position: number;
+  market: number | null;
+  observed_on: string;
+  tcg_cards: { id: string; name: string; number: string; set_id: string } | null;
+}
+
+/** One printing of one card, with whether it is mapped and what it last sold for. */
+export interface SetPrinting {
+  cardId: string;
+  number: string;
+  name: string;
+  position: number;
+  label: string;
+  mapped: boolean;
+  market: number | null;
+  seen: string | null;
+}
+
+/**
+ * Every printing of one set, which is the grain the catalogue is priced at.
+ *
+ * Read directly rather than through a function: these are the same reference tables any
+ * signed-in session may already read, and the join is three embedded resources rather than
+ * logic worth moving to the server. Fetched one set at a time, when a set is opened — all
+ * 33,336 printings at once is a megabyte to answer a question about one set.
+ */
+export async function fetchSetPrintings(setId: string): Promise<SetPrinting[]> {
+  const { data, error } = await supabase
+    .from('tcg_cards')
+    .select('id,name,number,tcg_card_variants(position,type,subtype,stamp),price_latest(variant_position,market,observed_on),price_map(variant_position)')
+    .eq('set_id', setId)
+    .limit(2000)
+    // The embedded shape is named rather than inferred: three nested resources defeat the
+    // client's select parser, and an unannotated row comes back as a string error type.
+    .returns<CardJoin[]>();
+  if (error) throw new Error(error.message);
+
+  const rows: SetPrinting[] = [];
+  for (const card of data ?? []) {
+    const prices = new Map((card.price_latest ?? []).map((p) => [p.variant_position, p]));
+    const products = new Set((card.price_map ?? []).map((m) => m.variant_position));
+    const variants = (card.tcg_card_variants ?? []).slice().sort((a, b) => a.position - b.position);
+    for (const v of variants) {
+      const price = prices.get(v.position);
+      rows.push({
+        cardId: card.id,
+        number: card.number,
+        name: card.name,
+        position: v.position,
+        label: printingLabel(v),
+        mapped: products.has(v.position),
+        market: price?.market ?? null,
+        seen: price?.observed_on ?? null,
+      });
+    }
+  }
+
+  // Card number is text and sorts as text: 2 belongs before 10, and TG01 belongs with the
+  // other TG numbers rather than at the front of the set.
+  return rows.sort((a, b) =>
+    String(a.number).localeCompare(String(b.number), undefined, { numeric: true })
+    || a.position - b.position);
+}
+
+export interface StalePrinting extends SetPrinting {
+  setId: string;
+}
+
+/**
+ * The printings a recent run did not see, which is what the stale figure counts.
+ *
+ * `before` is the health report's own cut, passed in rather than worked out here, so the
+ * list and the figure beside it can never disagree about what counts as stale.
+ */
+export async function fetchStalePrintings(before: string): Promise<StalePrinting[]> {
+  const { data, error } = await supabase
+    .from('price_latest')
+    .select('variant_position,market,observed_on,tcg_cards(id,name,number,set_id)')
+    .lt('observed_on', before)
+    .order('observed_on')
+    .limit(500)
+    .returns<StaleJoin[]>();
+  if (error) throw new Error(error.message);
+
+  const rows = (data ?? []).filter((r) => r.tcg_cards) as (StaleJoin & { tcg_cards: NonNullable<StaleJoin["tcg_cards"]> })[];
+  if (!rows.length) return [];
+
+  // The printing's name lives on the variant row, which does not hang off price_latest.
+  const ids = [...new Set(rows.map((r) => r.tcg_cards.id))];
+  const { data: variants, error: vErr } = await supabase
+    .from('tcg_card_variants')
+    .select('card_id,position,type,subtype,stamp')
+    .in('card_id', ids)
+    .returns<(CardVariantRow & { card_id: string })[]>();
+  if (vErr) throw new Error(vErr.message);
+  const byKey = new Map((variants ?? []).map((v) => [`${v.card_id}:${v.position}`, v]));
+
+  return rows.map((r) => {
+    const card = r.tcg_cards;
+    const v = byKey.get(`${card.id}:${r.variant_position}`);
+    return {
+      cardId: card.id,
+      setId: card.set_id,
+      number: card.number,
+      name: card.name,
+      position: r.variant_position,
+      label: v ? printingLabel(v) : `Printing ${r.variant_position}`,
+      mapped: true,
+      market: r.market,
+      seen: r.observed_on,
+    };
+  });
 }
 
 export interface CardArtStatus {

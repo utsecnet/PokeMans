@@ -1,0 +1,297 @@
+/**
+ * The admin console's own look, scoped to .console so none of it leaks into the app.
+ *
+ * Deliberately not the app's stylesheet and deliberately not themed: this is an
+ * instrument panel, it is read in one posture, and a light variant of it would be a
+ * different instrument. Everything else in the app still follows the theme toggle.
+ *
+ * No webfont. The prototype used Archivo from Google Fonts, which would make every
+ * client fetch from a third party on an app that is otherwise entirely self-hosted;
+ * the layout and the palette carry the identity instead.
+ */
+
+.console {
+  /* Ground is slate with a blue bias rather than a tinted near-black. Panels sit one step
+     up from it, so depth comes from value and not from a shadow under every box. */
+  --ground: #141821;
+  --panel:  #1a202c;
+  --raised: #222a39;
+  --line:   #2b3345;
+  --ink:    #e8ecf4;
+  --dim:    #8b94a8;
+  --faint:  #5b6478;
+
+  /* Severity. Desaturated on purpose -- an acid green that shouts when nothing is wrong
+     leaves nowhere to go when something is. */
+  --ok:   #4fb286;
+  --warn: #d9a340;
+  --crit: #d9556b;
+
+  --accent: #5ba9d8;
+
+  --ui: system-ui, 'Segoe UI', Roboto, sans-serif;
+
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--ui);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+
+  /* The console owns the screen below the site header, which the page measures. */
+  height: calc(100dvh - var(--console-top, 56px));
+  display: grid;
+  grid-template-columns: 318px minmax(0, 1fr) 336px;
+  gap: 12px;
+  padding: 12px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.console * { box-sizing: border-box; }
+.console .num { font-variant-numeric: tabular-nums; }
+.console .quiet { color: var(--dim); }
+.console .faint { color: var(--faint); }
+.console .spacer { margin-left: auto; }
+
+.console .col { display: grid; gap: 12px; min-height: 0; }
+.console .col.left { grid-template-rows: auto 1fr; }
+.console .col.right { grid-template-rows: auto auto auto minmax(96px, 1fr); }
+
+/* ---------------------------------------------------------------- panels */
+
+.console .panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+.console .panel > h2 {
+  margin: 0;
+  padding: 10px 13px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dim);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.console .panel > h2 b { color: var(--ink); font-weight: 600; }
+.console .panel .body { padding: 13px; overflow: auto; min-height: 0; }
+.console .panel .body.flush { padding: 0; }
+
+/* ---------------------------------------------------------------- signals */
+
+.console .sig {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  width: 100%;
+  text-align: left;
+  gap: 1px 10px;
+  padding: 9px 13px;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+.console .sig:last-child { border-bottom: 0; }
+.console .sig:hover { background: var(--raised); }
+.console .sig[aria-current='true'] { background: var(--raised); }
+.console .sig .k { color: var(--dim); }
+.console .sig .v { font-size: 19px; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.console .sig .v.warn { color: var(--warn); }
+.console .sig .h { grid-column: 1 / -1; color: var(--faint); font-size: 12px; }
+
+/* ---------------------------------------------------------------- the set map */
+
+.console .map { display: grid; gap: 3px; align-content: center; justify-content: center; width: 100%; height: 100%; }
+.console .map button {
+  border: 0; padding: 0; border-radius: 2px;
+  background: var(--raised);
+  position: relative; cursor: pointer; overflow: hidden;
+}
+.console .map button::after {
+  content: ''; position: absolute; inset: auto 0 0 0;
+  background: var(--cell); height: var(--fill);
+}
+.console .map button:hover, .console .map button:focus-visible { outline: 1px solid var(--ink); outline-offset: 1px; }
+.console .map button[aria-current='true'] { outline: 2px solid var(--ink); outline-offset: 1px; }
+
+.console .legend {
+  display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center;
+  color: var(--faint); font-size: 12px; padding: 0 13px 10px;
+}
+.console .legend span { display: flex; align-items: center; gap: 5px; }
+.console .legend b { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+
+/* ---------------------------------------------------------------- inspector */
+
+.console .ihead {
+  display: flex; align-items: baseline; gap: 10px;
+  padding: 11px 15px; border-bottom: 1px solid var(--line);
+}
+.console .ihead h2 { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+.console .ihead .sub { color: var(--faint); font-size: 12.5px; }
+.console .ihead .back { align-self: center; }
+.console .ibody { padding: 15px; overflow: auto; min-height: 0; }
+.console .ibody.flush { padding: 0; }
+
+.console .lede { color: var(--dim); max-width: 74ch; margin: 0 0 14px; font-size: 13.5px; }
+.console .lede b { color: var(--ink); font-weight: 600; }
+
+.console .figs {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: 1px; background: var(--line); border: 1px solid var(--line);
+  border-radius: 6px; overflow: hidden; margin-bottom: 15px;
+}
+.console .figs > div { background: var(--panel); padding: 10px 13px; }
+.console .figs .k { color: var(--dim); font-size: 12px; }
+.console .figs .v { font-size: 21px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------- tables */
+
+.console table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.console th {
+  text-align: left; font-weight: 600; font-size: 12px; color: var(--faint);
+  padding: 7px 10px; border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; background: var(--panel);
+}
+.console td { padding: 6px 10px; border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent); }
+.console tr:last-child td { border-bottom: 0; }
+.console td.n, .console th.n { text-align: right; font-variant-numeric: tabular-nums; }
+.console tr.go { cursor: pointer; }
+.console tr.go:hover td { background: var(--raised); }
+.console td .id { color: var(--faint); margin-left: 6px; }
+
+.console .tag { font-size: 11.5px; padding: 1px 6px; border-radius: 3px; background: var(--raised); color: var(--dim); }
+.console .tag.miss { color: var(--crit); }
+.console .tag.old { color: var(--warn); }
+
+/* ---------------------------------------------------------------- the briefing */
+
+.console .brief { display: grid; gap: 9px; }
+.console .brief button {
+  display: grid; grid-template-columns: 10px 1fr auto; gap: 12px; align-items: start;
+  text-align: left; padding: 13px 15px; background: var(--raised);
+  border: 1px solid var(--line); border-radius: 6px; color: inherit; font: inherit; cursor: pointer;
+}
+.console .brief button:hover { border-color: var(--faint); }
+.console .brief .dot { margin-top: 6px; }
+.console .brief .what { font-weight: 600; font-size: 14.5px; }
+.console .brief .why { color: var(--dim); font-size: 12.5px; max-width: 70ch; }
+.console .brief .arrow { color: var(--faint); align-self: center; }
+
+/* ---------------------------------------------------------------- jobs */
+
+.console .job { padding: 10px 13px; border-bottom: 1px solid var(--line); }
+.console .job:last-child { border-bottom: 0; }
+.console .job .top { display: flex; align-items: center; gap: 8px; }
+.console .job .name {
+  font-weight: 600; background: transparent; border: 0; padding: 0;
+  color: var(--ink); font: inherit; font-weight: 600; cursor: pointer;
+}
+.console .job .name:hover { text-decoration: underline; }
+.console .job .when { margin-left: auto; color: var(--faint); font-size: 12px; }
+.console .ticks { display: flex; gap: 2px; margin-top: 7px; }
+.console .ticks button { flex: 1; height: 15px; padding: 0; border: 0; border-radius: 2px; background: var(--raised); cursor: pointer; }
+.console .ticks button.ok { background: var(--ok); }
+.console .ticks button.crit { background: var(--crit); }
+.console .ticks button:hover { outline: 1px solid var(--ink); outline-offset: 1px; }
+.console .ticks button:disabled { cursor: default; }
+.console .ticks button:disabled:hover { outline: 0; }
+
+/* ---------------------------------------------------------------- conditions */
+
+.console .cond {
+  display: grid; grid-template-columns: 9px 1fr; gap: 9px; width: 100%; text-align: left;
+  padding: 10px 13px; background: transparent; border: 0;
+  border-bottom: 1px solid var(--line); cursor: pointer; color: inherit; font: inherit;
+}
+.console .cond:last-child { border-bottom: 0; }
+.console .cond:hover { background: var(--raised); }
+.console .cond .dot { margin-top: 6px; }
+
+/* ---------------------------------------------------------------- controls */
+
+.console .acts { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; padding: 13px; }
+.console .acts hr { grid-column: 1 / -1; border: 0; border-top: 1px solid var(--line); margin: 3px 0; }
+.console .acts .note { grid-column: 1 / -1; color: var(--faint); font-size: 12px; }
+.console .bars { padding: 0 13px 11px; }
+
+.console button.btn {
+  font: inherit; font-weight: 500; color: var(--ink);
+  background: var(--raised); border: 1px solid var(--line); border-radius: 5px;
+  padding: 6px 12px; cursor: pointer;
+}
+.console button.btn:hover:not(:disabled) { border-color: var(--faint); }
+.console button.btn:disabled { opacity: 0.45; cursor: default; }
+.console button.btn.go { background: color-mix(in srgb, var(--ok) 18%, var(--raised)); border-color: var(--ok); }
+.console button.btn.small { padding: 2px 9px; font-size: 12px; }
+.console button:focus-visible, .console a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.console .seg { display: flex; gap: 2px; }
+.console .seg button {
+  padding: 2px 9px; font-size: 12px; border-radius: 4px; background: transparent;
+  border: 0; color: var(--dim); font-family: inherit; cursor: pointer;
+}
+.console .seg button[aria-pressed='true'] { background: var(--raised); color: var(--ink); }
+
+.console .linky { background: transparent; border: 0; padding: 0; color: var(--accent); font: inherit; cursor: pointer; }
+.console .linky:hover { text-decoration: underline; }
+
+/* ---------------------------------------------------------------- readings */
+
+.console .reading { display: flex; align-items: baseline; gap: 7px; }
+.console .reading .v { font-size: 27px; font-weight: 600; letter-spacing: -0.02em; }
+.console .reading .u { color: var(--dim); }
+
+.console .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--faint); display: inline-block; }
+.console .dot.ok { background: var(--ok); }
+.console .dot.warn { background: var(--warn); }
+.console .dot.crit { background: var(--crit); }
+
+.console .chip { font-size: 12px; padding: 1px 7px; border-radius: 20px; border: 1px solid currentColor; }
+.console .chip.ok { color: var(--ok); }
+.console .chip.warn { color: var(--warn); }
+.console .chip.crit { color: var(--crit); }
+
+.console .meter { height: 5px; border-radius: 3px; background: var(--raised); overflow: hidden; }
+.console .meter > i { display: block; height: 100%; background: var(--ok); transition: width 160ms linear; }
+.console .meter > i.warn { background: var(--warn); }
+.console .meter > i.crit { background: var(--crit); }
+
+.console .kv { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; }
+.console .kv span { color: var(--dim); }
+.console .kv b { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------- output */
+
+.console .log { padding: 8px 13px; overflow: auto; font-size: 12.5px; min-height: 0; }
+.console .log > div { display: flex; gap: 8px; padding: 3px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent); }
+.console .log > div:last-child { border-bottom: 0; }
+.console .log time { color: var(--faint); font-variant-numeric: tabular-nums; flex: none; }
+.console .log .bad { color: var(--crit); }
+.console .log .empty { color: var(--faint); border-bottom: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .console * { transition: none !important; animation: none !important; }
+}
+
+/* Under about 1100px the three columns stop being three columns. The console is a desk
+   instrument, so the narrow case folds to one column and scrolls rather than pretending. */
+@media (max-width: 1100px) {
+  .console {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+    overflow: visible;
+  }
+  .console .col, .console .col.left, .console .col.right { grid-template-rows: none; }
+  .console .map { min-height: 220px; }
+  .console .ibody { max-height: 70vh; }
+}
