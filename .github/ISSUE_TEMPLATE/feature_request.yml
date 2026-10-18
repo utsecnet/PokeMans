@@ -1,0 +1,61 @@
+name: Ask for a feature
+description: Something PokéMans does not do yet, or does in a way that gets in your way.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Only the first box is required. A rough idea is worth more than a polished one
+        that never gets sent.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What you would like it to do
+      description: In your own words. No need to guess at how it would be built.
+      placeholder: |
+        Let me sort my collection by what each card is worth, so the expensive ones
+        are together at the top.
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: What you are trying to get done
+      description: >
+        The thing behind the request. Worth a line even when the feature seems obvious —
+        the problem sometimes has a shorter answer than the feature would have been, and
+        that answer only shows up if the problem is written down.
+      placeholder: |
+        I am working out what to insure, and I keep exporting the list to a spreadsheet
+        to add it up.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where it belongs
+      options:
+        - Card list / browsing
+        - A single card (the large view)
+        - My collection
+        - A want list
+        - Search or filters
+        - Signing in
+        - Settings
+        - Somewhere that does not exist yet
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: >
+        A sketch, a screenshot with something scribbled on it, or another site that does
+        it well — all of it helps. Drag images straight into this box.
+      placeholder: Drag images here, or leave this empty.
+    validations:
+      required: false

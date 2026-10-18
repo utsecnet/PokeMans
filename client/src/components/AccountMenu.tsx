@@ -20,6 +20,9 @@ import { SignIn } from './SignIn';
 
 const MENU_WIDTH = 240;
 
+/** The two outbound rows are one endpoint with a different form on the end of it. */
+const ISSUE_FORM = 'https://github.com/utsecnet/PokeMans/issues/new?template=';
+
 export function AccountMenu() {
   const { user, anonymous, admin } = useSession();
   const [avatarFailed, setAvatarFailed] = useState(false);
@@ -34,7 +37,7 @@ export function AccountMenu() {
   // useAnchoredPopover also brings the outside-click handling and viewport clamping this
   // had its own copy of.
   const { open, setOpen, triggerRef, popoverRef, coords } =
-    useAnchoredPopover<HTMLButtonElement>(MENU_WIDTH, 260);
+    useAnchoredPopover<HTMLButtonElement>(MENU_WIDTH, 305);
 
   useEffect(() => {
     if (!open) return;
@@ -118,25 +121,28 @@ export function AccountMenu() {
           </nav>
 
           {/* Above Sign out, not below it. Sign out is the item people reach for without
-              reading, so it stays last where the hand expects it. Its own group because
-              this one leaves the site, which the arrow says and the separator reinforces.
+              reading, so it stays last where the hand expects it. The two share a group
+              because both leave the site, which the arrow says and the separator
+              reinforces.
 
-              The badge is the real Bug type icon the filters use, not a picture of an
-              insect, because the joke only lands if it is the same green circle people
-              have been clicking all along. */}
+              Both point at a GitHub issue form rather than at Discussions, which is off
+              on the repo: one tracker to read beats two, and a form asks the questions
+              that otherwise cost a round trip each.
+
+              The badges are the real type icons the filters use. The bug is a pun and
+              only lands if it is the same green circle people have been clicking all
+              along; the Fairy sparkle is not one — it is there because a four-pointed
+              star already reads as "something new", and because a thin outline next to
+              that badge made the two rows look like different kinds of thing. */}
           <div className="border-t border-[var(--color-border)] py-1">
-            <a
-              href="https://github.com/utsecnet/PokeMans/issues/new?template=bug_report.yml"
-              target="_blank"
-              rel="noopener noreferrer"
-              role="menuitem"
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-3 px-4 py-2.5 text-sm text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]"
-            >
+            <Outbound href={ISSUE_FORM + 'bug_report.yml'} onGo={() => setOpen(false)}>
               <TypeIcon type="bug" active={false} />
               Report a bug type
-              <ExternalIcon />
-            </a>
+            </Outbound>
+            <Outbound href={ISSUE_FORM + 'feature_request.yml'} onGo={() => setOpen(false)}>
+              <TypeIcon type="fairy" active={false} />
+              Request a feature
+            </Outbound>
           </div>
 
           <div className="border-t border-[var(--color-border)] py-1">
@@ -170,6 +176,27 @@ function Item({ to, onGo, children }: { to: string; onGo: () => void; children: 
     >
       {children}
     </Link>
+  );
+}
+
+/**
+ * An item that leaves the site. Same metrics as Item so the rows line up across the
+ * separator, and the arrow lives here rather than at each call site — it says the same
+ * thing about every one of them.
+ */
+function Outbound({ href, onGo, children }: { href: string; onGo: () => void; children: React.ReactNode }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      role="menuitem"
+      onClick={onGo}
+      className="flex items-center gap-3 px-4 py-2.5 text-sm text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]"
+    >
+      {children}
+      <ExternalIcon />
+    </a>
   );
 }
 
