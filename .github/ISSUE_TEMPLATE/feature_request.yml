@@ -1,18 +1,17 @@
-name: Ask for a feature
-description: Something PokéMans does not do yet, or does in a way that gets in your way.
+name: Feature Request
+description: Request a new feature.
 labels: ["enhancement"]
 body:
   - type: markdown
     attributes:
       value: |
-        Only the first box is required. A rough idea is worth more than a polished one
-        that never gets sent.
+        Only the first box is required. A rough idea is good, but specific is better. The more specific you can be, the better I can understand what it is you want.
 
   - type: textarea
     id: what
     attributes:
       label: What you would like it to do
-      description: In your own words. No need to guess at how it would be built.
+      description: Describe what you would like the feature to do.
       placeholder: |
         Let me sort my collection by what each card is worth, so the expensive ones
         are together at the top.
@@ -24,9 +23,7 @@ body:
     attributes:
       label: What you are trying to get done
       description: >
-        The thing behind the request. Worth a line even when the feature seems obvious —
-        the problem sometimes has a shorter answer than the feature would have been, and
-        that answer only shows up if the problem is written down.
+        Tell me the why of what you want. Sometimes the feature we request isnt really the right answer, but if you can explain the "why" maybe I can find a better end result.
       placeholder: |
         I am working out what to insure, and I keep exporting the list to a spreadsheet
         to add it up.
