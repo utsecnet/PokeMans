@@ -25,6 +25,13 @@ binding = "ASSETS"
 # this, a reload on /settings is a 404.
 not_found_handling = "single-page-application"
 
+# The Worker sees every request, including ones that match a file in dist/. Without this the
+# asset layer answers those itself and the Worker is never called -- which silently cost the
+# redirect its most important case: pokemans.utsec.net/ matches index.html, so the bare old
+# address kept serving the app while every path under it redirected. Assets still come from
+# the asset store; they just arrive through env.ASSETS.fetch at the bottom of the handler.
+run_worker_first = true
+
 # The images, read straight from R2 rather than over a public hostname. The bucket needs no
 # public access this way, so nothing but this Worker can reach it.
 [[r2_buckets]]
