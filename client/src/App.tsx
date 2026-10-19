@@ -10,6 +10,8 @@ import { WantListPage } from './pages/WantList';
 import { CollectionBoxPage } from './pages/CollectionBox';
 import { SearchHelp } from './pages/SearchHelp';
 import { ThemeProvider } from './lib/theme';
+import { UnitsProvider } from './lib/unitsContext';
+import { AdminPanel } from './pages/AdminPanel';
 import { WantProvider } from './lib/wantContext';
 import { CollectionProvider } from './lib/collectionContext';
 import { BrowseViewProvider } from './lib/browseView';
@@ -40,6 +42,9 @@ function App() {
       {/* Outside the data providers on purpose: both fetch on mount, and nothing is
           readable without a session, so they must not run until one exists. */}
       <SessionProvider>
+      {/* Inside the session, unlike the theme: this preference is stored on the
+          account, so there is nothing to read until there is an account. */}
+      <UnitsProvider>
       <RequireAccountProvider>
       <CollectionProvider>
         <WantProvider>
@@ -52,6 +57,7 @@ function App() {
                 <Route path="/" element={<PokemonList />} />
                 <Route path="/pokemon/:id" element={<PokemonDetail />} />
                 <Route path="/settings" element={<Settings />} />
+                <Route path="/admin" element={<AdminPanel />} />
                 <Route path="/foil-lab" element={<FoilLab />} />
                 <Route path="/collection" element={<Collection />} />
                 <Route path="/collection/:boxId" element={<CollectionBoxPage />} />
@@ -64,6 +70,7 @@ function App() {
         </WantProvider>
       </CollectionProvider>
       </RequireAccountProvider>
+      </UnitsProvider>
       </SessionProvider>
     </ThemeProvider>
   );

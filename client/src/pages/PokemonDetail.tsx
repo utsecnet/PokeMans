@@ -12,6 +12,8 @@ import { CardLocationBadge } from '../components/CardLocationBadge';
 import { CardLightbox } from '../components/CardLightbox';
 import { useBoxTapMode } from '../lib/boxTapMode';
 import { formatGeneration, formatName } from '../lib/format';
+import { heightReading, weightReading } from '../lib/units';
+import { useUnits } from '../lib/unitsContext';
 
 const STAT_LABELS: Record<string, string> = {
   hp: 'HP',
@@ -110,6 +112,7 @@ function sortCards(cards: TcgCard[], sort: CardSort): TcgCard[] {
 
 export function PokemonDetail() {
   const { id } = useParams();
+  const { system } = useUnits();
   const [pokemon, setPokemon] = useState<PokemonDetailType | null>(null);
   const [loading, setLoading] = useState(true);
   // Holds the card's id: the card view fetches the rest itself, so this page doesn't need
@@ -276,8 +279,12 @@ export function PokemonDetail() {
               </p>
             )}
             <div className="mt-3 flex justify-center gap-6 text-sm text-[var(--color-text-muted)] sm:justify-start">
-              {pokemon.height != null && <span>Height {pokemon.height / 10} m</span>}
-              {pokemon.weight != null && <span>Weight {pokemon.weight / 10} kg</span>}
+              {pokemon.height != null && (
+                <span>Height {heightReading(pokemon.height, system)}</span>
+              )}
+              {pokemon.weight != null && (
+                <span>Weight {weightReading(pokemon.weight, system)}</span>
+              )}
             </div>
           </div>
         </div>

@@ -145,8 +145,8 @@ export function SearchHelp() {
             <FieldRow names="gen, generation" type="text" note="1–9" />
             <FieldRow names="hp, attack (atk), defense (def)" type="number" note="base stats" />
             <FieldRow names="spa (specialattack), spd (specialdefense), spe (speed)" type="number" note="base stats" />
-            <FieldRow names="height" type="number" note="meters, e.g. height>1.5" />
-            <FieldRow names="weight" type="number" note="kg" />
+            <FieldRow names="height" type="number" note="meters, whatever the display setting" />
+            <FieldRow names="weight" type="number" note="kg, whatever the display setting" />
             <FieldRow names="xp, baseexperience" type="number" note="base experience yield" />
           </tbody>
         </table>

@@ -8,6 +8,7 @@ import { collectionColorHex } from '../lib/collectionColors';
 import { CardLightbox } from '../components/CardLightbox';
 import { CardLocationBadge } from '../components/CardLocationBadge';
 import { AddToBoxRail } from '../components/AddToBoxRail';
+import { PencilIcon } from '../components/PencilIcon';
 import { useBoxTapMode } from '../lib/boxTapMode';
 import type { WantListDetail } from '../types';
 
@@ -19,6 +20,8 @@ export function WantListPage() {
   const [error, setError] = useState<string | null>(null);
   const [openCardId, setOpenCardId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [nameInput, setNameInput] = useState('');
   const {
     activeBoxId,
     setActiveBoxId,
@@ -121,6 +124,24 @@ export function WantListPage() {
     refreshLists();
   };
 
+  /**
+   * The other half of issue #1. updateWantList has always taken a new name and the page
+   * never offered one, so a want list kept whatever it was called when it was made.
+   * Same inline form as a collection, so the two pages behave the same way.
+   */
+  const handleRename = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const next = nameInput.trim();
+    if (!list || !next || next === list.name) {
+      setRenaming(false);
+      return;
+    }
+    await updateWantList(id, { name: next });
+    setList({ ...list, name: next });
+    setRenaming(false);
+    refreshLists();
+  };
+
   if (error) {
     return <div className="mx-auto max-w-7xl px-4 py-6 text-red-600 dark:text-red-400">{error}</div>;
   }
@@ -136,16 +157,49 @@ export function WantListPage() {
 
       <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="flex items-center gap-2 text-2xl font-bold">
-            {hex && (
-              <span
-                aria-hidden="true"
-                className="h-3 w-3 shrink-0 rounded-full"
-                style={{ backgroundColor: hex }}
+          {renaming ? (
+            <form onSubmit={handleRename}>
+              <input
+                autoFocus
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value)}
+                onBlur={handleRename}
+                className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-2xl font-bold outline-none focus:border-[var(--color-accent)]"
               />
-            )}
-            <span className="truncate">{list.name}</span>
-          </h1>
+            </form>
+          ) : (
+            <h1 className="flex items-center gap-2 text-2xl font-bold">
+              {hex && (
+                <span
+                  aria-hidden="true"
+                  className="h-3 w-3 shrink-0 rounded-full"
+                  style={{ backgroundColor: hex }}
+                />
+              )}
+              <span
+                onClick={() => {
+                  setNameInput(list.name);
+                  setRenaming(true);
+                }}
+                title="Click to rename"
+                className="cursor-pointer truncate"
+              >
+                {list.name}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setNameInput(list.name);
+                  setRenaming(true);
+                }}
+                aria-label={`Rename ${list.name}`}
+                title="Rename"
+                className="shrink-0 text-[var(--color-text-muted)] transition hover:text-[var(--color-text)]"
+              >
+                <PencilIcon />
+              </button>
+            </h1>
+          )}
           <p className="text-sm text-[var(--color-text-muted)]">
             {owned} of {total} found
             {list.query && (

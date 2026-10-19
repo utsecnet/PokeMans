@@ -6,6 +6,13 @@ import { TypeBadge } from './TypeBadge';
 import { FilterPopover } from './table/FilterPopover';
 import { MultiSelectFilter } from './table/MultiSelectFilter';
 import { RangeFilterContent } from './table/RangeFilterContent';
+import {
+  heightColumnLabel,
+  heightValue,
+  weightColumnLabel,
+  weightValue,
+} from '../lib/units';
+import { useUnits } from '../lib/unitsContext';
 
 const STAT_LABELS: Record<StatKey, string> = {
   hp: 'HP',
@@ -38,6 +45,7 @@ export function PokemonTable({
   ranges: MetaRanges | null;
 }) {
   const navigate = useNavigate();
+  const { system } = useUnits();
   const show = (key: string) => visibleColumns.includes(key);
 
   const statBounds = (key: StatKey) => {
@@ -195,7 +203,7 @@ export function PokemonTable({
             )}
             {show('height') && (
               <th {...sortHeaderProps('height')}>
-                Height (m){sortArrow('height')}
+                {heightColumnLabel(system)}{sortArrow('height')}
                 <FilterPopover active={!!filters.height}>
                   {() => (
                     <RangeFilterContent
@@ -203,7 +211,7 @@ export function PokemonTable({
                       value={filters.height ?? heightBounds}
                       onChange={(v) => onChange({ ...filters, height: v })}
                       onClear={() => onChange({ ...filters, height: null })}
-                      formatValue={(n) => (n / 10).toFixed(1)}
+                      formatValue={(n) => heightValue(n, system)}
                     />
                   )}
                 </FilterPopover>
@@ -211,7 +219,7 @@ export function PokemonTable({
             )}
             {show('weight') && (
               <th {...sortHeaderProps('weight')}>
-                Weight (kg){sortArrow('weight')}
+                {weightColumnLabel(system)}{sortArrow('weight')}
                 <FilterPopover active={!!filters.weight}>
                   {() => (
                     <RangeFilterContent
@@ -219,7 +227,7 @@ export function PokemonTable({
                       value={filters.weight ?? weightBounds}
                       onChange={(v) => onChange({ ...filters, weight: v })}
                       onClear={() => onChange({ ...filters, weight: null })}
-                      formatValue={(n) => (n / 10).toFixed(1)}
+                      formatValue={(n) => weightValue(n, system)}
                     />
                   )}
                 </FilterPopover>
@@ -302,10 +310,14 @@ export function PokemonTable({
                   </td>
                 )}
                 {show('height') && (
-                  <td className="px-3 py-1.5 tabular-nums">{p.height != null ? p.height / 10 : '—'}</td>
+                  <td className="px-3 py-1.5 tabular-nums">
+                    {p.height != null ? heightValue(p.height, system) : '—'}
+                  </td>
                 )}
                 {show('weight') && (
-                  <td className="px-3 py-1.5 tabular-nums">{p.weight != null ? p.weight / 10 : '—'}</td>
+                  <td className="px-3 py-1.5 tabular-nums">
+                    {p.weight != null ? weightValue(p.weight, system) : '—'}
+                  </td>
                 )}
                 {show('baseExperience') && (
                   <td className="px-3 py-1.5 tabular-nums">{p.baseExperience ?? '—'}</td>

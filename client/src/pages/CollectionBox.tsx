@@ -18,6 +18,7 @@ import { ViewToggle, type ViewMode } from '../components/table/ViewToggle';
 import { CollectionTable } from '../components/CollectionTable';
 import { usePersistentState } from '../lib/persistentState';
 import { AddToBoxRail } from '../components/AddToBoxRail';
+import { PencilIcon } from '../components/PencilIcon';
 
 export function CollectionBoxPage() {
   const { boxId } = useParams();
@@ -195,6 +196,16 @@ export function CollectionBoxPage() {
             >
               {box.name}
             </h1>
+            {/* The title was already editable and said nothing about it. */}
+            <button
+              type="button"
+              onClick={() => setRenaming(true)}
+              aria-label={`Rename ${box.name}`}
+              title="Rename"
+              className="text-[var(--color-text-muted)] transition hover:text-[var(--color-text)]"
+            >
+              <PencilIcon />
+            </button>
           </div>
         )}
         <button

@@ -102,8 +102,8 @@ export function FoilLab() {
     <div className="mx-auto max-w-6xl px-4 py-6">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h1 className="text-2xl font-bold">Foil Lab</h1>
-        <Link to="/settings" className="text-sm text-[var(--color-accent)] hover:underline">
-          Back to settings
+        <Link to="/admin" className="text-sm text-[var(--color-accent)] hover:underline">
+          Back to the admin panel
         </Link>
       </div>
       <p className="mt-1 max-w-2xl text-sm text-[var(--color-text-muted)]">

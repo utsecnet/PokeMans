@@ -37,7 +37,7 @@ export function AccountMenu() {
   // useAnchoredPopover also brings the outside-click handling and viewport clamping this
   // had its own copy of.
   const { open, setOpen, triggerRef, popoverRef, coords } =
-    useAnchoredPopover<HTMLButtonElement>(MENU_WIDTH, 305);
+    useAnchoredPopover<HTMLButtonElement>(MENU_WIDTH, admin ? 350 : 305);
 
   useEffect(() => {
     if (!open) return;
@@ -118,6 +118,14 @@ export function AccountMenu() {
               <GearIcon />
               Settings
             </Item>
+            {/* The console reports on the catalogue, not on your cards, so it is its
+                own row rather than what Settings quietly turns into for an admin. */}
+            {admin && (
+              <Item to="/admin" onGo={() => setOpen(false)}>
+                <GaugeIcon />
+                Admin Panel
+              </Item>
+            )}
           </nav>
 
           {/* Above Sign out, not below it. Sign out is the item people reach for without
@@ -209,6 +217,16 @@ function GearIcon() {
         d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
       />
       <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+/** The console's rails are instruments, so the row that opens them is a dial. */
+function GaugeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="size-4" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 19a8 8 0 1116 0" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l4.5-6" />
     </svg>
   );
 }

@@ -1,13 +1,12 @@
-import { AdminConsole } from './AdminConsole';
-import { useSession } from '../lib/sessionContext';
+import { UnitToggle } from '../components/UnitToggle';
 
 /**
- * /settings is the admin console, and for everyone else it is a sentence.
+ * Your settings. Everyone's, including an admin's.
  *
- * Everything that used to be here is shared data only an admin refreshes, so a normal
- * user gets nothing rather than a row of controls that refuse. The console lives in its
- * own file; this is the gate. The route is checked again on the server side by the row
- * policies and the Edge Functions — hiding a page is a courtesy to the reader.
+ * This page used to be the admin console for an admin and a sentence for everybody else,
+ * which left no room for a preference that belongs to the reader. The console now has its
+ * own route and its own row in the account menu, so Settings is one thing: what you have
+ * chosen about how the app reads.
  *
  * There is no display-currency control any more. It offered six currencies backed by an
  * fx_rates table that held zero rows for its whole life, so it had never once converted
@@ -15,19 +14,19 @@ import { useSession } from '../lib/sessionContext';
  * selector that silently does nothing is worse than none.
  */
 export function Settings() {
-  const { admin } = useSession();
+  return (
+    <div className="mx-auto max-w-3xl px-4 py-6">
+      <h1 className="text-2xl font-bold">Settings</h1>
 
-  if (!admin) {
-    return (
-      <div className="mx-auto max-w-3xl px-4 py-6">
-        <h1 className="text-2xl font-bold">Settings</h1>
-        <p className="mt-6 text-sm text-[var(--color-text-muted)]">
-          Nothing to configure yet. Your collection and want lists are under your account
-          menu.
-        </p>
+      {/* The two readings flank the control rather than explaining it in a paragraph: 1m
+          and 3ft are the same height said both ways, which is the whole of what the choice
+          does. */}
+      <div className="mt-6 flex flex-wrap items-center gap-3">
+        <span className="text-sm font-medium text-[var(--color-text)]">Measurement units:</span>
+        <span className="text-sm text-[var(--color-text-muted)]">1m</span>
+        <UnitToggle />
+        <span className="text-sm text-[var(--color-text-muted)]">3ft</span>
       </div>
-    );
-  }
-
-  return <AdminConsole />;
+    </div>
+  );
 }
