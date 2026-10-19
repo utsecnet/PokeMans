@@ -1,4 +1,5 @@
-# Serves the built client and its images at https://pokemans.utsec.net/.
+# Serves the built client and its images at https://pokemans.us/, and, until the move is
+# finished, at https://pokemans.utsec.net/ as well.
 #
 # A Worker rather than Pages because the images are read from R2 through a binding, which is
 # what keeps the bucket private. Each future app is its own subdomain and its own Worker,
@@ -31,6 +32,21 @@ not_found_handling = "single-page-application"
 binding = "IMAGES"
 bucket_name = "pokemans-images"
 
+# The domain the app answers on from now on. custom_domain rather than a pattern and a
+# zone_name because Cloudflare then writes the DNS record and issues the certificate
+# itself: no placeholder A record aimed at an address nothing listens on, and no second
+# place to remember when this file changes.
+[[routes]]
+pattern = "pokemans.us"
+custom_domain = true
+
+# Where it has answered until now, still serving.
+#
+# This becomes a redirect, but not in the same breath as the line above. The .us registry
+# had not published the delegation when this was written, so pokemans.us resolved nowhere;
+# a redirect pointing at a name that does not exist yet is an outage lasting however long
+# the registry takes, which is not a number anyone here controls. Both addresses serve the
+# same Worker until the new one has been seen to work, and the redirect lands after that.
 [[routes]]
 pattern = "pokemans.utsec.net/*"
 zone_name = "utsec.net"
