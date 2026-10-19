@@ -16,6 +16,9 @@ import { CardLocationBadge } from '../components/CardLocationBadge';
 import { AddToBoxRail } from '../components/AddToBoxRail';
 import { PencilIcon } from '../components/PencilIcon';
 import { useBoxTapMode } from '../lib/boxTapMode';
+import { usePersistentState } from '../lib/persistentState';
+import { ViewToggle, type ViewMode } from '../components/table/ViewToggle';
+import { WantTable } from '../components/WantTable';
 import type { WantListDetail } from '../types';
 
 export function WantListPage() {
@@ -28,6 +31,10 @@ export function WantListPage() {
   const [busy, setBusy] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [nameInput, setNameInput] = useState('');
+  // Its own key, not the collection's: a want list and a collection are read for
+  // different reasons, and somebody who works through wants as rows may still want
+  // their cards as faces.
+  const [viewMode, setViewMode] = usePersistentState<ViewMode>('pokemans.wants.viewMode', 'tile');
   const {
     activeBoxId,
     setActiveBoxId,
@@ -228,10 +235,14 @@ export function WantListPage() {
           </p>
         </div>
 
-        {/* Only a list built from a filter can follow one, so the control is absent rather
-            than disabled on a hand-built list — there is nothing for it to follow. */}
-        {list.query && (
-          <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
+          {total > 0 && <ViewToggle mode={viewMode} onChange={setViewMode} />}
+
+          {/* Only a list built from a filter can follow one, so the following controls are
+              absent rather than disabled on a hand-built list — there is nothing for it to
+              follow. */}
+          {list.query && (
+            <>
             {list.live && (
               <button
                 type="button"
@@ -259,8 +270,9 @@ export function WantListPage() {
             >
               {list.live ? 'Following filter' : 'Follow filter'}
             </button>
-          </div>
-        )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* Progress, because the point of a want list is how much of it is left. */}
@@ -293,7 +305,16 @@ export function WantListPage() {
           className="md:order-2"
         />
 
-        <div className="grid min-w-0 flex-1 grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4">
+        <div className="min-w-0 flex-1">
+        {viewMode === 'table' ? (
+          <WantTable
+            cards={list.cards}
+            onOpenCard={handleCardTap}
+            onChangeVariant={changeVariant}
+            onRemove={removeCard}
+          />
+        ) : (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4">
         {list.cards.map((card) => {
           const have = card.inBoxes.length > 0;
           return (
@@ -403,6 +424,8 @@ export function WantListPage() {
             </div>
           );
         })}
+        </div>
+        )}
         </div>
       </div>
 
