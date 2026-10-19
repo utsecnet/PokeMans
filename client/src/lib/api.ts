@@ -467,6 +467,7 @@ export {
   refreshWantList,
   addToWantList,
   removeFromWantList,
+  setWantEntryVariant,
 } from './wantsApi';
 
 

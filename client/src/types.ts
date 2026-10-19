@@ -465,7 +465,19 @@ export interface WantListCard {
   imageLarge: string | null;
   pokemonId: number | null;
   pokemonName: string | null;
-  /** Empty means you don't own it — the client ghosts those. */
+  /** The want's own row id, which is what a change of printing targets. */
+  entryId: number;
+  /** Which printing is wanted (index into `printings`), or null for any. */
+  variantPosition: number | null;
+  /** Label of the wanted printing, or null when any will do. */
+  variantLabel: string | null;
+  /** The printings this card exists in, for choosing between. */
+  printings: CardPrinting[];
+  /**
+   * The collections holding the wanted printing. Empty means you don't own it and
+   * the client ghosts the card; a want that names a printing ignores copies of the
+   * others, so naming one can put a card back on the hunt.
+   */
   inBoxes: CollectionBoxRef[];
 }
 

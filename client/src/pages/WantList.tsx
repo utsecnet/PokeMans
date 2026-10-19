@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CardImage } from '../components/CardImage';
 import { Link, useParams } from 'react-router-dom';
-import { fetchWantList, refreshWantList, removeFromWantList, updateWantList } from '../lib/api';
+import {
+  fetchWantList,
+  refreshWantList,
+  removeFromWantList,
+  setWantEntryVariant,
+  updateWantList,
+} from '../lib/api';
 import { useWants } from '../lib/wantContext';
 import { formatName } from '../lib/format';
 import { collectionColorHex } from '../lib/collectionColors';
@@ -120,6 +126,17 @@ export function WantListPage() {
 
   const removeCard = async (cardId: string) => {
     await removeFromWantList(id, cardId);
+    await load(true);
+    refreshLists();
+  };
+
+  /**
+   * Issue #2. Reloads rather than patching the card in place: which collections count
+   * as holding this card depends on the printing wanted, so the found-or-missing
+   * state, the location badge and the progress bar all move together with it.
+   */
+  const changeVariant = async (entryId: number, variantPosition: number | null) => {
+    await setWantEntryVariant(entryId, variantPosition);
     await load(true);
     refreshLists();
   };
@@ -341,6 +358,35 @@ export function WantListPage() {
                 >
                   {formatName(card.pokemonName)}
                 </Link>
+              )}
+
+              {/* The card's own printings, so one never printed in reverse holo does not
+                  offer one. Only where there is a choice to make: a card published in a
+                  single printing has nothing to narrow to, and the collection's copy of
+                  this control shows it anyway because there it sets the price.
+
+                  Any printing is the default and what every entry predating this held.
+                  Naming one narrows the hunt, and a copy of a different printing stops
+                  counting as having the card. */}
+              {card.printings.length > 1 && (
+                <select
+                  value={card.variantPosition ?? ''}
+                  onChange={(e) =>
+                    changeVariant(
+                      card.entryId,
+                      e.target.value === '' ? null : Number(e.target.value),
+                    )
+                  }
+                  aria-label={`Printing wanted of ${card.name}`}
+                  className="mt-1 w-full rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-1 py-0.5 text-xs text-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
+                >
+                  <option value="">Any printing</option>
+                  {card.printings.map((p) => (
+                    <option key={p.position} value={p.position}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
               )}
 
               {/* Where it actually is, for the ones already found. */}

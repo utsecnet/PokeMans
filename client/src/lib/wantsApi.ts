@@ -12,6 +12,7 @@
 import type { WantList, WantListDetail, WantsByCard, CardFilters } from '../types';
 import { supabase } from './supabase';
 import { localCard, localiseCards } from './localImages';
+import { withLabels } from './printingLabel';
 import { fetchCards, cardFilterParams } from './api';
 
 function fail(context: string, error: { message: string; code?: string } | null): never {
@@ -51,6 +52,14 @@ export async function fetchWantList(listId: number): Promise<WantListDetail> {
   if (error) fail('Could not load that want list', error);
   if (!data) throw new Error('Want list not found');
   const detail = data as WantListDetail;
+  for (const card of detail.cards as unknown as Record<string, unknown>[]) {
+    card.printings = withLabels(card.printings as never[]);
+    // The wanted printing's label, so the page can say which one without
+    // re-deriving it. Null reads as "any printing", which is where a want starts.
+    const chosen = (card.printings as { position: number; label: string }[])
+      .find((p) => p.position === card.variantPosition);
+    card.variantLabel = chosen?.label ?? null;
+  }
   localiseCards(detail.cards as unknown as Record<string, unknown>[]);
   return detail;
 }
@@ -193,6 +202,25 @@ export async function removeFromWantList(listId: number, cardId: string): Promis
         .eq('list_id', listId)
         .eq('card_id', cardId);
   if (error) fail('Could not remove that card', error);
+}
+
+/**
+ * Records which printing of a card is wanted. Null means any will do.
+ *
+ * Only the want changes; nothing is written to the collection. A card already in
+ * hand can stop being in hand when this moves, which is the point of issue #2: the
+ * page decides "do I own it" through the printing, so asking for the holofoil when
+ * you hold the normal print puts the card back on the hunt.
+ */
+export async function setWantEntryVariant(
+  entryId: number,
+  variantPosition: number | null,
+): Promise<void> {
+  const { error } = await supabase
+    .from('want_list_entries')
+    .update({ variant_position: variantPosition })
+    .eq('id', entryId);
+  if (error) fail('Could not set that printing', error);
 }
 
 export { cardFilterParams };
