@@ -1,6 +1,6 @@
 #
 
-# Ships main to pokemans.utsec.net.
+# Ships main to pokemans.us.
 #
 # Deploying used to be a second command after committing, which is one command too many: the
 # sync-prices fix once sat committed and not live for an hour because only the first half got

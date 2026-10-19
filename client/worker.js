@@ -1,5 +1,5 @@
 /**
- * Serves the app, and its images, from pokemans.utsec.net.
+ * Serves the app, and its images, from pokemans.us.
  *
  * Two jobs, split on the path:
  *
@@ -16,6 +16,20 @@
  * choice: no base path in the build, no basename on the router, no prefix to strip here, and
  * no class of bug where asset URLs and asset files disagree about where they live.
  */
+
+/**
+ * The one hostname the app lives at. Everything else this Worker answers to is sent here.
+ *
+ * pokemans.utsec.net served the app until the move and still has the traffic: links,
+ * bookmarks, whatever search engines hold, and every Android build already installed,
+ * which fetches its card art by absolute URL. None of those can be edited from here, so
+ * the old name has to keep answering -- it just answers with directions now.
+ */
+const CANONICAL = 'pokemans.us';
+
+/** Where `wrangler dev` serves, which must never be redirected off itself. */
+const LOCAL = new Set(['localhost', '127.0.0.1']);
+
 const IMAGES = '/images/';
 
 /**
@@ -208,6 +222,20 @@ async function captureFrom(urls, key, image, env, ctx) {
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+
+    // 301 and not 302: the move is not an experiment. A permanent redirect tells a browser
+    // to stop asking and a search engine to carry the site across rather than file two
+    // copies of it. That permanence is also why this landed last, in its own deploy, after
+    // pokemans.us had been seen to serve -- browsers cache a 301 hard, so an address sent
+    // somewhere wrong stays wrong for the people who saw it long after the Worker is fixed.
+    //
+    // Path and query ride along, so an old link to /pokemon/500 arrives at /pokemon/500.
+    if (url.hostname !== CANONICAL && !LOCAL.has(url.hostname)) {
+      url.protocol = 'https:';
+      url.hostname = CANONICAL;
+      url.port = '';
+      return Response.redirect(url.toString(), 301);
+    }
 
     if (url.pathname.startsWith(IMAGES)) {
       if (request.method !== 'GET' && request.method !== 'HEAD') {

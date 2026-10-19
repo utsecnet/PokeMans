@@ -1,5 +1,4 @@
-# Serves the built client and its images at https://pokemans.us/, and, until the move is
-# finished, at https://pokemans.utsec.net/ as well.
+# Serves the built client and its images at https://pokemans.us/.
 #
 # A Worker rather than Pages because the images are read from R2 through a binding, which is
 # what keeps the bucket private. Each future app is its own subdomain and its own Worker,
@@ -40,13 +39,16 @@ bucket_name = "pokemans-images"
 pattern = "pokemans.us"
 custom_domain = true
 
-# Where it has answered until now, still serving.
-#
-# This becomes a redirect, but not in the same breath as the line above. The .us registry
-# had not published the delegation when this was written, so pokemans.us resolved nowhere;
-# a redirect pointing at a name that does not exist yet is an outage lasting however long
-# the registry takes, which is not a number anyone here controls. Both addresses serve the
-# same Worker until the new one has been seen to work, and the redirect lands after that.
+# The spelling with www, which people type whether or not anyone links it. Routed here so
+# the Worker can send it to the bare name rather than serving a second copy of the site at
+# a second address.
+[[routes]]
+pattern = "www.pokemans.us"
+custom_domain = true
+
+# Where the app answered before the move. It still answers -- with a 301, from the Worker.
+# The route has to stay for that: a hostname with no route reaches no code and so cannot
+# redirect anybody. Every link, bookmark and installed Android build still names it.
 [[routes]]
 pattern = "pokemans.utsec.net/*"
 zone_name = "utsec.net"
