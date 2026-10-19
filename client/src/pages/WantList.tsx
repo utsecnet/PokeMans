@@ -2,9 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { CardImage } from '../components/CardImage';
 import { Link, useParams } from 'react-router-dom';
 import {
+  addPrintingToWantList,
   fetchWantList,
   refreshWantList,
-  removeFromWantList,
+  removeWantEntry,
   setWantEntryVariant,
   updateWantList,
 } from '../lib/api';
@@ -20,6 +21,8 @@ import { usePersistentState } from '../lib/persistentState';
 import { ViewToggle, type ViewMode } from '../components/table/ViewToggle';
 import { WantTable } from '../components/WantTable';
 import type { WantListDetail } from '../types';
+
+type WantCard = WantListDetail['cards'][number];
 
 export function WantListPage() {
   const { listId } = useParams<{ listId: string }>();
@@ -88,17 +91,26 @@ export function WantListPage() {
    * grey to full colour under the pointer and the "found" count above moves with it — the
    * whole point of filing from this page rather than from somewhere else.
    */
-  const handleCardTap = (card: WantListDetail['cards'][number]) =>
+  const handleCardTap = (card: WantCard) =>
     handleTap(
       card,
       (inBoxes) => {
+        // The tapped row only. Two rows of one card hold different printings, and what
+        // counts as having it differs with them, so the others are reconciled by the
+        // reload below rather than assumed to match.
         setList((prev) =>
           prev
-            ? { ...prev, cards: prev.cards.map((c) => (c.id === card.id ? { ...c, inBoxes } : c)) }
+            ? {
+                ...prev,
+                cards: prev.cards.map((c) =>
+                  c.entryId === card.entryId ? { ...c, inBoxes } : c,
+                ),
+              }
             : prev,
         );
         // The index tile's progress is derived from collections, so it moves too.
         refreshLists();
+        void load(true);
       },
       () => setOpenCardId(card.id),
     );
@@ -131,8 +143,41 @@ export function WantListPage() {
     }
   };
 
-  const removeCard = async (cardId: string) => {
-    await removeFromWantList(id, cardId);
+  // One row, not the card: a list can want two printings of it, and the × is on the
+  // tile for one of them.
+  const removeEntry = async (entryId: number) => {
+    await removeWantEntry(id, entryId);
+    await load(true);
+    refreshLists();
+  };
+
+  /**
+   * The first printing of this card the list is not already waiting for, or null when
+   * it is waiting for all of them.
+   *
+   * A card published in one printing has nothing to add: "any printing" and that one
+   * printing are the same want said twice.
+   */
+  const freePrinting = (card: WantCard): number | null => {
+    if (!list || card.printings.length < 2) return null;
+    const taken = new Set(
+      list.cards.filter((c) => c.id === card.id).map((c) => c.variantPosition),
+    );
+    return card.printings.find((p) => !taken.has(p.position))?.position ?? null;
+  };
+
+  /**
+   * Wants another printing of a card already here.
+   *
+   * The page picks which one rather than asking first: the only sensible opening guess
+   * is a printing this list is not already waiting for, and changing it is one click
+   * away in the row that appears. The new row lands beside its sibling rather than at
+   * the end of the list, which is the ordering want_list does.
+   */
+  const addPrinting = async (card: WantCard) => {
+    const position = freePrinting(card);
+    if (position === null) return;
+    await addPrintingToWantList(id, card.id, position);
     await load(true);
     refreshLists();
   };
@@ -311,7 +356,9 @@ export function WantListPage() {
             cards={list.cards}
             onOpenCard={handleCardTap}
             onChangeVariant={changeVariant}
-            onRemove={removeCard}
+            onRemove={removeEntry}
+            onAddPrinting={addPrinting}
+            freePrinting={freePrinting}
           />
         ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4">
@@ -319,7 +366,7 @@ export function WantListPage() {
           const have = card.inBoxes.length > 0;
           return (
             <div
-              key={card.id}
+              key={card.entryId}
               className={`group relative rounded-lg border p-2 transition ${
                 have
                   ? 'border-[var(--color-border)] bg-[var(--color-surface)]'
@@ -410,13 +457,24 @@ export function WantListPage() {
                 </select>
               )}
 
+              {freePrinting(card) !== null && (
+                <button
+                  type="button"
+                  onClick={() => addPrinting(card)}
+                  title={`Want another printing of ${card.name} as well as this one`}
+                  className="mt-1 w-full rounded border border-dashed border-[var(--color-border)] py-0.5 text-xs text-[var(--color-text-muted)] transition hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
+                >
+                  + another printing
+                </button>
+              )}
+
               {/* Where it actually is, for the ones already found. */}
               <CardLocationBadge inBoxes={card.inBoxes} />
 
               <button
                 type="button"
-                onClick={() => removeCard(card.id)}
-                title="Remove from this want list"
+                onClick={() => removeEntry(card.entryId)}
+                title="Remove this want from the list"
                 className="absolute right-1 top-1 rounded-full bg-[var(--color-surface)]/90 px-1.5 text-xs text-[var(--color-text-muted)] opacity-0 transition group-hover:opacity-100 hover:text-red-500"
               >
                 ×

@@ -173,17 +173,75 @@ function filtersFromQuery(query: string): Partial<CardFilters> {
   };
 }
 
-/** Adds one card to a list. Idempotent, and clears a previous exclusion. */
+/**
+ * Adds one card to a list, wanting any printing of it. Idempotent, and clears a
+ * previous exclusion.
+ *
+ * Not an upsert any more. Since 0051 a list can hold several rows for one card, one
+ * per printing, so there is no single `list_id, card_id` row for Postgres to collide
+ * with and resolve on its own. Read, then decide: a card already wanted is left
+ * exactly as it is, printings and all, and one that was excluded comes back.
+ */
 export async function addToWantList(listId: number, cardId: string): Promise<{ cardId: string }> {
+  const { data: rows, error: readErr } = await supabase
+    .from('want_list_entries')
+    .select('id, state')
+    .eq('list_id', listId)
+    .eq('card_id', cardId);
+  if (readErr) fail('Could not add that card', readErr);
+
+  if (rows && rows.length > 0) {
+    // Any row still wanting it means the card is on the list, and tapping it again
+    // is not a request to change which printings are wanted.
+    if (rows.some((r) => r.state === 'want')) return { cardId };
+    const { error } = await supabase
+      .from('want_list_entries')
+      .update({ state: 'want' })
+      .in('id', rows.map((r) => r.id));
+    if (error) fail('Could not add that card', error);
+    return { cardId };
+  }
+
   const { error } = await supabase
     .from('want_list_entries')
-    .upsert({ list_id: listId, card_id: cardId, state: 'want' }, { onConflict: 'list_id,card_id' });
+    .insert({ list_id: listId, card_id: cardId, state: 'want' });
   if (error) fail('Could not add that card', error);
   return { cardId };
 }
 
 /**
- * Takes a card off a list.
+ * Wants a further printing of a card already on the list.
+ *
+ * The caller names the printing, because the page is what knows which ones this list
+ * is already waiting for. The unique index is what actually guarantees it: a printing
+ * wanted twice is refused by the database rather than by the button being hidden.
+ */
+export async function addPrintingToWantList(
+  listId: number,
+  cardId: string,
+  variantPosition: number,
+): Promise<void> {
+  const { error } = await supabase.from('want_list_entries').insert({
+    list_id: listId,
+    card_id: cardId,
+    state: 'want',
+    variant_position: variantPosition,
+  });
+  if (error) {
+    throw new Error(
+      error.code === '23505'
+        ? 'Could not want that printing: this list is already waiting for it.'
+        : `Could not want that printing: ${error.message}`,
+    );
+  }
+}
+
+/**
+ * Takes a card off a list entirely, every printing of it.
+ *
+ * This is the card browser's removal, where the gesture is about the card and nothing
+ * on screen names a printing. The want list page removes one row instead, through
+ * removeWantEntry.
  *
  * A list that re-runs its own query marks the card excluded instead of deleting it, so
  * the next refresh does not put it straight back. A fixed list simply drops the row.
@@ -221,6 +279,21 @@ export async function setWantEntryVariant(
     .update({ variant_position: variantPosition })
     .eq('id', entryId);
   if (error) fail('Could not set that printing', error);
+}
+
+/**
+ * Takes one want off a list: that row, not every row for that card.
+ *
+ * The same exclude-or-delete rule removeFromWantList follows, applied to the row
+ * somebody pointed at, so dropping the want for the Shadowless print leaves the want
+ * for the Unlimited one where it was.
+ */
+export async function removeWantEntry(listId: number, entryId: number): Promise<void> {
+  const { data: list } = await supabase.from('want_lists').select('live').eq('id', listId).single();
+  const { error } = list?.live
+    ? await supabase.from('want_list_entries').update({ state: 'excluded' }).eq('id', entryId)
+    : await supabase.from('want_list_entries').delete().eq('id', entryId);
+  if (error) fail('Could not remove that card', error);
 }
 
 export { cardFilterParams };

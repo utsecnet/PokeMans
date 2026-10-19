@@ -22,11 +22,16 @@ export function WantTable({
   onOpenCard,
   onChangeVariant,
   onRemove,
+  onAddPrinting,
+  freePrinting,
 }: {
   cards: WantCard[];
   onOpenCard: (card: WantCard) => void;
   onChangeVariant: (entryId: number, position: number | null) => void;
-  onRemove: (cardId: string) => void;
+  onRemove: (entryId: number) => void;
+  onAddPrinting: (card: WantCard) => void;
+  /** Null when the list already wants every printing of this card. */
+  freePrinting: (card: WantCard) => number | null;
 }) {
   return (
     <div className="overflow-x-auto rounded-xl border border-[var(--color-border)]">
@@ -79,6 +84,7 @@ export function WantTable({
                   )}
                 </td>
                 <td className="px-3 py-1">
+                  <div className="flex items-center gap-1">
                   {card.printings.length > 1 ? (
                     <select
                       value={card.variantPosition ?? ''}
@@ -101,6 +107,19 @@ export function WantTable({
                   ) : (
                     <span className="text-xs text-[var(--color-text-muted)]">—</span>
                   )}
+                  {/* Beside the printing it would sit next to, because what it adds is
+                      another row of this same card wanting a different one. */}
+                  {freePrinting(card) !== null && (
+                    <button
+                      type="button"
+                      onClick={() => onAddPrinting(card)}
+                      title={`Want another printing of ${card.name} as well as this one`}
+                      className="shrink-0 rounded border border-dashed border-[var(--color-border)] px-1.5 py-0.5 text-xs text-[var(--color-text-muted)] transition hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
+                    >
+                      + printing
+                    </button>
+                  )}
+                  </div>
                 </td>
                 {/* The badge draws nothing when a card is in no collection, which in a row
                     of columns would read as a rendering fault rather than as an answer. */}
@@ -114,7 +133,7 @@ export function WantTable({
                 <td className="px-3 py-1">
                   <button
                     type="button"
-                    onClick={() => onRemove(card.id)}
+                    onClick={() => onRemove(card.entryId)}
                     title="Remove from this want list"
                     className="rounded border border-[var(--color-border)] px-2 py-0.5 text-xs text-red-600 hover:border-red-400 dark:text-red-400"
                   >
